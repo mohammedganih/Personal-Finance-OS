@@ -34,13 +34,13 @@ export function InvestmentAllocation() {
           <div className="flex items-center justify-between mb-4">
             <div>
               <p className="text-xs text-text-secondary">Total Value</p>
-              <p className="text-lg font-bold text-text-primary font-mono">
+              <p className="text-lg font-bold text-text-primary">
                 {formatCurrency(data?.totalCurrent ?? 0, 'INR', true)}
               </p>
             </div>
             <div className="text-right">
               <p className="text-xs text-text-secondary">Total P&L</p>
-              <p className={`text-sm font-semibold font-mono ${(data?.totalPnl ?? 0) >= 0 ? 'text-success' : 'text-danger'}`}>
+              <p className={`text-sm font-semibold ${(data?.totalPnl ?? 0) >= 0 ? 'text-success' : 'text-danger'}`}>
                 {(data?.totalPnl ?? 0) >= 0 ? '+' : ''}{formatCurrency(data?.totalPnl ?? 0, 'INR', true)}
               </p>
             </div>

@@ -37,10 +37,10 @@ export function Header() {
 
       <div className="flex items-center gap-3">
         {showPeriodSelector && <PeriodSelector />}
-        <button className="w-9 h-9 flex items-center justify-center rounded-xl bg-bg-elevated border border-border text-text-secondary hover:text-text-primary hover:border-border-strong transition-colors">
+        <button aria-label="Search" className="w-9 h-9 flex items-center justify-center rounded-xl bg-bg-elevated border border-border text-text-secondary hover:text-text-primary hover:border-border-strong transition-colors">
           <Search className="w-4 h-4" />
         </button>
-        <button className="w-9 h-9 flex items-center justify-center rounded-xl bg-bg-elevated border border-border text-text-secondary hover:text-text-primary hover:border-border-strong transition-colors relative">
+        <button aria-label="Notifications" className="w-9 h-9 flex items-center justify-center rounded-xl bg-bg-elevated border border-border text-text-secondary hover:text-text-primary hover:border-border-strong transition-colors relative">
           <Bell className="w-4 h-4" />
           <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-accent-violet rounded-full" />
         </button>

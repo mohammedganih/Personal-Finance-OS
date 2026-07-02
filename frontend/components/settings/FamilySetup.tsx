@@ -181,10 +181,10 @@ export function FamilySetup() {
                 {m.emoji} {m.name}
               </span>
               <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button onClick={() => { setEditingMember(m); setShowForm(true); }} className="p-1.5 rounded text-text-muted hover:text-accent-violet-light transition-colors">
+                <button aria-label={`Edit ${m.name}`} onClick={() => { setEditingMember(m); setShowForm(true); }} className="p-1.5 rounded text-text-muted hover:text-accent-violet-light transition-colors">
                   <Pencil className="w-3.5 h-3.5" />
                 </button>
-                <button onClick={() => deleteMember(m.id)} className="p-1.5 rounded text-text-muted hover:text-danger transition-colors">
+                <button aria-label={`Delete ${m.name}`} onClick={() => deleteMember(m.id)} className="p-1.5 rounded text-text-muted hover:text-danger transition-colors">
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
               </div>

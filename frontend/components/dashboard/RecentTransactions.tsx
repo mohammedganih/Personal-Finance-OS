@@ -29,7 +29,7 @@ export function RecentTransactions() {
       ) : (
         <div className="space-y-1">
           {(transactions || []).map((t) => (
-            <div key={t.id} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-bg-elevated transition-colors group">
+            <div key={t.id} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-bg-elevated transition-colors group animate-fade-in">
               <div className={cn(
                 'w-9 h-9 rounded-xl flex items-center justify-center text-sm shrink-0',
                 t.type === 'INCOME' ? 'bg-success/10' : 'bg-danger/10'

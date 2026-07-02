@@ -28,7 +28,7 @@ function BudgetCard({ budget, onDelete }: { budget: Budget; onDelete: () => void
   const displayPct = Math.min(budget.progressPct, 100);
 
   return (
-    <div className="glass-card-hover rounded-2xl p-5 space-y-4">
+    <div className="glass-card-hover rounded-2xl p-5 space-y-4 animate-fade-in">
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
           <div
@@ -42,7 +42,7 @@ function BudgetCard({ budget, onDelete }: { budget: Budget; onDelete: () => void
             <Badge variant={badge.variant} className="mt-0.5">{badge.label}</Badge>
           </div>
         </div>
-        <button onClick={onDelete} className="p-1.5 rounded text-text-muted hover:text-danger transition-colors">
+        <button aria-label={`Delete ${budget.category.name} budget`} onClick={onDelete} className="p-1.5 rounded text-text-muted hover:text-danger transition-colors">
           <Trash2 className="w-3.5 h-3.5" />
         </button>
       </div>

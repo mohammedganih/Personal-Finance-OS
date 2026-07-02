@@ -60,7 +60,7 @@ export function PayBillDialog({ card, onClose }: PayBillDialogProps) {
             </div>
             <div className="text-right">
               <p className="text-xs text-text-muted">Outstanding</p>
-              <p className="text-sm font-bold font-mono text-danger">{formatCurrency(card.outstanding)}</p>
+              <p className="text-sm font-bold text-danger">{formatCurrency(card.outstanding)}</p>
             </div>
           </div>
 
@@ -127,7 +127,7 @@ export function PayBillDialog({ card, onClose }: PayBillDialogProps) {
           {isValid && (
             <div className="bg-success/8 border border-success/20 rounded-xl px-3 py-2 flex justify-between text-sm">
               <span className="text-text-secondary">You are paying</span>
-              <span className="font-bold font-mono text-success">{formatCurrency(payAmount)}</span>
+              <span className="font-bold text-success">{formatCurrency(payAmount)}</span>
             </div>
           )}
         </div>

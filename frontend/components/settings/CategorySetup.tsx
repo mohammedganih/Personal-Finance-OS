@@ -115,10 +115,10 @@ function CategoryRow({ category, onEdit }: { category: Category; onEdit: () => v
       </div>
       {!category.isDefault && (
         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button onClick={onEdit} className="p-1.5 rounded text-text-muted hover:text-accent-violet-light transition-colors">
+          <button aria-label={`Edit ${category.name}`} onClick={onEdit} className="p-1.5 rounded text-text-muted hover:text-accent-violet-light transition-colors">
             <Pencil className="w-3.5 h-3.5" />
           </button>
-          <button onClick={() => deleteMut.mutate(category.id)} className="p-1.5 rounded text-text-muted hover:text-danger transition-colors">
+          <button aria-label={`Delete ${category.name}`} onClick={() => deleteMut.mutate(category.id)} className="p-1.5 rounded text-text-muted hover:text-danger transition-colors">
             <Trash2 className="w-3.5 h-3.5" />
           </button>
         </div>

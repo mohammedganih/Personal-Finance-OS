@@ -119,7 +119,7 @@ function LoansTab() {
           ].map((s) => (
             <div key={s.label} className="glass-card rounded-2xl p-4">
               <p className="text-xs text-text-secondary">{s.label}</p>
-              <p className={cn('text-lg font-bold font-mono mt-1', s.color)}>{formatCurrency(s.value, 'INR', true)}</p>
+              <p className={cn('text-lg font-bold mt-1', s.color)}>{formatCurrency(s.value, 'INR', true)}</p>
             </div>
           ))}
           <div className="glass-card rounded-2xl p-4">
@@ -174,8 +174,8 @@ function LoansTab() {
                       ✓ Pay EMI
                     </button>
                   )}
-                  <button onClick={() => { setEditingLoan(loan); setShowForm(true); }} className="p-1.5 rounded-lg text-text-muted hover:text-accent-violet-light hover:bg-accent-violet/10 transition-colors"><Pencil className="w-3.5 h-3.5" /></button>
-                  <button onClick={() => deleteLoan(loan.id)} className="p-1.5 rounded-lg text-text-muted hover:text-danger hover:bg-danger/10 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
+                  <button aria-label={`Edit ${loan.name}`} onClick={() => { setEditingLoan(loan); setShowForm(true); }} className="p-1.5 rounded-lg text-text-muted hover:text-accent-violet-light hover:bg-accent-violet/10 transition-colors"><Pencil className="w-3.5 h-3.5" /></button>
+                  <button aria-label={`Delete ${loan.name}`} onClick={() => deleteLoan(loan.id)} className="p-1.5 rounded-lg text-text-muted hover:text-danger hover:bg-danger/10 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
                 </div>
               </div>
               <div className="grid grid-cols-4 gap-3">
@@ -192,7 +192,7 @@ function LoansTab() {
                 </div>
                 <div className="relative h-2.5 bg-bg-overlay rounded-full overflow-hidden">
                   {/* Green = principal repaid so far */}
-                  <div className="absolute inset-y-0 left-0 bg-gradient-success rounded-full transition-all duration-700" style={{ width: `${s.repaidPct}%` }} />
+                  <div className="absolute inset-y-0 left-0 bg-gradient-success rounded-full transition-all duration-500" style={{ width: `${s.repaidPct}%` }} />
                   {/* Orange marker = time elapsed through agreed tenure */}
                   <div className="absolute top-0 bottom-0 w-0.5 bg-warning/70" style={{ left: `${Math.min(s.timePct, 99)}%` }} title="Time elapsed" />
                 </div>
@@ -312,15 +312,15 @@ function CreditCardsTab() {
         <div className="grid grid-cols-4 gap-3">
           <div className="glass-card rounded-2xl p-3">
             <p className="text-xs text-text-muted">Revolving</p>
-            <p className="text-base font-bold font-mono text-danger mt-0.5">{formatCurrency(revolvingOutstanding, 'INR', true)}</p>
+            <p className="text-base font-bold text-danger mt-0.5">{formatCurrency(revolvingOutstanding, 'INR', true)}</p>
           </div>
           <div className="glass-card rounded-2xl p-3">
             <p className="text-xs text-text-muted">EMI Blocked</p>
-            <p className="text-base font-bold font-mono text-warning mt-0.5">{formatCurrency(emiOutstanding, 'INR', true)}</p>
+            <p className="text-base font-bold text-warning mt-0.5">{formatCurrency(emiOutstanding, 'INR', true)}</p>
           </div>
           <div className="glass-card rounded-2xl p-3">
             <p className="text-xs text-text-muted">Total Outstanding</p>
-            <p className="text-base font-bold font-mono text-danger mt-0.5">{formatCurrency(totalOutstanding, 'INR', true)}</p>
+            <p className="text-base font-bold text-danger mt-0.5">{formatCurrency(totalOutstanding, 'INR', true)}</p>
           </div>
           <div className="glass-card rounded-2xl p-3">
             <p className="text-xs text-text-muted">Utilization</p>
@@ -372,8 +372,8 @@ function CreditCardsTab() {
                           ✓ Pay Bill
                         </button>
                       )}
-                      <button onClick={() => { setEditingCard(card); setShowCardForm(true); }} className="p-1.5 rounded-lg text-text-muted hover:text-accent-violet-light hover:bg-accent-violet/10 transition-colors"><Pencil className="w-3.5 h-3.5" /></button>
-                      <button onClick={() => deleteCard(card.id)} className="p-1.5 rounded-lg text-text-muted hover:text-danger hover:bg-danger/10 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
+                      <button aria-label={`Edit ${card.cardName}`} onClick={() => { setEditingCard(card); setShowCardForm(true); }} className="p-1.5 rounded-lg text-text-muted hover:text-accent-violet-light hover:bg-accent-violet/10 transition-colors"><Pencil className="w-3.5 h-3.5" /></button>
+                      <button aria-label={`Delete ${card.cardName}`} onClick={() => deleteCard(card.id)} className="p-1.5 rounded-lg text-text-muted hover:text-danger hover:bg-danger/10 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
                     </div>
                   </div>
 
@@ -433,11 +433,11 @@ function CreditCardsTab() {
             <div className="grid grid-cols-3 gap-3">
               <div className="glass-card rounded-2xl p-4">
                 <p className="text-xs text-text-secondary">Monthly EMI Deduction</p>
-                <p className="text-lg font-bold font-mono text-warning mt-1">{formatCurrency(emisSummary?.monthlyBurden ?? 0, 'INR', true)}</p>
+                <p className="text-lg font-bold text-warning mt-1">{formatCurrency(emisSummary?.monthlyBurden ?? 0, 'INR', true)}</p>
               </div>
               <div className="glass-card rounded-2xl p-4">
                 <p className="text-xs text-text-secondary">Total EMI Outstanding</p>
-                <p className="text-lg font-bold font-mono text-danger mt-1">{formatCurrency(emisSummary?.totalOutstanding ?? 0, 'INR', true)}</p>
+                <p className="text-lg font-bold text-danger mt-1">{formatCurrency(emisSummary?.totalOutstanding ?? 0, 'INR', true)}</p>
               </div>
               <div className="glass-card rounded-2xl p-4">
                 <p className="text-xs text-text-secondary">Active EMIs</p>
@@ -502,9 +502,9 @@ function CreditCardsTab() {
                         )}
 
                         <div className="flex gap-1">
-                          <button onClick={() => { setEditingEMI(emi); setShowEMIForm(true); }} className="p-1 rounded text-text-muted hover:text-accent-violet-light transition-colors"><Pencil className="w-3 h-3" /></button>
-                          <button onClick={() => updateEMI({ id: emi.id, data: { isArchived: true } })} className="p-1 rounded text-text-muted hover:text-success transition-colors" title="Archive"><Archive className="w-3 h-3" /></button>
-                          <button onClick={() => deleteEMI(emi.id)} className="p-1 rounded text-text-muted hover:text-danger transition-colors"><Trash2 className="w-3 h-3" /></button>
+                          <button aria-label={`Edit ${emi.itemName}`} onClick={() => { setEditingEMI(emi); setShowEMIForm(true); }} className="p-1 rounded text-text-muted hover:text-accent-violet-light transition-colors"><Pencil className="w-3 h-3" /></button>
+                          <button aria-label={`Archive ${emi.itemName}`} onClick={() => updateEMI({ id: emi.id, data: { isArchived: true } })} className="p-1 rounded text-text-muted hover:text-success transition-colors" title="Archive"><Archive className="w-3 h-3" /></button>
+                          <button aria-label={`Delete ${emi.itemName}`} onClick={() => deleteEMI(emi.id)} className="p-1 rounded text-text-muted hover:text-danger transition-colors"><Trash2 className="w-3 h-3" /></button>
                         </div>
                       </div>
                     </div>
@@ -538,7 +538,7 @@ function CreditCardsTab() {
               <p className="text-sm text-text-secondary flex-1">{emi.itemName}</p>
               <p className="text-xs font-mono text-text-muted">{formatCurrency(emi.totalAmount, 'INR', true)}</p>
               <Badge variant="secondary" className="text-xs">Completed</Badge>
-              <button onClick={() => deleteEMI(emi.id)} className="text-text-muted hover:text-danger"><Trash2 className="w-3 h-3" /></button>
+              <button aria-label={`Delete ${emi.itemName}`} onClick={() => deleteEMI(emi.id)} className="text-text-muted hover:text-danger"><Trash2 className="w-3 h-3" /></button>
             </div>
           ))}
         </div>
@@ -575,11 +575,11 @@ function P2PTab() {
 
       {active.length > 0 && (
         <div className="grid grid-cols-3 gap-3">
-          <div className="glass-card rounded-2xl p-4"><p className="text-xs text-text-secondary">Lent (they owe me)</p><p className="text-lg font-bold font-mono text-success mt-1">{formatCurrency(lent, 'INR', true)}</p></div>
-          <div className="glass-card rounded-2xl p-4"><p className="text-xs text-text-secondary">Borrowed (I owe)</p><p className="text-lg font-bold font-mono text-danger mt-1">{formatCurrency(borrowed, 'INR', true)}</p></div>
+          <div className="glass-card rounded-2xl p-4"><p className="text-xs text-text-secondary">Lent (they owe me)</p><p className="text-lg font-bold text-success mt-1">{formatCurrency(lent, 'INR', true)}</p></div>
+          <div className="glass-card rounded-2xl p-4"><p className="text-xs text-text-secondary">Borrowed (I owe)</p><p className="text-lg font-bold text-danger mt-1">{formatCurrency(borrowed, 'INR', true)}</p></div>
           <div className="glass-card rounded-2xl p-4">
             <p className="text-xs text-text-secondary">Net Position</p>
-            <p className={cn('text-lg font-bold font-mono mt-1', lent >= borrowed ? 'text-success' : 'text-danger')}>
+            <p className={cn('text-lg font-bold mt-1', lent >= borrowed ? 'text-success' : 'text-danger')}>
               {lent >= borrowed ? '+' : ''}{formatCurrency(lent - borrowed, 'INR', true)}
             </p>
           </div>
@@ -646,7 +646,7 @@ function P2PTab() {
                         <p className="text-sm text-text-secondary flex-1">{loan.personName}</p>
                         <p className="text-sm font-mono text-text-muted">{formatCurrency(loan.amount, 'INR', true)}</p>
                         <Badge variant="secondary" className="text-xs">Settled</Badge>
-                        <button onClick={() => deleteLoan(loan.id)} className="text-text-muted hover:text-danger"><Trash2 className="w-3 h-3" /></button>
+                        <button aria-label={`Delete settled entry with ${loan.personName}`} onClick={() => deleteLoan(loan.id)} className="text-text-muted hover:text-danger"><Trash2 className="w-3 h-3" /></button>
                       </div>
                     ))}
                   </div>

@@ -165,10 +165,10 @@ export function AccountSetup() {
                 {formatCurrency(acc.balance, 'INR', true)}
               </p>
               <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button onClick={() => { setEditingAccount(acc); setShowForm(true); }} className="p-1.5 rounded text-text-muted hover:text-accent-violet-light transition-colors">
+                <button aria-label={`Edit ${acc.name}`} onClick={() => { setEditingAccount(acc); setShowForm(true); }} className="p-1.5 rounded text-text-muted hover:text-accent-violet-light transition-colors">
                   <Pencil className="w-3.5 h-3.5" />
                 </button>
-                <button onClick={() => deleteMut.mutate(acc.id)} className="p-1.5 rounded text-text-muted hover:text-danger transition-colors">
+                <button aria-label={`Delete ${acc.name}`} onClick={() => deleteMut.mutate(acc.id)} className="p-1.5 rounded text-text-muted hover:text-danger transition-colors">
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
               </div>

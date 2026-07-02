@@ -52,7 +52,7 @@ export function BudgetOverview() {
       ) : (
         <div className="space-y-3">
           {list.slice(0, MAX_SHOWN).map((budget) => (
-            <div key={budget.id}>
+            <div key={budget.id} className="animate-fade-in">
               <div className="flex items-center justify-between mb-1.5">
                 <p className="text-xs text-text-secondary flex items-center gap-1.5 truncate">
                   <span>{budget.category.icon}</span> {budget.category.name}

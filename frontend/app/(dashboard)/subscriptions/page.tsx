@@ -36,11 +36,11 @@ export default function SubscriptionsPage() {
         <div className="grid grid-cols-3 gap-4">
           <div className="glass-card rounded-2xl p-4">
             <p className="text-xs text-text-secondary">Monthly Cost</p>
-            <p className="text-xl font-bold font-mono text-text-primary mt-1">{formatCurrency(monthlyCost)}</p>
+            <p className="text-xl font-bold text-text-primary mt-1">{formatCurrency(monthlyCost)}</p>
           </div>
           <div className="glass-card rounded-2xl p-4">
             <p className="text-xs text-text-secondary">Annual Cost</p>
-            <p className="text-xl font-bold font-mono text-text-primary mt-1">{formatCurrency(monthlyCost * 12, 'INR', true)}</p>
+            <p className="text-xl font-bold text-text-primary mt-1">{formatCurrency(monthlyCost * 12, 'INR', true)}</p>
           </div>
           <div className="glass-card rounded-2xl p-4">
             <p className="text-xs text-text-secondary">Active Services</p>

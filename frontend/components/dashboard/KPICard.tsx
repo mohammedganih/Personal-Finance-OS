@@ -48,7 +48,7 @@ export function KPICard({
         </div>
       </div>
 
-      <p className={cn('text-2xl font-bold font-mono tracking-tight mb-2', value < 0 ? 'text-danger' : 'text-text-primary')}>
+      <p className={cn('text-2xl font-bold tracking-tight mb-2', value < 0 ? 'text-danger' : 'text-text-primary')}>
         {displayValue}
       </p>
 

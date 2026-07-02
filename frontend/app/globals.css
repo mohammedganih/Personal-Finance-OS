@@ -42,6 +42,18 @@
     font-family: 'Inter', system-ui, sans-serif;
   }
 
+  /* Respect the OS-level motion preference across every animation/transition
+     in the app -- clamped near-zero rather than `none` so elements still
+     reach their final state correctly, just without the motion. */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
   /* Custom scrollbar */
   ::-webkit-scrollbar {
     width: 6px;

@@ -181,7 +181,7 @@ export default function InvestmentsPage() {
           ].map((s) => (
             <div key={s.label} className="glass-card rounded-2xl p-4">
               <p className="text-xs text-text-secondary">{s.label}</p>
-              <p className={cn('text-xl font-bold font-mono mt-1', s.color)}>
+              <p className={cn('text-xl font-bold mt-1', s.color)}>
                 {s.isPercent
                   ? `${(s.value as number) >= 0 ? '+' : ''}${(s.value as number).toFixed(2)}%`
                   : `${s.prefix ?? ''}${formatCurrency(s.value as number, 'INR', true)}`}
@@ -304,12 +304,14 @@ export default function InvestmentsPage() {
                           )}
 
                           <button
+                            aria-label={`Edit ${inv.assetName}`}
                             onClick={() => openEdit(inv as Investment)}
                             className="p-1.5 rounded-lg text-text-muted hover:text-accent-violet-light hover:bg-accent-violet/10 transition-colors"
                           >
                             <Pencil className="w-3.5 h-3.5" />
                           </button>
                           <button
+                            aria-label={`Delete ${inv.assetName}`}
                             onClick={() => deleteInvestment(inv.id)}
                             className="p-1.5 rounded-lg text-text-muted hover:text-danger hover:bg-danger/10 transition-colors"
                           >

@@ -100,7 +100,7 @@ function LoanStrategySection() {
       <div>
         <h3 className="text-sm font-semibold text-text-primary">Loan Closure Strategy</h3>
         <p className="text-xs text-text-secondary mt-0.5">
-          Monthly interest burning: <span className="text-danger font-semibold font-mono">{formatCurrency(data.totalMonthlyInterest, 'INR', true)}</span>
+          Monthly interest burning: <span className="text-danger font-semibold">{formatCurrency(data.totalMonthlyInterest, 'INR', true)}</span>
         </p>
       </div>
 
