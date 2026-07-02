@@ -1,22 +1,36 @@
 'use client';
 
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { formatCurrency } from '@/lib/format';
 import { useExpenseBreakdown } from '@/hooks/useDashboard';
 import { ChartSkeleton } from '@/components/shared/LoadingSkeleton';
+
+const MAX_SLICES = 6;
+const OTHER_COLOR = '#82829A'; // neutral, deliberately outside the categorical set -- signals "aggregate", not a real category
 
 export function ExpensePieChart() {
   const { data, isLoading } = useExpenseBreakdown();
 
   if (isLoading) return <ChartSkeleton height="h-80" />;
 
-  const chartData = (data || []).map((item) => ({
+  const sorted = [...(data || [])].sort((a, b) => b.total - a.total);
+
+  const top = sorted.slice(0, MAX_SLICES).map((item) => ({
     name: item.categoryName,
     value: item.total,
     color: item.color,
     icon: item.icon,
-    percentage: item.percentage,
   }));
+
+  const rest = sorted.slice(MAX_SLICES);
+  const otherTotal = rest.reduce((sum, item) => sum + item.total, 0);
+
+  // Every slice rendered in the pie has a matching row in the legend below --
+  // previously the pie plotted every category while the legend capped at 6,
+  // leaving slices 7+ unlabeled with no way to identify them.
+  const chartData = otherTotal > 0
+    ? [...top, { name: `Other (${rest.length})`, value: otherTotal, color: OTHER_COLOR, icon: '⋯' }]
+    : top;
 
   return (
     <div className="glass-card rounded-2xl p-5">
@@ -54,7 +68,7 @@ export function ExpensePieChart() {
           </ResponsiveContainer>
 
           <div className="flex-1 space-y-2 overflow-hidden">
-            {chartData.slice(0, 6).map((item, i) => (
+            {chartData.map((item, i) => (
               <div key={i} className="flex items-center gap-2 text-xs">
                 <span className="text-base leading-none">{item.icon}</span>
                 <div className="flex-1 min-w-0">

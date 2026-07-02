@@ -85,8 +85,18 @@ export const ACCOUNT_TYPE_LABELS: Record<string, string> = {
   OTHER: 'Other',
 };
 
+// Fixed order is the CVD-safety mechanism, not cosmetic -- validated with
+// scripts/validate_palette.js (dataviz skill) against this app's dark
+// surface: lightness band, chroma floor, and adjacent-pair color-blindness
+// separation all pass. Do not reorder or insert colors without re-running
+// the validator; a 9th color should fold into "Other", not extend this list.
 export const CHART_COLORS = [
-  '#7C3AED', '#3B82F6', '#10B981', '#F59E0B',
-  '#EF4444', '#EC4899', '#8B5CF6', '#06B6D4',
-  '#84CC16', '#F97316', '#6366F1', '#14B8A6',
+  '#3987e5', // blue
+  '#199e70', // aqua
+  '#c98500', // yellow
+  '#008300', // green
+  '#9085e9', // violet
+  '#e66767', // red
+  '#d55181', // magenta
+  '#d95926', // orange
 ];

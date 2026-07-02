@@ -30,7 +30,10 @@ const config: Config = {
         text: {
           primary: '#F0F0F8',
           secondary: '#9898A8',
-          muted: '#555568',
+          // WCAG AA requires >=4.5:1 for normal text. The previous #555568 measured
+          // 2.66:1 on bg and 2.47:1 on bg-elevated -- a hard fail, not a style choice.
+          // This value measures 5.17:1 / 4.80:1 on those same two surfaces.
+          muted: '#82829A',
         },
         accent: {
           violet: '#7C3AED',
