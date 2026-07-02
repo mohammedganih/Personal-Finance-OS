@@ -1,0 +1,382 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum AccountType {
+  SAVINGS
+  CHECKING
+  CREDIT_CARD
+  INVESTMENT
+  CASH
+  OTHER
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+}
+
+enum AssetType {
+  STOCK
+  MUTUAL_FUND
+  SIP
+  CRYPTO
+  ETF
+  FIXED_DEPOSIT
+  RECURRING_DEPOSIT
+  REAL_ESTATE
+  GOLD
+  GOLD_SCHEME
+  OTHER
+}
+
+enum LoanType {
+  HOME
+  CAR
+  PERSONAL
+  EDUCATION
+  BUSINESS
+  OTHER
+}
+
+enum P2PType {
+  LENT
+  BORROWED
+}
+
+enum BillingCycle {
+  MONTHLY
+  QUARTERLY
+  HALF_YEARLY
+  YEARLY
+}
+
+// ─── Models ──────────────────────────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  currency     String   @default("INR")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  accounts      Account[]
+  categories    Category[]
+  transactions  Transaction[]
+  investments   Investment[]
+  goals         Goal[]
+  loans         Loan[]
+  subscriptions Subscription[]
+  creditCards   CreditCard[]
+  p2pLoans      P2PLoan[]
+  cardEmis      CardEMI[]
+  familyMembers FamilyMember[]
+
+  @@map("users")
+}
+
+model FamilyMember {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  relation  String?
+  color     String?
+  emoji     String?
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user              User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ownedAccounts     Account[]
+  transactions      Transaction[]  @relation("TxnPrimary")
+  splitTransactions Transaction[]  @relation("TxnSplit")
+  investments       Investment[]   @relation("InvPrimary")
+  splitInvestments  Investment[]   @relation("InvSplit")
+  loans             Loan[]         @relation("LoanBorrower")
+  loanPayments      Loan[]         @relation("LoanPayer")
+  creditCards       CreditCard[]
+  p2pLoans          P2PLoan[]
+  subscriptions     Subscription[]
+  cardEmis          CardEMI[]
+
+  @@index([userId])
+  @@map("family_members")
+}
+
+model Account {
+  id        String      @id @default(cuid())
+  userId    String
+  memberId  String?
+  name      String
+  type      AccountType
+  balance   Decimal     @default(0) @db.Decimal(14, 2)
+  currency  String      @default("INR")
+  color     String?
+  icon      String?
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  member       FamilyMember?  @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  transactions Transaction[]
+  investments  Investment[]   @relation("InvestmentBankAccount")
+  loans        Loan[]         @relation("LoanBankAccount")
+
+  @@index([userId])
+  @@index([memberId])
+  @@map("accounts")
+}
+
+model Category {
+  id        String          @id @default(cuid())
+  userId    String?
+  name      String
+  icon      String?
+  color     String?
+  type      TransactionType
+  isDefault Boolean         @default(false)
+  createdAt DateTime        @default(now())
+
+  user         User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+
+  @@index([userId])
+  @@map("categories")
+}
+
+model Transaction {
+  id          String          @id @default(cuid())
+  userId      String
+  accountId      String?
+  categoryId     String?
+  memberId       String?
+  splitMemberId  String?
+  splitRatio     Decimal?  @default(50) @db.Decimal(5, 2) // % that goes to memberId; rest to splitMemberId
+  type           TransactionType
+  amount         Decimal   @db.Decimal(14, 2)
+  description    String?
+  notes          String?
+  date           DateTime
+  isRecurring    Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account     Account?       @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  category    Category?      @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  member      FamilyMember?  @relation("TxnPrimary",  fields: [memberId],      references: [id], onDelete: SetNull)
+  splitMember FamilyMember?  @relation("TxnSplit",    fields: [splitMemberId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([userId, date])
+  @@index([userId, type])
+  @@index([categoryId])
+  @@index([memberId])
+  @@map("transactions")
+}
+
+model Investment {
+  id           String    @id @default(cuid())
+  userId       String
+  assetName    String
+  assetType    AssetType
+  ticker       String?
+  quantity     Decimal   @default(0) @db.Decimal(18, 6)
+  buyPrice     Decimal   @default(0) @db.Decimal(14, 2)
+  currentPrice Decimal   @default(0) @db.Decimal(14, 2)
+  purchaseDate DateTime
+  exchange     String?
+  notes        String?
+
+  // SIP / Mutual Fund
+  monthlyAmount Decimal? @db.Decimal(14, 2)   // monthly SIP / RD / gold scheme installment
+  fundCategory  String?                         // Equity, Debt, Hybrid, ELSS, Index
+  folioNumber   String?                         // MF / SIP folio number
+
+  // Recurring Deposit & Fixed Deposit & Gold Scheme
+  maturityDate   DateTime?
+  maturityAmount Decimal?  @db.Decimal(14, 2)
+  interestRate   Decimal?  @db.Decimal(5, 2)
+
+  // Common
+  platform       String?
+  memberId       String?    // primary owner
+  splitMemberId  String?    // secondary owner (for split investments)
+  splitRatio     Decimal?   @default(50) @db.Decimal(5, 2) // % primary member owns; rest to splitMember
+  bankAccountId  String?
+
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  member      FamilyMember?  @relation("InvPrimary", fields: [memberId],      references: [id], onDelete: SetNull)
+  splitMember FamilyMember?  @relation("InvSplit",   fields: [splitMemberId], references: [id], onDelete: SetNull)
+  bankAccount Account?       @relation("InvestmentBankAccount", fields: [bankAccountId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([userId, assetType])
+  @@index([memberId])
+  @@map("investments")
+}
+
+model Goal {
+  id            String   @id @default(cuid())
+  userId        String
+  name          String
+  description   String?
+  icon          String?
+  color         String?
+  targetAmount  Decimal  @db.Decimal(14, 2)
+  currentAmount Decimal  @default(0) @db.Decimal(14, 2)
+  targetDate    DateTime
+  isCompleted   Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("goals")
+}
+
+model Loan {
+  id               String   @id @default(cuid())
+  userId           String
+  memberId         String?  // who is the borrower
+  payerMemberId    String?  // who pays the EMI (may differ from borrower)
+  bankAccountId    String?  // which account the loan is linked to
+  name             String
+  loanType         LoanType
+  principal        Decimal  @db.Decimal(14, 2)
+  interestRate     Decimal  @db.Decimal(5, 2)
+  emi              Decimal  @db.Decimal(14, 2)
+  remainingBalance Decimal  @db.Decimal(14, 2)
+  tenureMonths     Int
+  startDate        DateTime
+  lender           String?
+  notes            String?
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  member      FamilyMember?  @relation("LoanBorrower", fields: [memberId], references: [id], onDelete: SetNull)
+  payer       FamilyMember?  @relation("LoanPayer",    fields: [payerMemberId], references: [id], onDelete: SetNull)
+  bankAccount Account?       @relation("LoanBankAccount", fields: [bankAccountId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([memberId])
+  @@map("loans")
+}
+
+model Subscription {
+  id          String       @id @default(cuid())
+  userId      String
+  memberId    String?
+  serviceName String
+  amount      Decimal      @db.Decimal(10, 2)
+  billingCycle BillingCycle
+  renewalDate DateTime
+  category    String?
+  url         String?
+  notes       String?
+  isActive    Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  user   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  member FamilyMember?  @relation(fields: [memberId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([userId, renewalDate])
+  @@index([memberId])
+  @@map("subscriptions")
+}
+
+model CreditCard {
+  id             String   @id @default(cuid())
+  userId         String
+  memberId       String?
+  cardName       String
+  bank           String?
+  lastFourDigits String?
+  creditLimit    Decimal  @db.Decimal(12, 2)
+  outstanding    Decimal  @default(0) @db.Decimal(12, 2)
+  minimumPayment Decimal? @db.Decimal(10, 2)
+  dueDate        DateTime
+  statementDate  DateTime?
+  interestRate   Decimal? @db.Decimal(5, 2)
+  color          String?
+  notes          String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  member   FamilyMember?  @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  cardEmis CardEMI[]
+
+  @@index([userId])
+  @@map("credit_cards")
+}
+
+model CardEMI {
+  id           String   @id @default(cuid())
+  userId       String
+  creditCardId String
+  memberId     String?
+  itemName     String
+  totalAmount  Decimal  @db.Decimal(12, 2)
+  emiAmount    Decimal  @db.Decimal(10, 2)
+  tenureMonths Int
+  emisPaid     Int      @default(0)
+  isNoCost     Boolean  @default(true)
+  interestRate Decimal? @db.Decimal(5, 2)
+  startDate    DateTime
+  notes        String?
+  isArchived   Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  creditCard CreditCard     @relation(fields: [creditCardId], references: [id], onDelete: Cascade)
+  member     FamilyMember?  @relation(fields: [memberId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([creditCardId])
+  @@index([memberId])
+  @@map("card_emis")
+}
+
+model P2PLoan {
+  id              String   @id @default(cuid())
+  userId          String
+  memberId        String?
+  personName      String
+  type            P2PType
+  amount          Decimal  @db.Decimal(12, 2)
+  remainingAmount Decimal  @db.Decimal(12, 2)
+  date            DateTime
+  dueDate         DateTime?
+  description     String?
+  notes           String?
+  isSettled       Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  member FamilyMember?  @relation(fields: [memberId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([memberId])
+  @@map("p2p_loans")
+}
