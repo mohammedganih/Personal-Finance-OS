@@ -1,8 +1,9 @@
-import { CardEMI } from '@prisma/client';
+import { CardEMI, Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { createError } from '../middleware/error.middleware';
 import { CreateCardEMIInput, UpdateCardEMIInput } from '../validators/card-emi.validator';
 import { findCategory } from '../lib/paymentCategory';
+import { balanceAdjustment } from '../lib/accountBalance';
 
 // ── Core calculation ──────────────────────────────────────────────────────────
 export function calcEMIOutstanding(emi: {
@@ -126,7 +127,9 @@ export async function payCardEMI(userId: string, emiId: string, accountId?: stri
   const isComplete  = newEmisPaid >= emi.tenureMonths;
   const categoryId  = await findCategory(userId, 'Card EMI');
 
-  const [updatedEMI, transaction] = await prisma.$transaction([
+  const emiAmount = Number(emi.emiAmount);
+
+  const ops: Prisma.PrismaPromise<unknown>[] = [
     prisma.cardEMI.update({
       where: { id: emiId },
       data: {
@@ -139,7 +142,7 @@ export async function payCardEMI(userId: string, emiId: string, accountId?: stri
       data: {
         userId,
         type:        'EXPENSE',
-        amount:      Number(emi.emiAmount),
+        amount:      emiAmount,
         description: `Card EMI: ${emi.itemName} (${newEmisPaid}/${emi.tenureMonths})`,
         date:        new Date(),
         categoryId:  categoryId ?? undefined,
@@ -147,11 +150,17 @@ export async function payCardEMI(userId: string, emiId: string, accountId?: stri
         isRecurring: true,
       },
     }),
-  ]);
+  ];
+
+  // Paying a card EMI instalment from a bank account draws down that account's balance too.
+  if (accountId) ops.push(balanceAdjustment(accountId, -emiAmount));
+
+  const [updatedEMI, transaction] = await prisma.$transaction(ops);
+  const txn = transaction as { amount: { toString(): string } };
 
   return {
-    emi:         serializeWithStats(updatedEMI),
-    transaction: { ...transaction, amount: Number(transaction.amount) },
+    emi:         serializeWithStats(updatedEMI as CardEMI & { creditCard?: { id: string; cardName: string; bank: string | null; lastFourDigits: string | null } }),
+    transaction: { ...txn, amount: Number(txn.amount) },
     isComplete,
   };
 }

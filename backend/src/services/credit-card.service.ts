@@ -1,8 +1,9 @@
-import { CreditCard } from '@prisma/client';
+import { CreditCard, Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { createError } from '../middleware/error.middleware';
 import { CreateCreditCardInput, UpdateCreditCardInput } from '../validators/credit-card.validator';
 import { findCategory } from '../lib/paymentCategory';
+import { balanceAdjustment } from '../lib/accountBalance';
 
 export async function getCreditCards(userId: string) {
   const cards = await prisma.creditCard.findMany({
@@ -77,7 +78,7 @@ export async function payCreditCardBill(
 
   const categoryId = await findCategory(userId, 'Credit Card Bill');
 
-  const [updatedCard, transaction] = await prisma.$transaction([
+  const ops: Prisma.PrismaPromise<unknown>[] = [
     prisma.creditCard.update({
       where: { id: cardId },
       data:  { outstanding: newBal },
@@ -94,11 +95,17 @@ export async function payCreditCardBill(
         isRecurring: true,
       },
     }),
-  ]);
+  ];
+
+  // Paying a bill from a bank account draws down that account's balance too.
+  if (accountId) ops.push(balanceAdjustment(accountId, -payment));
+
+  const [updatedCard, transaction] = await prisma.$transaction(ops);
+  const txn = transaction as { amount: { toString(): string } };
 
   return {
-    card:        serialize(updatedCard),
-    transaction: { ...transaction, amount: Number(transaction.amount) },
+    card:        serialize(updatedCard as CreditCard),
+    transaction: { ...txn, amount: Number(txn.amount) },
     paid:        payment,
   };
 }

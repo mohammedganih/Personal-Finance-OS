@@ -1,7 +1,9 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { createError } from '../middleware/error.middleware';
 import { CreateLoanInput, UpdateLoanInput } from '../validators/loan.validator';
 import { findCategory } from '../lib/paymentCategory';
+import { balanceAdjustment } from '../lib/accountBalance';
 
 export async function getLoans(userId: string) {
   const loans = await prisma.loan.findMany({
@@ -94,7 +96,7 @@ export async function payLoanEMI(userId: string, loanId: string, accountId?: str
 
   const categoryId = await findCategory(userId, 'Loan EMI');
 
-  const [updatedLoan, transaction] = await prisma.$transaction([
+  const ops: Prisma.PrismaPromise<unknown>[] = [
     prisma.loan.update({
       where: { id: loanId },
       data: {
@@ -114,11 +116,17 @@ export async function payLoanEMI(userId: string, loanId: string, accountId?: str
         isRecurring: true,
       },
     }),
-  ]);
+  ];
+
+  // Paying an EMI from a bank account draws down that account's balance too.
+  if (accountId) ops.push(balanceAdjustment(accountId, -actualPayment));
+
+  const [updatedLoan, transaction] = await prisma.$transaction(ops);
+  const txn = transaction as { amount: { toString(): string } };
 
   return {
-    loan:       serializeLoan(updatedLoan),
-    transaction: { ...transaction, amount: Number(transaction.amount) },
+    loan:       serializeLoan(updatedLoan as Record<string, unknown>),
+    transaction: { ...txn, amount: Number(txn.amount) },
     isPaidOff,
     interestPortion,
     principalPortion,
