@@ -10,6 +10,7 @@ import { EmptyState } from '@/components/shared/EmptyState';
 import { formatCurrency, formatDate, formatPercent } from '@/lib/format';
 import { ASSET_TYPE_LABELS, ASSET_TYPE_ICONS } from '@/lib/constants';
 import { InvestmentForm } from '@/components/investments/InvestmentForm';
+import { InvestmentDetailDialog } from '@/components/investments/InvestmentDetailDialog';
 import { PortfolioTrendChart } from '@/components/investments/PortfolioTrendChart';
 import { AnnualizedReturns } from '@/components/investments/AnnualizedReturns';
 import { DiversificationCard } from '@/components/investments/DiversificationCard';
@@ -140,6 +141,7 @@ function currentValueForType(inv: InvestmentWithPnl): number {
 export default function InvestmentsPage() {
   const [showForm, setShowForm] = useState(false);
   const [editingInvestment, setEditingInvestment] = useState<Investment | null>(null);
+  const [viewingInvestment, setViewingInvestment] = useState<InvestmentWithPnl | null>(null);
   const [payingId, setPayingId] = useState<string | null>(null);
   const { data: summary, isLoading } = usePortfolioSummary();
   const { mutate: deleteInvestment } = useDeleteInvestment();
@@ -259,10 +261,14 @@ export default function InvestmentsPage() {
                               {ASSET_TYPE_ICONS[inv.assetType] ?? '💼'}
                             </div>
 
-                            {/* Name + sub info */}
-                            <div className="flex-1 min-w-0">
+                            {/* Name + sub info -- click to drill into full detail */}
+                            <button
+                              type="button"
+                              onClick={() => setViewingInvestment(inv)}
+                              className="flex-1 min-w-0 text-left"
+                            >
                               <div className="flex items-center gap-1.5 min-w-0">
-                                <p className="text-sm font-medium text-text-primary truncate">{inv.assetName}</p>
+                                <p className="text-sm font-medium text-text-primary truncate hover:text-accent-violet-light transition-colors">{inv.assetName}</p>
                                 <MemberBadge
                                   member={inv.member ?? null}
                                   splitMember={inv.splitMember ?? null}
@@ -270,7 +276,7 @@ export default function InvestmentsPage() {
                                 />
                               </div>
                               <InvestmentSubInfo inv={inv} />
-                            </div>
+                            </button>
 
                             {/* P&L */}
                             {showPnl && (
@@ -370,6 +376,13 @@ export default function InvestmentsPage() {
         <InvestmentForm
           onClose={closeForm}
           investment={editingInvestment ?? undefined}
+        />
+      )}
+
+      {viewingInvestment && (
+        <InvestmentDetailDialog
+          investment={viewingInvestment}
+          onClose={() => setViewingInvestment(null)}
         />
       )}
     </div>

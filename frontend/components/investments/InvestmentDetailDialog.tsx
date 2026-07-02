@@ -1,0 +1,139 @@
+'use client';
+
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { formatCurrency, formatDate, formatPercent } from '@/lib/format';
+import { ASSET_TYPE_LABELS, ASSET_TYPE_ICONS } from '@/lib/constants';
+import { useAnnualizedReturns, useInvestmentCalendar, useMaturityRadar } from '@/hooks/useInvestmentIntelligence';
+import { MemberBadge } from '@/components/shared/MemberSelector';
+import { InvestmentWithPnl } from '@/types';
+import { cn } from '@/lib/utils';
+
+function xirrColor(xirr: number | null): string {
+  if (xirr === null) return 'text-text-muted';
+  return xirr >= 0 ? 'text-success' : 'text-danger';
+}
+
+function formatXirr(xirr: number | null): string {
+  if (xirr === null) return 'N/A';
+  return `${xirr >= 0 ? '+' : ''}${(xirr * 100).toFixed(1)}%`;
+}
+
+export function InvestmentDetailDialog({ investment, onClose }: { investment: InvestmentWithPnl; onClose: () => void }) {
+  const { data: returns } = useAnnualizedReturns();
+  const { data: calendar } = useInvestmentCalendar(3);
+  const { data: maturities } = useMaturityRadar(24);
+
+  const xirr = returns?.byHolding.find((h) => h.investmentId === investment.id)?.xirr ?? null;
+  const upcoming = (calendar ?? []).filter((e) => e.investmentId === investment.id);
+  const maturity = (maturities ?? []).find((m) => m.investmentId === investment.id);
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <div className="flex items-center gap-2.5">
+            <span className="text-xl">{ASSET_TYPE_ICONS[investment.assetType] ?? '💼'}</span>
+            <div>
+              <DialogTitle>{investment.assetName}</DialogTitle>
+              <p className="text-xs text-text-secondary mt-0.5">{ASSET_TYPE_LABELS[investment.assetType] ?? investment.assetType}</p>
+            </div>
+          </div>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          {/* Key stats */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-bg-elevated rounded-xl p-3">
+              <p className="text-xs text-text-muted">Invested</p>
+              <p className="text-sm font-semibold font-mono text-text-primary mt-0.5">{formatCurrency(investment.investedValue, 'INR', true)}</p>
+            </div>
+            <div className="bg-bg-elevated rounded-xl p-3">
+              <p className="text-xs text-text-muted">Current Value</p>
+              <p className="text-sm font-semibold font-mono text-text-primary mt-0.5">{formatCurrency(investment.currentValue, 'INR', true)}</p>
+            </div>
+            <div className="bg-bg-elevated rounded-xl p-3">
+              <p className="text-xs text-text-muted">P&L</p>
+              <p className={cn('text-sm font-semibold font-mono mt-0.5', investment.pnl >= 0 ? 'text-success' : 'text-danger')}>
+                {investment.pnl >= 0 ? '+' : ''}{formatCurrency(investment.pnl, 'INR', true)} ({formatPercent(investment.pnlPercent)})
+              </p>
+            </div>
+            <div className="bg-bg-elevated rounded-xl p-3">
+              <p className="text-xs text-text-muted">Annualized Return (XIRR)</p>
+              <p className={cn('text-sm font-semibold font-mono mt-0.5', xirrColor(xirr))}>{formatXirr(xirr)}</p>
+            </div>
+          </div>
+
+          {/* Ownership */}
+          {investment.member && (
+            <div className="flex items-center gap-2">
+              <p className="text-xs text-text-secondary">Owned by</p>
+              <MemberBadge member={investment.member} splitMember={investment.splitMember} splitRatio={investment.splitRatio} />
+            </div>
+          )}
+
+          {/* Type-specific facts */}
+          <div className="grid grid-cols-2 gap-3 text-xs">
+            <div>
+              <p className="text-text-muted">Purchase / Start Date</p>
+              <p className="text-text-primary font-medium mt-0.5">{formatDate(investment.purchaseDate)}</p>
+            </div>
+            {investment.ticker && (
+              <div>
+                <p className="text-text-muted">Ticker</p>
+                <p className="text-text-primary font-medium mt-0.5">{investment.ticker} {investment.exchange && `(${investment.exchange})`}</p>
+              </div>
+            )}
+            {investment.folioNumber && (
+              <div>
+                <p className="text-text-muted">Folio Number</p>
+                <p className="text-text-primary font-medium mt-0.5">{investment.folioNumber}</p>
+              </div>
+            )}
+            {investment.platform && (
+              <div>
+                <p className="text-text-muted">Platform</p>
+                <p className="text-text-primary font-medium mt-0.5">{investment.platform}</p>
+              </div>
+            )}
+            {investment.bankAccount && (
+              <div>
+                <p className="text-text-muted">Linked Account</p>
+                <p className="text-text-primary font-medium mt-0.5">{investment.bankAccount.name}</p>
+              </div>
+            )}
+          </div>
+
+          {/* Maturity */}
+          {maturity && (
+            <div className="bg-success/8 border border-success/20 rounded-xl p-3">
+              <p className="text-xs font-semibold text-success">Matures {formatDate(maturity.maturityDate)}</p>
+              {maturity.maturityAmount !== null && (
+                <p className="text-xs text-text-secondary mt-0.5">Expected value: {formatCurrency(maturity.maturityAmount, 'INR', true)}</p>
+              )}
+            </div>
+          )}
+
+          {/* Upcoming debits */}
+          {upcoming.length > 0 && (
+            <div className="space-y-1.5">
+              <p className="text-xs font-semibold text-text-secondary">Upcoming debits</p>
+              {upcoming.map((e, i) => (
+                <div key={i} className="flex items-center justify-between p-2 rounded-lg bg-bg-elevated text-xs">
+                  <span className="text-text-secondary">{formatDate(e.date, 'dd MMM yyyy')}</span>
+                  <span className="font-mono font-semibold text-text-primary">{formatCurrency(e.amount, 'INR', true)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {investment.notes && (
+            <div>
+              <p className="text-xs text-text-muted">Notes</p>
+              <p className="text-xs text-text-secondary mt-0.5">{investment.notes}</p>
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
