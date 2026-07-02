@@ -291,29 +291,6 @@ export interface MemberAnalytics {
   unassignedExpenses:  number;
 }
 
-export interface LoanStrategyItem {
-  id:               string;
-  name:             string;
-  remainingBalance: number;
-  emi:              number;
-  interestRate:     number;
-  monthlyInterest:  number;
-  monthlyPrincipal: number;
-  monthsToPayoff:   number;
-  member:           Pick<FamilyMember, 'id' | 'name' | 'color'> | null;
-}
-
-export interface LoanStrategy {
-  loans:                     LoanStrategyItem[];
-  avalancheOrder:            string[];
-  snowballOrder:             string[];
-  totalMonthlyInterest:      number;
-  baseMonths:                number;
-  avalancheMonthsWith5k:     number;
-  snowballMonthsWith5k:      number;
-  interestSavedAvalanche:    number;
-  interestSavedSnowball:     number;
-}
 
 // ─── Card EMI ─────────────────────────────────────────────────────────────────
 
@@ -407,6 +384,52 @@ export interface Budget {
   status: BudgetStatus;
   createdAt: string;
   updatedAt: string;
+}
+
+// ─── Debt Intelligence ────────────────────────────────────────────────────────
+
+export type DebtSourceType = 'LOAN' | 'CREDIT_CARD' | 'CARD_EMI';
+
+export interface UnifiedDebt {
+  id: string;
+  sourceType: DebtSourceType;
+  sourceId: string;
+  name: string;
+  remainingBalance: number;
+  emi: number;
+  interestRate: number;
+  memberId: string | null;
+  monthlyInterest: number;
+  monthlyPrincipal: number;
+  monthsToPayoff: number;
+}
+
+export type HealthScoreBand = 'excellent' | 'good' | 'fair' | 'poor' | 'critical';
+
+export interface HealthScoreFactor {
+  label: string;
+  score: number;
+  weight: number;
+  detail: string;
+}
+
+export interface HealthScoreResult {
+  score: number;
+  band: HealthScoreBand;
+  factors: HealthScoreFactor[];
+}
+
+export interface DebtStrategy {
+  debts: UnifiedDebt[];
+  avalancheOrder: string[];
+  snowballOrder: string[];
+  totalMonthlyInterest: number;
+  extraPayment: number;
+  baseMonths: number;
+  avalancheMonthsWithExtra: number;
+  snowballMonthsWithExtra: number;
+  interestSavedAvalanche: number;
+  interestSavedSnowball: number;
 }
 
 // ─── API ──────────────────────────────────────────────────────────────────────

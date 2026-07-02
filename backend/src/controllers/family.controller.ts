@@ -28,8 +28,3 @@ export async function getMemberAnalytics(req: AuthRequest, res: Response) {
   const data = await familyService.getMemberAnalytics(req.user!.userId, month, year);
   res.json({ success: true, data });
 }
-
-export async function getLoanStrategy(req: AuthRequest, res: Response) {
-  const data = await familyService.getLoanStrategy(req.user!.userId);
-  res.json({ success: true, data });
-}

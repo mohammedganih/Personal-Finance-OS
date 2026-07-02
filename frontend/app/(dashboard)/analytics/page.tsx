@@ -1,8 +1,10 @@
 'use client';
 
+import Link from 'next/link';
+import { ArrowRight } from 'lucide-react';
 import { CashflowChart } from '@/components/dashboard/CashflowChart';
 import { ExpensePieChart } from '@/components/dashboard/ExpensePieChart';
-import { useMemberAnalytics, useLoanStrategy } from '@/hooks/useFamilyMembers';
+import { useMemberAnalytics } from '@/hooks/useFamilyMembers';
 import { formatCurrency } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import {
@@ -85,109 +87,6 @@ function MemberSplitSection() {
   );
 }
 
-// ─── Loan Strategy Section ────────────────────────────────────────────────────
-function LoanStrategySection() {
-  const { data, isLoading } = useLoanStrategy();
-
-  if (isLoading) return <div className="glass-card rounded-2xl h-64 shimmer" />;
-  if (!data?.loans?.length) return null;
-
-  const avalanche = data.avalancheOrder.map((id) => data.loans.find((l) => l.id === id)!).filter(Boolean);
-  const snowball  = data.snowballOrder.map((id) => data.loans.find((l) => l.id === id)!).filter(Boolean);
-
-  return (
-    <div className="glass-card rounded-2xl p-5 space-y-5">
-      <div>
-        <h3 className="text-sm font-semibold text-text-primary">Loan Closure Strategy</h3>
-        <p className="text-xs text-text-secondary mt-0.5">
-          Monthly interest burning: <span className="text-danger font-semibold">{formatCurrency(data.totalMonthlyInterest, 'INR', true)}</span>
-        </p>
-      </div>
-
-      {/* Strategy comparison */}
-      <div className="grid grid-cols-2 gap-4">
-        {/* Avalanche */}
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <span className="text-lg">🏔️</span>
-            <div>
-              <p className="text-xs font-semibold text-text-primary">Avalanche Strategy</p>
-              <p className="text-xs text-text-muted">Highest interest rate first — saves the most money</p>
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            {avalanche.map((loan, i) => (
-              <div key={loan.id} className="flex items-center gap-2 p-2 rounded-lg bg-bg-elevated">
-                <span className="text-xs font-bold text-text-muted w-4">#{i + 1}</span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-text-primary truncate">{loan.name}</p>
-                  <p className="text-xs text-text-muted">{loan.interestRate}% · {loan.monthsToPayoff}mo</p>
-                </div>
-                {loan.member && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded-full text-white shrink-0" style={{ background: loan.member.color ?? '#7C3AED' }}>
-                    {loan.member.name}
-                  </span>
-                )}
-              </div>
-            ))}
-          </div>
-          {data.interestSavedAvalanche > 0 && (
-            <div className="bg-success/8 border border-success/20 rounded-xl p-2.5 text-center">
-              <p className="text-xs text-text-muted">With extra ₹5,000/mo</p>
-              <p className="text-sm font-bold text-success">Save {formatCurrency(data.interestSavedAvalanche, 'INR', true)} interest</p>
-              <p className="text-xs text-text-muted">{data.avalancheMonthsWith5k} vs {data.baseMonths} months</p>
-            </div>
-          )}
-        </div>
-
-        {/* Snowball */}
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <span className="text-lg">⛄</span>
-            <div>
-              <p className="text-xs font-semibold text-text-primary">Snowball Strategy</p>
-              <p className="text-xs text-text-muted">Smallest balance first — fastest psychological wins</p>
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            {snowball.map((loan, i) => (
-              <div key={loan.id} className="flex items-center gap-2 p-2 rounded-lg bg-bg-elevated">
-                <span className="text-xs font-bold text-text-muted w-4">#{i + 1}</span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-text-primary truncate">{loan.name}</p>
-                  <p className="text-xs text-text-muted">{formatCurrency(loan.remainingBalance, 'INR', true)} · {loan.monthsToPayoff}mo</p>
-                </div>
-                {loan.member && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded-full text-white shrink-0" style={{ background: loan.member.color ?? '#7C3AED' }}>
-                    {loan.member.name}
-                  </span>
-                )}
-              </div>
-            ))}
-          </div>
-          {data.interestSavedSnowball > 0 && (
-            <div className="bg-info/8 border border-info/20 rounded-xl p-2.5 text-center">
-              <p className="text-xs text-text-muted">With extra ₹5,000/mo</p>
-              <p className="text-sm font-bold text-info">Save {formatCurrency(data.interestSavedSnowball, 'INR', true)} interest</p>
-              <p className="text-xs text-text-muted">{data.snowballMonthsWith5k} vs {data.baseMonths} months</p>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Recommendation */}
-      <div className="bg-accent-violet/8 border border-accent-violet/20 rounded-xl p-3">
-        <p className="text-xs font-semibold text-accent-violet-light mb-1">💡 Recommendation</p>
-        <p className="text-xs text-text-secondary">
-          {data.interestSavedAvalanche > data.interestSavedSnowball
-            ? `Avalanche saves you ${formatCurrency(data.interestSavedAvalanche - data.interestSavedSnowball, 'INR', true)} more interest than Snowball. Start with ${avalanche[0]?.name}.`
-            : `Both strategies save similar amounts. Snowball gives you a quick win by clearing ${snowball[0]?.name} in ~${snowball[0]?.monthsToPayoff} months.`}
-          {' '}Redirect freed-up EMI payments to the next loan each time one closes.
-        </p>
-      </div>
-    </div>
-  );
-}
 
 // ─── Savings Trend ────────────────────────────────────────────────────────────
 function SavingsTrend() {
@@ -236,8 +135,21 @@ export default function AnalyticsPage() {
       {/* Per-member split — most important */}
       <MemberSplitSection />
 
-      {/* Loan strategy */}
-      <LoanStrategySection />
+      {/* Loan strategy now lives in Loans -> Debt Insights (covers credit cards
+          and card EMIs too, not just loans) */}
+      <Link
+        href="/loans"
+        className="glass-card-hover rounded-2xl p-4 flex items-center justify-between group"
+      >
+        <div className="flex items-center gap-3">
+          <span className="text-lg">🧠</span>
+          <div>
+            <p className="text-sm font-semibold text-text-primary">Debt Health Score & Payoff Strategy</p>
+            <p className="text-xs text-text-secondary mt-0.5">Avalanche vs Snowball, prepayment savings, and more — now in Loans</p>
+          </div>
+        </div>
+        <ArrowRight className="w-4 h-4 text-text-muted group-hover:text-accent-violet-light group-hover:translate-x-0.5 transition-all" />
+      </Link>
 
       {/* Standard charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

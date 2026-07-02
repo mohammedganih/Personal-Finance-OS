@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, CreditCard as CreditCardIcon, Pencil, Trash2, Users, Landmark, Archive } from 'lucide-react';
+import { Plus, CreditCard as CreditCardIcon, Pencil, Trash2, Users, Landmark, Archive, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -22,6 +22,8 @@ import { useCardEMIs, useUpdateCardEMI, useDeleteCardEMI, useCardEMISummary, use
 import { usePayLoanEMI } from '@/hooks/useLoans';
 import { cn } from '@/lib/utils';
 import { differenceInMonths, parseISO, format, addMonths } from 'date-fns';
+import { DebtHealthScore } from '@/components/loans/DebtHealthScore';
+import { PayoffStrategyComparison } from '@/components/loans/PayoffStrategyComparison';
 
 const LOAN_ICONS: Record<string, string> = {
   HOME: '🏠', CAR: '🚗', PERSONAL: '💼', EDUCATION: '🎓', BUSINESS: '🏢', OTHER: '💳',
@@ -661,6 +663,16 @@ function P2PTab() {
   );
 }
 
+// ─── Debt Insights Tab ────────────────────────────────────────────────────────
+function DebtInsightsTab() {
+  return (
+    <div className="space-y-4">
+      <DebtHealthScore />
+      <PayoffStrategyComparison />
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function LoansPage() {
   const { data: loans } = useLoans();
@@ -692,11 +704,16 @@ export default function LoansPage() {
             <Users className="w-3.5 h-3.5" />
             P2P {p2pCount > 0 && <span className="ml-1 text-xs bg-bg-overlay px-1.5 py-0.5 rounded-full">{p2pCount}</span>}
           </TabsTrigger>
+          <TabsTrigger value="insights">
+            <Sparkles className="w-3.5 h-3.5" />
+            Debt Insights
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="loans"><LoansTab /></TabsContent>
         <TabsContent value="credit-cards"><CreditCardsTab /></TabsContent>
         <TabsContent value="p2p"><P2PTab /></TabsContent>
+        <TabsContent value="insights"><DebtInsightsTab /></TabsContent>
       </Tabs>
     </div>
   );

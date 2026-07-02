@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import { FamilyMember, MemberAnalytics, LoanStrategy, ApiResponse } from '@/types';
+import { FamilyMember, MemberAnalytics, ApiResponse } from '@/types';
 import { useToast } from '@/components/ui/use-toast';
 import { usePeriodStore } from '@/stores/period.store';
 
@@ -24,16 +24,6 @@ export function useMemberAnalytics() {
     queryKey: ['family-members', 'analytics', month, year],
     queryFn: async () => {
       const res = await api.get<ApiResponse<MemberAnalytics>>('/family/analytics', { params: { month, year } });
-      return res.data.data;
-    },
-  });
-}
-
-export function useLoanStrategy() {
-  return useQuery({
-    queryKey: ['family-members', 'strategy'],
-    queryFn: async () => {
-      const res = await api.get<ApiResponse<LoanStrategy>>('/family/strategy');
       return res.data.data;
     },
   });
