@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { FamilyMember, MemberAnalytics, LoanStrategy, ApiResponse } from '@/types';
 import { useToast } from '@/components/ui/use-toast';
+import { usePeriodStore } from '@/stores/period.store';
 
 export function useFamilyMembers() {
   return useQuery({
@@ -17,10 +18,12 @@ export function useFamilyMembers() {
 }
 
 export function useMemberAnalytics() {
+  const { month, year } = usePeriodStore();
+
   return useQuery({
-    queryKey: ['family-members', 'analytics'],
+    queryKey: ['family-members', 'analytics', month, year],
     queryFn: async () => {
-      const res = await api.get<ApiResponse<MemberAnalytics>>('/family/analytics');
+      const res = await api.get<ApiResponse<MemberAnalytics>>('/family/analytics', { params: { month, year } });
       return res.data.data;
     },
   });

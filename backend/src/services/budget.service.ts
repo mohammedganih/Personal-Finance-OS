@@ -1,6 +1,7 @@
 import { prisma } from '../lib/prisma';
 import { createError } from '../middleware/error.middleware';
 import { CreateBudgetInput, UpdateBudgetInput } from '../validators/budget.validator';
+import { resolveMonthRange } from '../lib/dateRange';
 
 export type BudgetStatus = 'under' | 'near' | 'over';
 
@@ -16,10 +17,8 @@ export function calculateBudgetProgress(monthlyLimit: number, spent: number) {
   return { spent, remaining, progressPct, status };
 }
 
-async function getMonthlySpendByCategory(userId: string, categoryIds: string[]) {
-  const now = new Date();
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+async function getMonthlySpendByCategory(userId: string, categoryIds: string[], month?: number, year?: number) {
+  const { start: startOfMonth, end: endOfMonth } = resolveMonthRange(month, year);
 
   const grouped = await prisma.transaction.groupBy({
     by: ['categoryId'],
@@ -39,14 +38,14 @@ async function getMonthlySpendByCategory(userId: string, categoryIds: string[]) 
   return spendMap;
 }
 
-export async function getBudgets(userId: string) {
+export async function getBudgets(userId: string, month?: number, year?: number) {
   const budgets = await prisma.budget.findMany({
     where: { userId },
     include: { category: { select: { id: true, name: true, icon: true, color: true } } },
     orderBy: { createdAt: 'asc' },
   });
 
-  const spendMap = await getMonthlySpendByCategory(userId, budgets.map((b) => b.categoryId));
+  const spendMap = await getMonthlySpendByCategory(userId, budgets.map((b) => b.categoryId), month, year);
 
   return budgets.map((b) => {
     const limit = Number(b.monthlyLimit);

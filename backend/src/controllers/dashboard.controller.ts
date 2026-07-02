@@ -1,25 +1,30 @@
 import { Response } from 'express';
 import { AuthRequest } from '../types';
 import * as dashboardService from '../services/dashboard.service';
+import { parsePeriod } from '../lib/period';
 
 export async function getOverview(req: AuthRequest, res: Response) {
-  const overview = await dashboardService.getDashboardOverview(req.user!.userId);
+  const { month, year } = parsePeriod(req);
+  const overview = await dashboardService.getDashboardOverview(req.user!.userId, month, year);
   res.json({ success: true, data: overview });
 }
 
 export async function getCashflow(req: AuthRequest, res: Response) {
   const months = parseInt((req.query.months as string) || '6');
-  const data = await dashboardService.getCashflowTrend(req.user!.userId, months);
+  const { month, year } = parsePeriod(req);
+  const data = await dashboardService.getCashflowTrend(req.user!.userId, months, month, year);
   res.json({ success: true, data });
 }
 
 export async function getExpenseBreakdown(req: AuthRequest, res: Response) {
-  const data = await dashboardService.getExpenseBreakdown(req.user!.userId);
+  const { month, year } = parsePeriod(req);
+  const data = await dashboardService.getExpenseBreakdown(req.user!.userId, month, year);
   res.json({ success: true, data });
 }
 
 export async function getInsights(req: AuthRequest, res: Response) {
-  const insights = await dashboardService.getQuickInsights(req.user!.userId);
+  const { month, year } = parsePeriod(req);
+  const insights = await dashboardService.getQuickInsights(req.user!.userId, month, year);
   res.json({ success: true, data: insights });
 }
 

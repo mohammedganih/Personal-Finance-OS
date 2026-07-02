@@ -1,9 +1,11 @@
 import { Response } from 'express';
 import { AuthRequest } from '../types';
 import * as budgetService from '../services/budget.service';
+import { parsePeriod } from '../lib/period';
 
 export async function getBudgets(req: AuthRequest, res: Response) {
-  const budgets = await budgetService.getBudgets(req.user!.userId);
+  const { month, year } = parsePeriod(req);
+  const budgets = await budgetService.getBudgets(req.user!.userId, month, year);
   res.json({ success: true, data: budgets });
 }
 

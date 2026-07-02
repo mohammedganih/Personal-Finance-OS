@@ -4,12 +4,17 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { Budget, ApiResponse } from '@/types';
 import { useToast } from '@/components/ui/use-toast';
+import { usePeriodStore } from '@/stores/period.store';
 
 export function useBudgets() {
+  const { month, year } = usePeriodStore();
+
   return useQuery({
-    queryKey: ['budgets'],
+    // ['budgets'] as a prefix (below) still invalidates every month's cached
+    // query on create/update/delete -- React Query matches by key prefix.
+    queryKey: ['budgets', month, year],
     queryFn: async () => {
-      const res = await api.get<ApiResponse<Budget[]>>('/budgets');
+      const res = await api.get<ApiResponse<Budget[]>>('/budgets', { params: { month, year } });
       return res.data.data;
     },
   });

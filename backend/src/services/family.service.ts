@@ -1,6 +1,7 @@
 import { prisma } from '../lib/prisma';
 import { createError } from '../middleware/error.middleware';
 import { CreateFamilyMemberInput, UpdateFamilyMemberInput } from '../validators/family.validator';
+import { resolveMonthRange } from '../lib/dateRange';
 
 interface SimulatedLoan {
   remainingBalance: number;
@@ -112,15 +113,18 @@ function invShare(inv: InvRow, memberId: string): number {
 }
 
 // ── Per-member analytics ───────────────────────────────────────────────────────
-export async function getMemberAnalytics(userId: string) {
-  const now = new Date();
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+export async function getMemberAnalytics(userId: string, month?: number, year?: number) {
+  const { start: startOfMonth, end: endOfMonth } = resolveMonthRange(month, year);
 
   const [members, monthlyTxns, allTxns, loans, investments] = await Promise.all([
     prisma.familyMember.findMany({ where: { userId } }),
 
     prisma.transaction.findMany({
-      where: { userId, date: { gte: startOfMonth } },
+      // Previously only `gte: startOfMonth` with no upper bound -- correct by
+      // accident for "this month" (nothing dated in the future), but wrong
+      // for any past month, which would silently include every transaction
+      // from that month onward through today.
+      where: { userId, date: { gte: startOfMonth, lte: endOfMonth } },
       select: { memberId: true, splitMemberId: true, splitRatio: true, type: true, amount: true },
     }),
 

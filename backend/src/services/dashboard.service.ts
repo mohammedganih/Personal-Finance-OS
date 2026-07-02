@@ -1,15 +1,14 @@
 import { BillingCycle } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { QuickInsight } from '../types';
+import { resolveMonthRange } from '../lib/dateRange';
 
 const BILLING_MULTIPLIERS: Record<BillingCycle, number> = {
   MONTHLY: 1, QUARTERLY: 1 / 3, HALF_YEARLY: 1 / 6, YEARLY: 1 / 12,
 };
 
-export async function getDashboardOverview(userId: string) {
-  const now = new Date();
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+export async function getDashboardOverview(userId: string, month?: number, year?: number) {
+  const { start: startOfMonth, end: endOfMonth } = resolveMonthRange(month, year);
 
   const [transactions, investments, loans, accounts, subscriptions, cardEmis] = await Promise.all([
     prisma.transaction.findMany({
@@ -138,45 +137,48 @@ export async function getDashboardOverview(userId: string) {
   };
 }
 
-export async function getCashflowTrend(userId: string, months = 6) {
+export async function getCashflowTrend(userId: string, months = 6, month?: number, year?: number) {
+  const { start: anchorStart, end: rangeEnd } = resolveMonthRange(month, year);
+  const rangeStart = new Date(anchorStart.getFullYear(), anchorStart.getMonth() - (months - 1), 1);
+
+  // One query for the whole window instead of `months` sequential round-trips,
+  // then bucket in memory -- this was previously the single slowest call on
+  // the dashboard (6-12 serial DB queries per request).
+  const transactions = await prisma.transaction.findMany({
+    where: { userId, date: { gte: rangeStart, lte: rangeEnd } },
+    select: { type: true, amount: true, date: true },
+  });
+
+  const buckets = new Map<string, { income: number; expenses: number }>();
+  for (const t of transactions) {
+    const key = `${t.date.getFullYear()}-${t.date.getMonth()}`;
+    const bucket = buckets.get(key) ?? { income: 0, expenses: 0 };
+    if (t.type === 'INCOME') bucket.income += Number(t.amount);
+    else bucket.expenses += Number(t.amount);
+    buckets.set(key, bucket);
+  }
+
   const result = [];
-  const now = new Date();
-
   for (let i = months - 1; i >= 0; i--) {
-    const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const start = new Date(date.getFullYear(), date.getMonth(), 1);
-    const end = new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59);
-
-    const transactions = await prisma.transaction.findMany({
-      where: { userId, date: { gte: start, lte: end } },
-      select: { type: true, amount: true },
-    });
-
-    const income = transactions
-      .filter((t) => t.type === 'INCOME')
-      .reduce((s, t) => s + Number(t.amount), 0);
-    const expenses = transactions
-      .filter((t) => t.type === 'EXPENSE')
-      .reduce((s, t) => s + Number(t.amount), 0);
-
+    const date = new Date(anchorStart.getFullYear(), anchorStart.getMonth() - i, 1);
+    const bucket = buckets.get(`${date.getFullYear()}-${date.getMonth()}`) ?? { income: 0, expenses: 0 };
     result.push({
       month: date.toLocaleString('default', { month: 'short', year: '2-digit' }),
-      income,
-      expenses,
-      savings: income - expenses,
+      income: bucket.income,
+      expenses: bucket.expenses,
+      savings: bucket.income - bucket.expenses,
     });
   }
 
   return result;
 }
 
-export async function getExpenseBreakdown(userId: string) {
-  const now = new Date();
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+export async function getExpenseBreakdown(userId: string, month?: number, year?: number) {
+  const { start: startOfMonth, end: endOfMonth } = resolveMonthRange(month, year);
 
   const expenses = await prisma.transaction.groupBy({
     by: ['categoryId'],
-    where: { userId, type: 'EXPENSE', date: { gte: startOfMonth } },
+    where: { userId, type: 'EXPENSE', date: { gte: startOfMonth, lte: endOfMonth } },
     _sum: { amount: true },
     _count: true,
   });
@@ -205,16 +207,14 @@ export async function getExpenseBreakdown(userId: string) {
   });
 }
 
-export async function getQuickInsights(userId: string): Promise<QuickInsight[]> {
+export async function getQuickInsights(userId: string, month?: number, year?: number): Promise<QuickInsight[]> {
   const insights: QuickInsight[] = [];
-  const now = new Date();
-
-  const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+  const { start: thisMonthStart, end: thisMonthEnd } = resolveMonthRange(month, year);
+  const lastMonthStart = new Date(thisMonthStart.getFullYear(), thisMonthStart.getMonth() - 1, 1);
+  const lastMonthEnd = new Date(thisMonthStart.getFullYear(), thisMonthStart.getMonth(), 0, 23, 59, 59);
 
   const [thisMonth, lastMonth] = await Promise.all([
-    prisma.transaction.findMany({ where: { userId, date: { gte: thisMonthStart } } }),
+    prisma.transaction.findMany({ where: { userId, date: { gte: thisMonthStart, lte: thisMonthEnd } } }),
     prisma.transaction.findMany({
       where: { userId, date: { gte: lastMonthStart, lte: lastMonthEnd } },
     }),

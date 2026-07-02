@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { AuthRequest } from '../types';
 import * as familyService from '../services/family.service';
+import { parsePeriod } from '../lib/period';
 
 export async function getMembers(req: AuthRequest, res: Response) {
   const members = await familyService.getFamilyMembers(req.user!.userId);
@@ -23,7 +24,8 @@ export async function deleteMember(req: AuthRequest, res: Response) {
 }
 
 export async function getMemberAnalytics(req: AuthRequest, res: Response) {
-  const data = await familyService.getMemberAnalytics(req.user!.userId);
+  const { month, year } = parsePeriod(req);
+  const data = await familyService.getMemberAnalytics(req.user!.userId, month, year);
   res.json({ success: true, data });
 }
 
