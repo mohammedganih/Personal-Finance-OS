@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import { HealthScoreResult, DebtStrategy, PrepaymentResult, CalendarEntry, Recommendation, ApiResponse } from '@/types';
+import { HealthScoreResult, DebtStrategy, PrepaymentResult, CalendarEntry, Recommendation, FundingOpportunity, ApiResponse } from '@/types';
 
 export function useHealthScore() {
   return useQuery({
@@ -48,6 +48,16 @@ export function useDebtRecommendations() {
     queryKey: ['debt', 'recommendations'],
     queryFn: async () => {
       const res = await api.get<ApiResponse<Recommendation[]>>('/debt/recommendations');
+      return res.data.data;
+    },
+  });
+}
+
+export function useFundingOpportunities(monthsAhead = 6) {
+  return useQuery({
+    queryKey: ['debt', 'funding-opportunities', monthsAhead],
+    queryFn: async () => {
+      const res = await api.get<ApiResponse<FundingOpportunity[]>>('/debt/funding-opportunities', { params: { months: monthsAhead } });
       return res.data.data;
     },
   });

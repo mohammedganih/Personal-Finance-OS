@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Plus, CreditCard as CreditCardIcon, Pencil, Trash2, Users, Landmark, Archive, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -28,6 +29,7 @@ import { TotalInterestSaved } from '@/components/loans/TotalInterestSaved';
 import { RecommendationCards } from '@/components/loans/RecommendationCards';
 import { PrepaymentCalculator } from '@/components/loans/PrepaymentCalculator';
 import { EMICalendar } from '@/components/loans/EMICalendar';
+import { FundingSources } from '@/components/loans/FundingSources';
 
 const LOAN_ICONS: Record<string, string> = {
   HOME: '🏠', CAR: '🚗', PERSONAL: '💼', EDUCATION: '🎓', BUSINESS: '🏢', OTHER: '💳',
@@ -674,6 +676,7 @@ function DebtInsightsTab() {
       <TotalInterestSaved />
       <DebtHealthScore />
       <RecommendationCards />
+      <FundingSources />
       <PayoffStrategyComparison />
       <PrepaymentCalculator />
       <EMICalendar />
@@ -686,6 +689,8 @@ export default function LoansPage() {
   const { data: loans } = useLoans();
   const { data: cards } = useCreditCards();
   const { data: p2p } = useP2PLoans();
+  const searchParams = useSearchParams();
+  const initialTab = searchParams.get('tab') === 'insights' ? 'insights' : 'loans';
 
   const loanCount = (loans ?? []).filter((l) => l.isActive).length;
   const cardCount = (cards ?? []).length;
@@ -698,7 +703,7 @@ export default function LoansPage() {
         <p className="text-sm text-text-secondary mt-0.5">Loans · Credit Cards · Peer-to-Peer</p>
       </div>
 
-      <Tabs defaultValue="loans">
+      <Tabs defaultValue={initialTab}>
         <TabsList>
           <TabsTrigger value="loans">
             <Landmark className="w-3.5 h-3.5" />

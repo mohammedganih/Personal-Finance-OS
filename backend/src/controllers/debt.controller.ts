@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { AuthRequest } from '../types';
 import * as debtService from '../services/debtIntelligence.service';
+import * as fundingIntelligenceService from '../services/fundingIntelligence.service';
 import { createError } from '../middleware/error.middleware';
 
 export async function getHealthScore(req: AuthRequest, res: Response) {
@@ -32,5 +33,11 @@ export async function getCalendar(req: AuthRequest, res: Response) {
 
 export async function getRecommendations(req: AuthRequest, res: Response) {
   const result = await debtService.getRecommendations(req.user!.userId);
+  res.json({ success: true, data: result });
+}
+
+export async function getFundingOpportunities(req: AuthRequest, res: Response) {
+  const monthsAhead = req.query.months ? parseInt(req.query.months as string, 10) : 6;
+  const result = await fundingIntelligenceService.getFundingOpportunities(req.user!.userId, Math.min(Math.max(monthsAhead, 1), 24));
   res.json({ success: true, data: result });
 }

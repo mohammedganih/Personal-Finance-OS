@@ -1,6 +1,7 @@
 'use client';
 
-import { Radar } from 'lucide-react';
+import Link from 'next/link';
+import { Radar, ArrowRight } from 'lucide-react';
 import { useMaturityRadar } from '@/hooks/useInvestmentIntelligence';
 import { formatCurrency, formatDate, getDaysUntil } from '@/lib/format';
 import { ASSET_TYPE_ICONS } from '@/lib/constants';
@@ -36,6 +37,14 @@ export function MaturityRadar() {
           );
         })}
       </div>
+
+      <Link
+        href="/loans?tab=insights"
+        className="flex items-center justify-between text-xs text-text-secondary hover:text-accent-violet-light transition-colors pt-1 group"
+      >
+        <span>💡 See if one of these could pay off a debt sooner</span>
+        <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+      </Link>
     </div>
   );
 }

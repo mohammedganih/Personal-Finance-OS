@@ -467,6 +467,22 @@ export interface HealthScoreResult {
   factors: HealthScoreFactor[];
 }
 
+export type FundingSourceType = 'MATURITY' | 'LIQUID_HOLDING';
+
+export interface FundingOpportunity {
+  sourceType: FundingSourceType;
+  investmentId: string;
+  assetName: string;
+  assetType: AssetType;
+  availableAmount: number;
+  availableDate: string | null;
+  targetDebtId: string;
+  targetDebtName: string;
+  monthsSaved: number;
+  interestSaved: number;
+  newMonths: number;
+}
+
 export interface DebtStrategy {
   debts: UnifiedDebt[];
   avalancheOrder: string[];

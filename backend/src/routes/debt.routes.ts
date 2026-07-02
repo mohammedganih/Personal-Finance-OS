@@ -11,5 +11,6 @@ router.get('/strategy', debtController.getStrategy);
 router.get('/prepayment', debtController.getPrepayment);
 router.get('/calendar', debtController.getCalendar);
 router.get('/recommendations', debtController.getRecommendations);
+router.get('/funding-opportunities', debtController.getFundingOpportunities);
 
 export default router;
