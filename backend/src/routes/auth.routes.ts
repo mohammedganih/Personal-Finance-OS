@@ -23,8 +23,19 @@ const registerRateLimiter = createRateLimiter(
   'Too many accounts created from this location. Please try again later.'
 );
 
+// A 15-minute access token means a legitimately active user silently refreshes
+// roughly every 15 min per open tab -- 30/15min gives headroom for several
+// tabs while still bounding abuse of the endpoint.
+const refreshRateLimiter = createRateLimiter(
+  15 * 60 * 1000,
+  30,
+  'Too many refresh attempts. Please log in again.'
+);
+
 router.post('/register', registerRateLimiter, validate(registerSchema), authController.register);
 router.post('/login', loginRateLimiter, validate(loginSchema), authController.login);
+router.post('/refresh', refreshRateLimiter, authController.refresh);
+router.post('/logout', authController.logout);
 router.get('/me', authenticate, authController.getMe);
 
 export default router;

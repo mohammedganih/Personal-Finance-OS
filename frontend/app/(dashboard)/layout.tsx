@@ -1,26 +1,35 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { Loader2 } from 'lucide-react';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Header } from '@/components/layout/Header';
 import { useAuthStore } from '@/stores/auth.store';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, initialize } = useAuthStore();
+  const { isAuthenticated, isInitialized } = useAuthStore();
   const router = useRouter();
-  const initialized = useRef(false);
 
   useEffect(() => {
-    // Only run once — prevents re-initialization on every navigation
-    if (!initialized.current) {
-      initialize();
-      initialized.current = true;
-    }
-    if (!localStorage.getItem('sf_token')) {
+    // Auth state resolves asynchronously now (GET /auth/me, via AuthInitializer)
+    // since the tokens are httpOnly cookies with no synchronous client-side read.
+    if (isInitialized && !isAuthenticated) {
       router.replace('/login');
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isInitialized, isAuthenticated, router]);
+
+  if (!isInitialized) {
+    return (
+      <div className="min-h-screen bg-bg flex items-center justify-center">
+        <Loader2 className="w-6 h-6 animate-spin text-text-muted" />
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return null; // redirecting
+  }
 
   return (
     <div className="min-h-screen bg-bg flex">

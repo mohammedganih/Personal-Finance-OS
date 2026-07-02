@@ -80,6 +80,7 @@ model User {
   p2pLoans      P2PLoan[]
   cardEmis      CardEMI[]
   familyMembers FamilyMember[]
+  refreshTokens RefreshToken[]
 
   @@map("users")
 }
@@ -379,4 +380,18 @@ model P2PLoan {
   @@index([userId])
   @@index([memberId])
   @@map("p2p_loans")
+}
+
+model RefreshToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique // SHA-256 hash, never the raw token -- defense in depth if the DB leaks
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
 }

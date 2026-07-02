@@ -2,37 +2,25 @@
 
 import { create } from 'zustand';
 import { User } from '@/types';
-import { saveSession, clearSession, getStoredUser, getToken } from '@/lib/auth';
 
 interface AuthState {
   user: User | null;
-  token: string | null;
   isAuthenticated: boolean;
-  setAuth: (user: User, token: string) => void;
+  // Distinguishes "haven't checked yet" from "checked, not logged in" --
+  // the access/refresh tokens are httpOnly cookies now, invisible to JS, so
+  // there's no synchronous localStorage read to gate rendering on anymore.
+  // Consumers must wait for isInitialized before deciding whether to redirect.
+  isInitialized: boolean;
+  setUser: (user: User) => void;
   logout: () => void;
-  initialize: () => void;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
-  token: null,
   isAuthenticated: false,
+  isInitialized: false,
 
-  initialize: () => {
-    const token = getToken();
-    const user = getStoredUser();
-    if (token && user) {
-      set({ user, token, isAuthenticated: true });
-    }
-  },
+  setUser: (user) => set({ user, isAuthenticated: true, isInitialized: true }),
 
-  setAuth: (user, token) => {
-    saveSession(token, user);
-    set({ user, token, isAuthenticated: true });
-  },
-
-  logout: () => {
-    clearSession();
-    set({ user: null, token: null, isAuthenticated: false });
-  },
+  logout: () => set({ user: null, isAuthenticated: false, isInitialized: true }),
 }));

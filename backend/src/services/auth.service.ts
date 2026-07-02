@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { prisma } from '../lib/prisma';
-import { signToken } from '../lib/jwt';
+import { signAccessToken } from '../lib/jwt';
+import { issueRefreshToken, rotateRefreshToken, revokeRefreshToken } from '../lib/refreshToken';
 import { RegisterInput, LoginInput } from '../validators/auth.validator';
 import { createError } from '../middleware/error.middleware';
 
@@ -49,8 +50,9 @@ export async function register(input: RegisterInput) {
     select: { id: true, email: true, name: true, currency: true, createdAt: true },
   });
 
-  const token = signToken({ userId: user.id, email: user.email });
-  return { user, token };
+  const accessToken = signAccessToken({ userId: user.id, email: user.email });
+  const refreshToken = await issueRefreshToken(user.id);
+  return { user, accessToken, refreshToken };
 }
 
 export async function login(input: LoginInput) {
@@ -60,9 +62,10 @@ export async function login(input: LoginInput) {
   const valid = await bcrypt.compare(input.password, user.passwordHash);
   if (!valid) throw createError('Invalid email or password', 401);
 
-  const token = signToken({ userId: user.id, email: user.email });
+  const accessToken = signAccessToken({ userId: user.id, email: user.email });
+  const refreshToken = await issueRefreshToken(user.id);
   const { passwordHash: _, ...safeUser } = user;
-  return { user: safeUser, token };
+  return { user: safeUser, accessToken, refreshToken };
 }
 
 export async function getMe(userId: string) {
@@ -72,4 +75,19 @@ export async function getMe(userId: string) {
   });
   if (!user) throw createError('User not found', 404);
   return user;
+}
+
+export async function refresh(rawRefreshToken: string) {
+  const result = await rotateRefreshToken(rawRefreshToken);
+  if (!result) throw createError('Invalid or expired refresh token', 401);
+
+  const user = await prisma.user.findUnique({ where: { id: result.userId }, select: { id: true, email: true } });
+  if (!user) throw createError('User not found', 404);
+
+  const accessToken = signAccessToken({ userId: user.id, email: user.email });
+  return { accessToken, refreshToken: result.newToken };
+}
+
+export async function logout(rawRefreshToken: string | undefined) {
+  if (rawRefreshToken) await revokeRefreshToken(rawRefreshToken);
 }
