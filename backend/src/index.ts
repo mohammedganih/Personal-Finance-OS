@@ -6,6 +6,17 @@ import morgan from 'morgan';
 import routes from './routes';
 import { errorHandler, notFound } from './middleware/error.middleware';
 
+const PLACEHOLDER_JWT_SECRET = 'your-super-secret-jwt-key-change-in-production';
+
+if (!process.env.JWT_SECRET || process.env.JWT_SECRET === PLACEHOLDER_JWT_SECRET) {
+  console.error(
+    '\n[FATAL] JWT_SECRET is missing or still set to the placeholder value.\n' +
+    '        Generate a real secret and set it in backend/.env before starting the server.\n' +
+    "        e.g. node -e \"console.log(require('crypto').randomBytes(48).toString('hex'))\"\n"
+  );
+  process.exit(1);
+}
+
 const app = express();
 const PORT = parseInt(process.env.PORT || '5000', 10);
 
