@@ -1,14 +1,20 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, TrendingUp, Pencil, Trash2 } from 'lucide-react';
+import { Plus, TrendingUp, Pencil, Trash2, List, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { usePortfolioSummary, useDeleteInvestment, usePayInvestment } from '@/hooks/useInvestments';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { formatCurrency, formatDate, formatPercent } from '@/lib/format';
 import { ASSET_TYPE_LABELS, ASSET_TYPE_ICONS } from '@/lib/constants';
 import { InvestmentForm } from '@/components/investments/InvestmentForm';
+import { PortfolioTrendChart } from '@/components/investments/PortfolioTrendChart';
+import { AnnualizedReturns } from '@/components/investments/AnnualizedReturns';
+import { DiversificationCard } from '@/components/investments/DiversificationCard';
+import { MaturityRadar } from '@/components/investments/MaturityRadar';
+import { InvestmentCalendar } from '@/components/investments/InvestmentCalendar';
 import { Investment, InvestmentWithPnl, AssetType } from '@/types';
 import { cn } from '@/lib/utils';
 import { MemberBadge } from '@/components/shared/MemberSelector';
@@ -191,14 +197,7 @@ export default function InvestmentsPage() {
         </div>
       )}
 
-      {/* Holdings grouped by type */}
-      {isLoading ? (
-        <div className="space-y-3">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="glass-card rounded-2xl h-16 shimmer" />
-          ))}
-        </div>
-      ) : portfolio.length === 0 ? (
+      {portfolio.length === 0 && !isLoading ? (
         <EmptyState
           icon={TrendingUp}
           title="No investments tracked"
@@ -206,126 +205,160 @@ export default function InvestmentsPage() {
           action={{ label: 'Add Holding', onClick: openAdd }}
         />
       ) : (
-        <div className="space-y-6">
-          {Object.entries(grouped).map(([type, holdings]) => (
-            <div key={type}>
-              {/* Group header */}
-              <div className="flex items-center gap-2 mb-3">
-                <span className="text-lg">{ASSET_TYPE_ICONS[type] ?? '💼'}</span>
-                <h3 className="text-sm font-semibold text-text-secondary">{ASSET_TYPE_LABELS[type] ?? type}</h3>
-                <span className="text-xs text-text-muted">({holdings.length})</span>
-                <div className="flex-1 h-px bg-border" />
-                <span className="text-xs font-medium text-text-secondary font-mono">
-                  {formatCurrency(holdings.reduce((s, h) => s + currentValueForType(h), 0), 'INR', true)}
-                </span>
-              </div>
+        <Tabs defaultValue="holdings">
+          <TabsList>
+            <TabsTrigger value="holdings">
+              <List className="w-3.5 h-3.5" />
+              Holdings
+            </TabsTrigger>
+            <TabsTrigger value="insights">
+              <Sparkles className="w-3.5 h-3.5" />
+              Insights
+            </TabsTrigger>
+          </TabsList>
 
-              {/* Holdings table */}
-              <div className="glass-card rounded-2xl overflow-hidden">
-                <div className="divide-y divide-border">
-                  {holdings.map((inv) => {
-                    const curVal = currentValueForType(inv);
-                    const showPnl = !['FIXED_DEPOSIT', 'RECURRING_DEPOSIT', 'GOLD_SCHEME'].includes(inv.assetType);
+          <TabsContent value="holdings">
+          {/* Holdings grouped by type */}
+          {isLoading ? (
+            <div className="space-y-3">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="glass-card rounded-2xl h-16 shimmer" />
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {Object.entries(grouped).map(([type, holdings]) => (
+                <div key={type}>
+                  {/* Group header */}
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-lg">{ASSET_TYPE_ICONS[type] ?? '💼'}</span>
+                    <h3 className="text-sm font-semibold text-text-secondary">{ASSET_TYPE_LABELS[type] ?? type}</h3>
+                    <span className="text-xs text-text-muted">({holdings.length})</span>
+                    <div className="flex-1 h-px bg-border" />
+                    <span className="text-xs font-medium text-text-secondary font-mono">
+                      {formatCurrency(holdings.reduce((s, h) => s + currentValueForType(h), 0), 'INR', true)}
+                    </span>
+                  </div>
 
-                    return (
-                      <div key={inv.id} className="flex items-center gap-4 px-4 py-3.5 hover:bg-bg-elevated/50 transition-colors group">
-                        {/* Icon */}
-                        <div className="w-9 h-9 rounded-xl bg-bg-elevated flex items-center justify-center text-lg shrink-0">
-                          {ASSET_TYPE_ICONS[inv.assetType] ?? '💼'}
-                        </div>
+                  {/* Holdings table */}
+                  <div className="glass-card rounded-2xl overflow-hidden">
+                    <div className="divide-y divide-border">
+                      {holdings.map((inv) => {
+                        const curVal = currentValueForType(inv);
+                        const showPnl = !['FIXED_DEPOSIT', 'RECURRING_DEPOSIT', 'GOLD_SCHEME'].includes(inv.assetType);
 
-                        {/* Name + sub info */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            <p className="text-sm font-medium text-text-primary truncate">{inv.assetName}</p>
-                            <MemberBadge
-                              member={inv.member ?? null}
-                              splitMember={inv.splitMember ?? null}
-                              splitRatio={inv.splitRatio}
-                            />
-                          </div>
-                          <InvestmentSubInfo inv={inv} />
-                        </div>
+                        return (
+                          <div key={inv.id} className="flex items-center gap-4 px-4 py-3.5 hover:bg-bg-elevated/50 transition-colors group">
+                            {/* Icon */}
+                            <div className="w-9 h-9 rounded-xl bg-bg-elevated flex items-center justify-center text-lg shrink-0">
+                              {ASSET_TYPE_ICONS[inv.assetType] ?? '💼'}
+                            </div>
 
-                        {/* P&L */}
-                        {showPnl && (
-                          <div className="text-right hidden sm:block">
-                            <p className={cn('text-xs font-medium font-mono',
-                              inv.pnl >= 0 ? 'text-success' : 'text-danger')}>
-                              {inv.pnl >= 0 ? '+' : ''}{formatCurrency(inv.pnl, 'INR', true)}
-                            </p>
-                            <p className={cn('text-xs', inv.pnlPercent >= 0 ? 'text-success' : 'text-danger')}>
-                              {formatPercent(inv.pnlPercent)}
-                            </p>
-                          </div>
-                        )}
+                            {/* Name + sub info */}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <p className="text-sm font-medium text-text-primary truncate">{inv.assetName}</p>
+                                <MemberBadge
+                                  member={inv.member ?? null}
+                                  splitMember={inv.splitMember ?? null}
+                                  splitRatio={inv.splitRatio}
+                                />
+                              </div>
+                              <InvestmentSubInfo inv={inv} />
+                            </div>
 
-                        {/* Current value */}
-                        <div className="text-right shrink-0">
-                          <p className="text-sm font-semibold font-mono text-text-primary">
-                            {formatCurrency(curVal, 'INR', true)}
-                          </p>
-                          <p className="text-xs text-text-muted">
-                            {formatDate(inv.purchaseDate, 'dd MMM yy')}
-                          </p>
-                        </div>
+                            {/* P&L */}
+                            {showPnl && (
+                              <div className="text-right hidden sm:block">
+                                <p className={cn('text-xs font-medium font-mono',
+                                  inv.pnl >= 0 ? 'text-success' : 'text-danger')}>
+                                  {inv.pnl >= 0 ? '+' : ''}{formatCurrency(inv.pnl, 'INR', true)}
+                                </p>
+                                <p className={cn('text-xs', inv.pnlPercent >= 0 ? 'text-success' : 'text-danger')}>
+                                  {formatPercent(inv.pnlPercent)}
+                                </p>
+                              </div>
+                            )}
 
-                        {/* Actions */}
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          {/* Pay / Log expense button */}
-                          {payingId === inv.id ? (
-                            <div className="flex items-center gap-1 mr-1">
-                              <span className="text-xs text-text-secondary whitespace-nowrap">
-                                Log ₹{(
-                                  INSTALLMENT_TYPES.has(inv.assetType)
-                                    ? (inv.monthlyAmount ?? 0)
-                                    : inv.quantity * inv.buyPrice
-                                ).toLocaleString('en-IN')}?
-                              </span>
+                            {/* Current value */}
+                            <div className="text-right shrink-0">
+                              <p className="text-sm font-semibold font-mono text-text-primary">
+                                {formatCurrency(curVal, 'INR', true)}
+                              </p>
+                              <p className="text-xs text-text-muted">
+                                {formatDate(inv.purchaseDate, 'dd MMM yy')}
+                              </p>
+                            </div>
+
+                            {/* Actions */}
+                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              {/* Pay / Log expense button */}
+                              {payingId === inv.id ? (
+                                <div className="flex items-center gap-1 mr-1">
+                                  <span className="text-xs text-text-secondary whitespace-nowrap">
+                                    Log ₹{(
+                                      INSTALLMENT_TYPES.has(inv.assetType)
+                                        ? (inv.monthlyAmount ?? 0)
+                                        : inv.quantity * inv.buyPrice
+                                    ).toLocaleString('en-IN')}?
+                                  </span>
+                                  <button
+                                    onClick={() => { payInvestment({ id: inv.id }); setPayingId(null); }}
+                                    disabled={isPaying}
+                                    className="px-2 py-1 rounded-lg bg-success/15 text-success text-xs font-medium hover:bg-success/25 transition-colors"
+                                  >
+                                    {isPaying ? '...' : 'Confirm'}
+                                  </button>
+                                  <button
+                                    onClick={() => setPayingId(null)}
+                                    className="px-1.5 py-1 rounded-lg bg-bg-elevated text-text-muted text-xs"
+                                  >✕</button>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => setPayingId(inv.id)}
+                                  className="px-2 py-1 rounded-lg bg-success/10 text-success text-xs font-medium hover:bg-success/20 transition-colors mr-1 whitespace-nowrap"
+                                >
+                                  {payLabel(inv.assetType, INSTALLMENT_TYPES.has(inv.assetType))}
+                                </button>
+                              )}
+
                               <button
-                                onClick={() => { payInvestment({ id: inv.id }); setPayingId(null); }}
-                                disabled={isPaying}
-                                className="px-2 py-1 rounded-lg bg-success/15 text-success text-xs font-medium hover:bg-success/25 transition-colors"
+                                aria-label={`Edit ${inv.assetName}`}
+                                onClick={() => openEdit(inv as Investment)}
+                                className="p-1.5 rounded-lg text-text-muted hover:text-accent-violet-light hover:bg-accent-violet/10 transition-colors"
                               >
-                                {isPaying ? '...' : 'Confirm'}
+                                <Pencil className="w-3.5 h-3.5" />
                               </button>
                               <button
-                                onClick={() => setPayingId(null)}
-                                className="px-1.5 py-1 rounded-lg bg-bg-elevated text-text-muted text-xs"
-                              >✕</button>
+                                aria-label={`Delete ${inv.assetName}`}
+                                onClick={() => deleteInvestment(inv.id)}
+                                className="p-1.5 rounded-lg text-text-muted hover:text-danger hover:bg-danger/10 transition-colors"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
                             </div>
-                          ) : (
-                            <button
-                              onClick={() => setPayingId(inv.id)}
-                              className="px-2 py-1 rounded-lg bg-success/10 text-success text-xs font-medium hover:bg-success/20 transition-colors mr-1 whitespace-nowrap"
-                            >
-                              {payLabel(inv.assetType, INSTALLMENT_TYPES.has(inv.assetType))}
-                            </button>
-                          )}
-
-                          <button
-                            aria-label={`Edit ${inv.assetName}`}
-                            onClick={() => openEdit(inv as Investment)}
-                            className="p-1.5 rounded-lg text-text-muted hover:text-accent-violet-light hover:bg-accent-violet/10 transition-colors"
-                          >
-                            <Pencil className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            aria-label={`Delete ${inv.assetName}`}
-                            onClick={() => deleteInvestment(inv.id)}
-                            className="p-1.5 rounded-lg text-text-muted hover:text-danger hover:bg-danger/10 transition-colors"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
-              </div>
+              ))}
             </div>
-          ))}
-        </div>
+          )}
+          </TabsContent>
+
+          <TabsContent value="insights">
+            <div className="space-y-4">
+              <PortfolioTrendChart />
+              <AnnualizedReturns />
+              <DiversificationCard />
+              <InvestmentCalendar />
+              <MaturityRadar />
+            </div>
+          </TabsContent>
+        </Tabs>
       )}
 
       {showForm && (

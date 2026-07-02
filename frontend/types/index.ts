@@ -147,6 +147,54 @@ export interface PortfolioSummary {
   allocationByType: Record<string, number>;
 }
 
+// ─── Investment Intelligence ────────────────────────────────────────────────
+
+export interface HoldingReturn {
+  investmentId: string;
+  assetName: string;
+  xirr: number | null;
+}
+
+export interface AnnualizedReturns {
+  overall: number | null;
+  byHolding: HoldingReturn[];
+}
+
+export interface TrendPoint {
+  date: string;
+  totalInvested: number;
+  totalCurrent: number;
+  totalPnl: number;
+}
+
+export interface InvestmentCalendarEntry {
+  date: string;
+  investmentId: string;
+  assetName: string;
+  assetType: AssetType;
+  amount: number;
+}
+
+export type AssetClass = 'Equity' | 'Debt' | 'Gold' | 'Real Estate' | 'Crypto' | 'Other';
+
+export interface DiversificationWarning {
+  severity: 'warning' | 'info';
+  message: string;
+}
+
+export interface DiversificationResult {
+  classBreakdown: { assetClass: AssetClass; value: number; percentage: number }[];
+  warnings: DiversificationWarning[];
+}
+
+export interface MaturityEntry {
+  investmentId: string;
+  assetName: string;
+  assetType: AssetType;
+  maturityDate: string;
+  maturityAmount: number | null;
+}
+
 // ─── Goal ─────────────────────────────────────────────────────────────────────
 
 export interface Goal {

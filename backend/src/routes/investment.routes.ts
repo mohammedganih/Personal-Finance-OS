@@ -10,6 +10,11 @@ router.use(authenticate);
 
 router.get('/', investmentController.getInvestments);
 router.get('/summary', investmentController.getPortfolioSummary);
+router.get('/xirr', investmentController.getAnnualizedReturns);
+router.get('/trend', investmentController.getPortfolioTrend);
+router.get('/calendar', investmentController.getInvestmentCalendar);
+router.get('/diversification', investmentController.getDiversification);
+router.get('/maturities', investmentController.getMaturityRadar);
 router.post('/', validate(createInvestmentSchema), investmentController.createInvestment);
 router.put('/:id', validate(updateInvestmentSchema), investmentController.updateInvestment);
 router.delete('/:id', investmentController.deleteInvestment);

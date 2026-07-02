@@ -2,6 +2,7 @@ import { prisma } from '../lib/prisma';
 import { calcEMIOutstanding } from './card-emi.service';
 import { simulatePayoff } from './family.service';
 import { createError } from '../middleware/error.middleware';
+import { addMonthsClamped } from '../lib/dateMath';
 
 export type DebtSourceType = 'LOAN' | 'CREDIT_CARD' | 'CARD_EMI';
 
@@ -362,13 +363,6 @@ export interface CalendarEntry {
   sourceType: DebtSourceType;
   name: string;
   amount: number;
-}
-
-function addMonthsClamped(date: Date, months: number, anchorDay: number): Date {
-  const d = new Date(date.getFullYear(), date.getMonth() + months, 1);
-  const daysInMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
-  d.setDate(Math.min(anchorDay, daysInMonth));
-  return d;
 }
 
 /**

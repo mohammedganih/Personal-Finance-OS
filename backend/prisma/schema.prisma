@@ -82,6 +82,7 @@ model User {
   familyMembers FamilyMember[]
   refreshTokens RefreshToken[]
   budgets       Budget[]
+  investmentSnapshots InvestmentSnapshot[]
 
   @@map("users")
 }
@@ -396,6 +397,22 @@ model RefreshToken {
 
   @@index([userId])
   @@map("refresh_tokens")
+}
+
+model InvestmentSnapshot {
+  id            String   @id @default(cuid())
+  userId        String
+  date          DateTime @db.Date // one row per user per calendar day
+  totalInvested Decimal  @db.Decimal(14, 2)
+  totalCurrent  Decimal  @db.Decimal(14, 2)
+  totalPnl      Decimal  @db.Decimal(14, 2)
+  createdAt     DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([userId])
+  @@map("investment_snapshots")
 }
 
 model Budget {

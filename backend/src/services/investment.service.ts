@@ -147,6 +147,60 @@ export async function payInvestment(userId: string, id: string, accountId?: stri
   };
 }
 
+/**
+ * Per-type invested/current value math -- exported so investmentIntelligence
+ * .service.ts (annualized return, diversification, etc.) can reuse the exact
+ * same valuation rules instead of re-deriving them.
+ */
+export function computeInvestmentValue(inv: Investment, now: Date): { investedValue: number; currentValue: number } {
+  const qty     = Number(inv.quantity);
+  const buyPx   = Number(inv.buyPrice);
+  const curPx   = Number(inv.currentPrice);
+  const monthly = inv.monthlyAmount ? Number(inv.monthlyAmount) : 0;
+  const rate    = inv.interestRate   ? Number(inv.interestRate)  : 0;
+
+  switch (inv.assetType) {
+
+    case 'RECURRING_DEPOSIT': {
+      // qty = installments paid (user-entered, source of truth)
+      const deposited      = monthly * qty;
+      const monthlyRate    = rate / 100 / 12;
+      // Each deposit k earns interest for (qty - k + 1) months: sum = qty*(qty+1)/2
+      const interestSoFar  = monthly * monthlyRate * ((qty * (qty + 1)) / 2);
+      return { investedValue: deposited, currentValue: deposited + interestSoFar };
+    }
+
+    case 'FIXED_DEPOSIT': {
+      // buyPrice = principal, interestRate = rate, purchaseDate = start
+      const principal      = buyPx;
+      const monthsElapsed  = monthDiff(inv.purchaseDate, now);
+      const interestSoFar  = principal * (rate / 100) * (monthsElapsed / 12);
+      return { investedValue: principal, currentValue: principal + interestSoFar };
+    }
+
+    case 'SIP': {
+      // monthlyAmount × months elapsed = total invested. qty × curPx = current value
+      const monthsElapsed = monthDiff(inv.purchaseDate, now);
+      return { investedValue: monthly * monthsElapsed, currentValue: qty * curPx };
+    }
+
+    case 'GOLD_SCHEME': {
+      // monthly × months running = total paid. qty (grams) × curPx = current value
+      const monthsElapsed = monthDiff(inv.purchaseDate, now);
+      return { investedValue: monthly * monthsElapsed, currentValue: qty * curPx };
+    }
+
+    case 'REAL_ESTATE': {
+      return { investedValue: buyPx, currentValue: curPx };
+    }
+
+    default: {
+      // STOCK, ETF, CRYPTO, MUTUAL_FUND, GOLD, OTHER
+      return { investedValue: qty * buyPx, currentValue: qty * curPx };
+    }
+  }
+}
+
 export async function getPortfolioSummary(userId: string) {
   const investments = await prisma.investment.findMany({
     where: { userId },
@@ -156,68 +210,7 @@ export async function getPortfolioSummary(userId: string) {
   const now = new Date();
 
   const portfolio = investments.map((inv) => {
-    const qty     = Number(inv.quantity);
-    const buyPx   = Number(inv.buyPrice);
-    const curPx   = Number(inv.currentPrice);
-    const monthly = inv.monthlyAmount ? Number(inv.monthlyAmount) : 0;
-    const rate    = inv.interestRate   ? Number(inv.interestRate)  : 0;
-
-    let investedValue: number;
-    let currentValue: number;
-
-    switch (inv.assetType) {
-
-      case 'RECURRING_DEPOSIT': {
-        // qty = installments paid (user-entered, source of truth)
-        const deposited      = monthly * qty;
-        const monthlyRate    = rate / 100 / 12;
-        // Each deposit k earns interest for (qty - k + 1) months: sum = qty*(qty+1)/2
-        const interestSoFar  = monthly * monthlyRate * ((qty * (qty + 1)) / 2);
-        investedValue = deposited;
-        currentValue  = deposited + interestSoFar;
-        break;
-      }
-
-      case 'FIXED_DEPOSIT': {
-        // buyPrice = principal, interestRate = rate, purchaseDate = start
-        const principal      = buyPx;
-        const monthsElapsed  = monthDiff(inv.purchaseDate, now);
-        const interestSoFar  = principal * (rate / 100) * (monthsElapsed / 12);
-        investedValue = principal;
-        currentValue  = principal + interestSoFar;
-        break;
-      }
-
-      case 'SIP': {
-        // monthlyAmount × months elapsed = total invested. qty × curPx = current value
-        const monthsElapsed = monthDiff(inv.purchaseDate, now);
-        investedValue = monthly * monthsElapsed;
-        currentValue  = qty * curPx;
-        break;
-      }
-
-      case 'GOLD_SCHEME': {
-        // monthly × months running = total paid. qty (grams) × curPx = current value
-        const monthsElapsed = monthDiff(inv.purchaseDate, now);
-        investedValue = monthly * monthsElapsed;
-        currentValue  = qty * curPx;
-        break;
-      }
-
-      case 'REAL_ESTATE': {
-        investedValue = buyPx;
-        currentValue  = curPx;
-        break;
-      }
-
-      default: {
-        // STOCK, ETF, CRYPTO, MUTUAL_FUND, GOLD, OTHER
-        investedValue = qty * buyPx;
-        currentValue  = qty * curPx;
-        break;
-      }
-    }
-
+    const { investedValue, currentValue } = computeInvestmentValue(inv, now);
     const pnl        = currentValue - investedValue;
     const pnlPercent = investedValue > 0 ? (pnl / investedValue) * 100 : 0;
 
