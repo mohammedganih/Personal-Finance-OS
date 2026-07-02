@@ -79,20 +79,33 @@ export async function getLoanSummary(userId: string) {
   return { totalDebt, monthlyEMI, activeLoans: loans.length, loans: loans.map(serializeLoan) };
 }
 
+/**
+ * Splits one EMI payment into interest/principal using proper amortization
+ * (not a flat remaining/tenure division), and reports the resulting balance.
+ * Pure function -- no I/O -- so amortization correctness can be unit tested
+ * without a database.
+ */
+export function calculateEMISplit(remainingBalance: number, emi: number, annualInterestRatePercent: number) {
+  const r = annualInterestRatePercent / 100 / 12; // monthly rate
+
+  const interestPortion  = r > 0 ? remainingBalance * r : 0;
+  const principalPortion = Math.max(0, emi - interestPortion);
+  const actualPayment    = Math.min(emi, remainingBalance + interestPortion); // can't overpay
+  const newBalance       = Math.max(0, remainingBalance - principalPortion);
+  const isPaidOff        = newBalance < 1; // treat < ₹1 as fully paid
+
+  return { interestPortion, principalPortion, actualPayment, newBalance, isPaidOff };
+}
+
 export async function payLoanEMI(userId: string, loanId: string, accountId?: string) {
   const loan = await prisma.loan.findFirst({ where: { id: loanId, userId, isActive: true } });
   if (!loan) throw createError('Loan not found or already paid off', 404);
 
   const remaining = Number(loan.remainingBalance);
   const emi       = Number(loan.emi);
-  const r         = Number(loan.interestRate) / 100 / 12; // monthly rate
 
-  // Proper amortization: split EMI into interest and principal portions
-  const interestPortion   = r > 0 ? remaining * r : 0;
-  const principalPortion  = Math.max(0, emi - interestPortion);
-  const actualPayment     = Math.min(emi, remaining + interestPortion); // can't overpay
-  const newBalance        = Math.max(0, remaining - principalPortion);
-  const isPaidOff         = newBalance < 1; // treat < ₹1 as fully paid
+  const { interestPortion, principalPortion, actualPayment, newBalance, isPaidOff } =
+    calculateEMISplit(remaining, emi, Number(loan.interestRate));
 
   const categoryId = await findCategory(userId, 'Loan EMI');
 

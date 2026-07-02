@@ -2,6 +2,42 @@ import { prisma } from '../lib/prisma';
 import { createError } from '../middleware/error.middleware';
 import { CreateFamilyMemberInput, UpdateFamilyMemberInput } from '../validators/family.validator';
 
+interface SimulatedLoan {
+  remainingBalance: number;
+  emi: number;
+  interestRate: number;
+}
+
+/**
+ * Simulates paying off a set of loans in a given order (avalanche = highest
+ * interest first, snowball = smallest balance first), optionally throwing an
+ * extra fixed payment at the front loan each month. Pure function -- no I/O --
+ * so the debt-payoff math can be unit tested without a database.
+ */
+export function simulatePayoff<T extends SimulatedLoan>(order: T[], extraPayment: number) {
+  let totalInterest = 0;
+  let months = 0;
+  const bal = order.map((l) => ({ ...l, balance: l.remainingBalance }));
+
+  while (bal.some((l) => l.balance > 0.01) && months < 600) {
+    months++;
+    let surplus = extraPayment;
+    for (const loan of bal) {
+      if (loan.balance <= 0.01) { loan.balance = 0; continue; }
+      const interest = loan.balance * (loan.interestRate / 100 / 12);
+      totalInterest += interest;
+      loan.balance = Math.max(0, loan.balance - Math.max(0, loan.emi - interest));
+    }
+    for (const loan of bal) {
+      if (loan.balance <= 0.01 || surplus <= 0) continue;
+      const pay = Math.min(surplus, loan.balance);
+      loan.balance -= pay; surplus -= pay;
+    }
+  }
+
+  return { totalInterest, months };
+}
+
 export async function getFamilyMembers(userId: string) {
   return prisma.familyMember.findMany({
     where: { userId },
@@ -157,30 +193,9 @@ export async function getLoanStrategy(userId: string) {
   const snowball  = [...withStats].sort((a, b) => a.remainingBalance - b.remainingBalance);
   const totalMonthlyInterest = withStats.reduce((s, l) => s + l.monthlyInterest, 0);
 
-  function simulate(order: typeof withStats, extra: number) {
-    let totalInterest = 0, months = 0;
-    const bal = order.map((l) => ({ ...l, balance: l.remainingBalance }));
-    while (bal.some((l) => l.balance > 0.01) && months < 600) {
-      months++;
-      let surplus = extra;
-      for (const loan of bal) {
-        if (loan.balance <= 0.01) { loan.balance = 0; continue; }
-        const interest = loan.balance * (loan.interestRate / 100 / 12);
-        totalInterest += interest;
-        loan.balance  = Math.max(0, loan.balance - Math.max(0, loan.emi - interest));
-      }
-      for (const loan of bal) {
-        if (loan.balance <= 0.01 || surplus <= 0) continue;
-        const pay = Math.min(surplus, loan.balance);
-        loan.balance -= pay; surplus -= pay;
-      }
-    }
-    return { totalInterest, months };
-  }
-
-  const base   = simulate(avalanche, 0);
-  const avl5k  = simulate(avalanche, 5000);
-  const snow5k = simulate(snowball, 5000);
+  const base   = simulatePayoff(avalanche, 0);
+  const avl5k  = simulatePayoff(avalanche, 5000);
+  const snow5k = simulatePayoff(snowball, 5000);
 
   return {
     loans: withStats,

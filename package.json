@@ -16,7 +16,8 @@
     "prisma:generate": "npm run prisma:generate --workspace=backend",
     "prisma:migrate": "npm run prisma:migrate --workspace=backend",
     "prisma:studio": "npm run prisma:studio --workspace=backend",
-    "prisma:push": "npm run prisma:push --workspace=backend"
+    "prisma:push": "npm run prisma:push --workspace=backend",
+    "test": "npm run build:shared && npm run test --workspace=backend"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
