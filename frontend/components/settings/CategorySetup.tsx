@@ -5,6 +5,7 @@ import { Plus, Pencil, Trash2, Tags, Lock } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { createCategorySchema } from '@shazah/shared';
 import { useCategories, useCreateCategory, useUpdateCategory, useDeleteCategory } from '@/hooks/useCategories';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,12 +17,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Category, TransactionType } from '@/types';
 import { Loader2 } from 'lucide-react';
 
-const schema = z.object({
-  name:  z.string().min(1, 'Name required').max(100),
-  type:  z.enum(['INCOME', 'EXPENSE']),
-  icon:  z.string().max(10).optional(),
-  color: z.string().optional(),
-});
+// Shared with the backend's createCategorySchema; no fields need HTML-input
+// coercion here (unlike numeric forms), so it's reused as-is.
+const schema = createCategorySchema;
 type FormData = z.infer<typeof schema>;
 
 function CategoryForm({

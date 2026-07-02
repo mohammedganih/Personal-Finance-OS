@@ -3,14 +3,16 @@
   "version": "1.0.0",
   "private": true,
   "workspaces": [
+    "packages/shared",
     "frontend",
     "backend"
   ],
   "scripts": {
-    "dev": "concurrently -n \"backend,frontend\" -c \"cyan,magenta\" \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev": "npm run build:shared && concurrently -n \"backend,frontend\" -c \"cyan,magenta\" \"npm run dev:backend\" \"npm run dev:frontend\"",
     "dev:backend": "npm run dev --workspace=backend",
     "dev:frontend": "npm run dev --workspace=frontend",
-    "build": "npm run build --workspace=backend && npm run build --workspace=frontend",
+    "build:shared": "npm run build --workspace=@shazah/shared",
+    "build": "npm run build:shared && npm run build --workspace=backend && npm run build --workspace=frontend",
     "prisma:generate": "npm run prisma:generate --workspace=backend",
     "prisma:migrate": "npm run prisma:migrate --workspace=backend",
     "prisma:studio": "npm run prisma:studio --workspace=backend",

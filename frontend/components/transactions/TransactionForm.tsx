@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { createTransactionSchema } from '@shazah/shared';
 import { format } from 'date-fns';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -17,17 +18,10 @@ import { SplitMemberSelector } from '@/components/shared/MemberSelector';
 import { Loader2 } from 'lucide-react';
 import { Category, Account, Transaction } from '@/types';
 
-const schema = z.object({
-  type:          z.enum(['INCOME', 'EXPENSE']),
-  amount:        z.coerce.number().positive('Amount must be positive'),
-  description:   z.string().optional(),
-  date:          z.string().min(1, 'Date required'),
-  categoryId:    z.string().optional(),
-  accountId:     z.string().optional(),
-  memberId:      z.string().optional(),
-  splitMemberId: z.string().optional(),
-  splitRatio:    z.number().min(0).max(100).default(100),
-  isRecurring:   z.boolean().default(false),
+// Shared with the backend's createTransactionSchema; only `amount` needs a local
+// override since a native number input yields a string, not a number.
+const schema = createTransactionSchema.extend({
+  amount: z.coerce.number().positive('Amount must be positive'),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -59,8 +53,8 @@ export function TransactionForm({ onClose, transaction }: TransactionFormProps) 
           amount:      transaction.amount,
           description: transaction.description ?? '',
           date:        format(new Date(transaction.date), 'yyyy-MM-dd'),
-          categoryId:  transaction.category?.id ?? '',
-          accountId:   transaction.account?.id ?? '',
+          categoryId:  transaction.category?.id,
+          accountId:   transaction.account?.id,
           isRecurring: transaction.isRecurring,
         }
       : { type: 'EXPENSE', date: format(new Date(), 'yyyy-MM-dd'), isRecurring: false },

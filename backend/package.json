@@ -13,6 +13,7 @@
     "audit:balances": "ts-node src/scripts/auditAccountBalances.ts"
   },
   "dependencies": {
+    "@shazah/shared": "*",
     "@prisma/client": "^5.8.1",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
