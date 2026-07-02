@@ -1,11 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, TrendingUp, Pencil, Trash2, List, Sparkles } from 'lucide-react';
+import { Plus, TrendingUp, Pencil, Trash2, List, Sparkles, Wallet, IndianRupee, Repeat } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { KPICard } from '@/components/dashboard/KPICard';
 import { usePortfolioSummary, useDeleteInvestment, usePayInvestment } from '@/hooks/useInvestments';
+import { useAnnualizedReturns } from '@/hooks/useInvestmentIntelligence';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { formatCurrency, formatDate, formatPercent } from '@/lib/format';
 import { ASSET_TYPE_LABELS, ASSET_TYPE_ICONS } from '@/lib/constants';
@@ -32,29 +34,20 @@ function payLabel(assetType: AssetType, isInstallment: boolean): string {
 }
 
 // ─── Per-type secondary info line ─────────────────────────────────────────────
-// Platform badge shown on every holding
-function PlatformBadge({ platform }: { platform: string | null }) {
-  if (!platform) return null;
-  return (
-    <span className="inline-flex items-center ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-accent-violet/10 text-accent-violet-light">
-      {platform}
-    </span>
-  );
-}
-
+// Kept to the 2 facts someone actually scans a list for (what it is, what's
+// committed monthly). Folio numbers, exchange, platform, interest rate, and
+// maturity details still live in the detail dialog one click away -- see
+// InvestmentDetailDialog -- so nothing is lost, just not crammed into every row.
 function InvestmentSubInfo({ inv }: { inv: InvestmentWithPnl }) {
   const { assetType } = inv;
 
   if (assetType === 'SIP' || assetType === 'MUTUAL_FUND') {
     return (
       <p className="text-xs text-text-muted flex items-center flex-wrap gap-x-1">
-        {inv.fundCategory && <span>{inv.fundCategory} ·</span>}
         <span>{inv.quantity.toFixed(3)} units @ NAV ₹{inv.currentPrice.toFixed(2)}</span>
-        {inv.folioNumber && <span>· Folio: {inv.folioNumber}</span>}
         {assetType === 'SIP' && inv.monthlyAmount && (
           <span className="text-accent-violet-light">· ₹{inv.monthlyAmount.toLocaleString('en-IN')}/mo SIP</span>
         )}
-        <PlatformBadge platform={inv.platform} />
       </p>
     );
   }
@@ -64,10 +57,8 @@ function InvestmentSubInfo({ inv }: { inv: InvestmentWithPnl }) {
     const deposited = (inv.monthlyAmount ?? 0) * installmentsPaid;
     return (
       <p className="text-xs text-text-muted flex items-center flex-wrap gap-x-1">
-        <span>₹{(inv.monthlyAmount ?? 0).toLocaleString('en-IN')}/mo · {installmentsPaid} installments · ₹{deposited.toLocaleString('en-IN')} deposited</span>
-        {inv.interestRate && <span>· {inv.interestRate}% p.a.</span>}
-        {inv.maturityDate && <span>· Matures {formatDate(inv.maturityDate, 'MMM yyyy')}</span>}
-        <PlatformBadge platform={inv.platform} />
+        <span>₹{(inv.monthlyAmount ?? 0).toLocaleString('en-IN')}/mo · {installmentsPaid} installments</span>
+        <span>· ₹{deposited.toLocaleString('en-IN')} deposited</span>
       </p>
     );
   }
@@ -76,12 +67,7 @@ function InvestmentSubInfo({ inv }: { inv: InvestmentWithPnl }) {
     return (
       <p className="text-xs text-text-muted flex items-center flex-wrap gap-x-1">
         <span>Principal ₹{inv.buyPrice.toLocaleString('en-IN')}</span>
-        {inv.interestRate && <span>· {inv.interestRate}% p.a.</span>}
         {inv.maturityDate && <span>· Matures {formatDate(inv.maturityDate, 'MMM yyyy')}</span>}
-        {inv.maturityAmount && (
-          <span className="text-success">· Maturity ₹{inv.maturityAmount.toLocaleString('en-IN')}</span>
-        )}
-        <PlatformBadge platform={inv.platform} />
       </p>
     );
   }
@@ -89,8 +75,7 @@ function InvestmentSubInfo({ inv }: { inv: InvestmentWithPnl }) {
   if (assetType === 'GOLD') {
     return (
       <p className="text-xs text-text-muted flex items-center flex-wrap gap-x-1">
-        <span>{inv.quantity}g · Buy ₹{inv.buyPrice.toLocaleString('en-IN')}/g · Now ₹{inv.currentPrice.toLocaleString('en-IN')}/g</span>
-        <PlatformBadge platform={inv.platform} />
+        <span>{inv.quantity}g · Now ₹{inv.currentPrice.toLocaleString('en-IN')}/g</span>
       </p>
     );
   }
@@ -99,9 +84,7 @@ function InvestmentSubInfo({ inv }: { inv: InvestmentWithPnl }) {
     return (
       <p className="text-xs text-text-muted flex items-center flex-wrap gap-x-1">
         {inv.monthlyAmount && <span>₹{inv.monthlyAmount.toLocaleString('en-IN')}/mo ·</span>}
-        <span>{inv.quantity}g accumulated · ₹{inv.currentPrice.toLocaleString('en-IN')}/g</span>
-        {inv.maturityDate && <span>· Matures {formatDate(inv.maturityDate, 'MMM yyyy')}</span>}
-        <PlatformBadge platform={inv.platform} />
+        <span>{inv.quantity}g accumulated</span>
       </p>
     );
   }
@@ -109,8 +92,7 @@ function InvestmentSubInfo({ inv }: { inv: InvestmentWithPnl }) {
   if (assetType === 'REAL_ESTATE') {
     return (
       <p className="text-xs text-text-muted flex items-center flex-wrap gap-x-1">
-        <span>Purchased {formatDate(inv.purchaseDate)} · Current value ₹{inv.currentPrice.toLocaleString('en-IN')}</span>
-        <PlatformBadge platform={inv.platform} />
+        <span>Purchased {formatDate(inv.purchaseDate)}</span>
       </p>
     );
   }
@@ -119,8 +101,6 @@ function InvestmentSubInfo({ inv }: { inv: InvestmentWithPnl }) {
     <p className="text-xs text-text-muted flex items-center flex-wrap gap-x-1">
       {inv.quantity > 0 && <span>{inv.quantity} units</span>}
       {inv.ticker && <span>· {inv.ticker}</span>}
-      {inv.exchange && <span>· {inv.exchange}</span>}
-      <PlatformBadge platform={inv.platform} />
     </p>
   );
 }
@@ -144,6 +124,7 @@ export default function InvestmentsPage() {
   const [viewingInvestment, setViewingInvestment] = useState<InvestmentWithPnl | null>(null);
   const [payingId, setPayingId] = useState<string | null>(null);
   const { data: summary, isLoading } = usePortfolioSummary();
+  const { data: returns } = useAnnualizedReturns();
   const { mutate: deleteInvestment } = useDeleteInvestment();
   const { mutate: payInvestment, isPending: isPaying } = usePayInvestment();
 
@@ -173,34 +154,44 @@ export default function InvestmentsPage() {
         </Button>
       </div>
 
-      {/* Summary strip */}
+      {/* Summary strip -- Current Value carries the real annualized return
+          (XIRR) as its trend, not a blended flat P&L% that can mislead when
+          the portfolio mixes a guaranteed FD with a brand-new SIP. Uses the
+          same KPICard the Dashboard already uses, for visual consistency. */}
       {portfolio.length > 0 && (
-        <div className="grid grid-cols-5 gap-4">
-          {[
-            { label: 'Invested',     value: summary?.totalInvested ?? 0,  color: 'text-text-primary' },
-            { label: 'Current Value', value: summary?.totalCurrent ?? 0,  color: 'text-text-primary' },
-            { label: 'Total P&L',    value: summary?.totalPnl ?? 0,       color: (summary?.totalPnl ?? 0) >= 0 ? 'text-success' : 'text-danger', prefix: (summary?.totalPnl ?? 0) >= 0 ? '+' : '' },
-            {
-              label: 'Overall Return',
-              value: summary?.totalInvested ? ((summary.totalPnl / summary.totalInvested) * 100) : 0,
-              color: (summary?.totalPnl ?? 0) >= 0 ? 'text-success' : 'text-danger',
-              isPercent: true,
-            },
-            {
-              label: 'Monthly Investment',
-              value: portfolio.reduce((s, inv) => s + (inv.monthlyAmount ?? 0), 0),
-              color: 'text-accent-violet-light',
-            },
-          ].map((s) => (
-            <div key={s.label} className="glass-card rounded-2xl p-4">
-              <p className="text-xs text-text-secondary">{s.label}</p>
-              <p className={cn('text-xl font-bold mt-1', s.color)}>
-                {s.isPercent
-                  ? `${(s.value as number) >= 0 ? '+' : ''}${(s.value as number).toFixed(2)}%`
-                  : `${s.prefix ?? ''}${formatCurrency(s.value as number, 'INR', true)}`}
-              </p>
-            </div>
-          ))}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <KPICard
+            title="Invested"
+            value={summary?.totalInvested ?? 0}
+            icon={Wallet}
+            iconColor="bg-info/15 text-info"
+            compact
+          />
+          <KPICard
+            title="Current Value"
+            value={summary?.totalCurrent ?? 0}
+            change={returns?.overall !== null && returns?.overall !== undefined ? returns.overall * 100 : undefined}
+            changeLabel="annualized"
+            icon={TrendingUp}
+            iconColor="bg-accent-violet/15 text-accent-violet-light"
+            compact
+          />
+          <KPICard
+            title="Total P&L"
+            value={summary?.totalPnl ?? 0}
+            change={summary?.totalInvested ? (summary.totalPnl / summary.totalInvested) * 100 : undefined}
+            icon={IndianRupee}
+            iconColor="bg-success/15 text-success"
+            colorizePositive
+            compact
+          />
+          <KPICard
+            title="Monthly Investment"
+            value={portfolio.reduce((s, inv) => s + (inv.monthlyAmount ?? 0), 0)}
+            icon={Repeat}
+            iconColor="bg-warning/15 text-warning"
+            compact
+          />
         </div>
       )}
 
@@ -302,7 +293,10 @@ export default function InvestmentsPage() {
                             </div>
 
                             {/* Actions */}
-                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            {/* Always visible below sm: -- hover-reveal has no
+                                equivalent on touch devices, so there'd be no
+                                way to reach these buttons on a phone otherwise. */}
+                            <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                               {/* Pay / Log expense button */}
                               {payingId === inv.id ? (
                                 <div className="flex items-center gap-1 mr-1">
@@ -383,6 +377,8 @@ export default function InvestmentsPage() {
         <InvestmentDetailDialog
           investment={viewingInvestment}
           onClose={() => setViewingInvestment(null)}
+          onEdit={() => { const inv = viewingInvestment; setViewingInvestment(null); openEdit(inv as Investment); }}
+          onDelete={() => { deleteInvestment(viewingInvestment.id); setViewingInvestment(null); }}
         />
       )}
     </div>

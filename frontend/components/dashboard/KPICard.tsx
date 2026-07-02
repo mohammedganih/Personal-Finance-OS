@@ -17,6 +17,11 @@ interface KPICardProps {
   isPercent?: boolean;
   compact?: boolean;
   invertChange?: boolean;
+  // When true, a positive value renders success-green (not just the default
+  // neutral text) -- for metrics like P&L where positive is unambiguously
+  // good news. Off by default: most KPICard values (net worth, expenses)
+  // aren't inherently "good" just for being positive.
+  colorizePositive?: boolean;
 }
 
 export function KPICard({
@@ -30,6 +35,7 @@ export function KPICard({
   isPercent = false,
   compact = false,
   invertChange = false,
+  colorizePositive = false,
 }: KPICardProps) {
   const isPositiveChange = change !== undefined ? (invertChange ? change < 0 : change >= 0) : null;
 
@@ -38,6 +44,8 @@ export function KPICard({
     : isPercent
     ? `${value.toFixed(1)}%`
     : value.toLocaleString('en-IN');
+
+  const valueColor = value < 0 ? 'text-danger' : colorizePositive ? 'text-success' : 'text-text-primary';
 
   return (
     <div className="glass-card-hover rounded-2xl p-5 cursor-default">
@@ -48,7 +56,7 @@ export function KPICard({
         </div>
       </div>
 
-      <p className={cn('text-2xl font-bold tracking-tight mb-2', value < 0 ? 'text-danger' : 'text-text-primary')}>
+      <p className={cn('text-2xl font-bold tracking-tight mb-2', valueColor)}>
         {displayValue}
       </p>
 
