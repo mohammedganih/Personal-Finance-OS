@@ -430,6 +430,38 @@ export interface DebtStrategy {
   snowballMonthsWithExtra: number;
   interestSavedAvalanche: number;
   interestSavedSnowball: number;
+  bestStrategy: 'avalanche' | 'snowball';
+  totalInterestSaved: number;
+}
+
+export interface PrepaymentResult {
+  debtId: string;
+  name: string;
+  lumpSum: number;
+  baselineMonths: number;
+  baselineInterest: number;
+  newMonths: number;
+  newInterest: number;
+  monthsSaved: number;
+  interestSaved: number;
+}
+
+export interface CalendarEntry {
+  date: string;
+  debtId: string;
+  sourceType: DebtSourceType;
+  name: string;
+  amount: number;
+}
+
+export type RecommendationSeverity = 'critical' | 'warning' | 'info' | 'positive';
+
+export interface Recommendation {
+  priority: number;
+  severity: RecommendationSeverity;
+  title: string;
+  description: string;
+  debtId?: string;
 }
 
 // ─── API ──────────────────────────────────────────────────────────────────────

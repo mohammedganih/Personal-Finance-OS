@@ -1,6 +1,7 @@
 import { prisma } from '../lib/prisma';
 import { calcEMIOutstanding } from './card-emi.service';
 import { simulatePayoff } from './family.service';
+import { createError } from '../middleware/error.middleware';
 
 export type DebtSourceType = 'LOAN' | 'CREDIT_CARD' | 'CARD_EMI';
 
@@ -13,10 +14,14 @@ export interface UnifiedDebt {
   emi: number;
   interestRate: number;
   memberId: string | null;
-  // Only populated for LOAN -- the other two sources don't have a
-  // "contracted schedule" to be ahead of or behind on.
+  // Populated for LOAN and CARD_EMI -- both accrue on a fixed monthly
+  // installment day inferred from when they started. tenureMonths (the
+  // contracted schedule) is only meaningful for LOAN.
   startDate?: Date;
   tenureMonths?: number;
+  // Populated for CREDIT_CARD only -- its explicit next statement due date,
+  // which recurs monthly but isn't derived from a startDate.
+  dueDate?: Date;
 }
 
 export interface DebtWithStats extends UnifiedDebt {
@@ -74,6 +79,7 @@ async function getUnifiedDebts(userId: string): Promise<UnifiedDebt[]> {
         emi: Number(c.minimumPayment),
         interestRate: Number(c.interestRate),
         memberId: c.memberId,
+        dueDate: c.dueDate,
       });
     }
   }
@@ -90,6 +96,7 @@ async function getUnifiedDebts(userId: string): Promise<UnifiedDebt[]> {
         emi: Number(e.emiAmount),
         interestRate: e.isNoCost ? 0 : Number(e.interestRate ?? 0),
         memberId: e.memberId,
+        startDate: e.startDate,
       });
     }
   }
@@ -276,6 +283,13 @@ export async function getDebtStrategy(userId: string, extraPayment = 5000) {
   const avalancheWithExtra = simulatePayoff(avalanche, extraPayment);
   const snowballWithExtra = simulatePayoff(snowball, extraPayment);
 
+  const interestSavedAvalanche = Math.max(0, base.totalInterest - avalancheWithExtra.totalInterest);
+  const interestSavedSnowball = Math.max(0, base.totalInterest - snowballWithExtra.totalInterest);
+  // Headline "Total Interest Saved" metric -- the best of the two strategies,
+  // surfaced as its own number rather than making the user compare two columns.
+  const bestStrategy: 'avalanche' | 'snowball' = interestSavedAvalanche >= interestSavedSnowball ? 'avalanche' : 'snowball';
+  const totalInterestSaved = Math.max(interestSavedAvalanche, interestSavedSnowball);
+
   return {
     debts,
     avalancheOrder: avalanche.map((d) => d.id),
@@ -285,7 +299,204 @@ export async function getDebtStrategy(userId: string, extraPayment = 5000) {
     baseMonths: base.months,
     avalancheMonthsWithExtra: avalancheWithExtra.months,
     snowballMonthsWithExtra: snowballWithExtra.months,
-    interestSavedAvalanche: Math.max(0, base.totalInterest - avalancheWithExtra.totalInterest),
-    interestSavedSnowball: Math.max(0, base.totalInterest - snowballWithExtra.totalInterest),
+    interestSavedAvalanche,
+    interestSavedSnowball,
+    bestStrategy,
+    totalInterestSaved,
   };
+}
+
+// ── Prepayment calculator ───────────────────────────────────────────────────
+
+export interface PrepaymentResult {
+  debtId: string;
+  name: string;
+  lumpSum: number;
+  baselineMonths: number;
+  baselineInterest: number;
+  newMonths: number;
+  newInterest: number;
+  monthsSaved: number;
+  interestSaved: number;
+}
+
+/**
+ * Pure function: what happens if a one-time lump sum is thrown at ONE
+ * specific debt today, on top of its existing EMI, with no other change?
+ * Distinct from the strategy comparison's extra-payment field, which applies
+ * a *recurring* monthly amount across the *whole* debt portfolio in a chosen
+ * order. This answers "should I use my bonus to pay down the car loan" --
+ * a single debt, a single moment, reusing the same simulatePayoff engine by
+ * simply starting that one debt's balance lower.
+ */
+export function simulatePrepayment(debt: UnifiedDebt, lumpSum: number): PrepaymentResult {
+  const baseline = simulatePayoff([debt], 0);
+  const reduced = { ...debt, remainingBalance: Math.max(0, debt.remainingBalance - lumpSum) };
+  const withPrepay = simulatePayoff([reduced], 0);
+
+  return {
+    debtId: debt.id,
+    name: debt.name,
+    lumpSum,
+    baselineMonths: baseline.months,
+    baselineInterest: baseline.totalInterest,
+    newMonths: withPrepay.months,
+    newInterest: withPrepay.totalInterest,
+    monthsSaved: Math.max(0, baseline.months - withPrepay.months),
+    interestSaved: Math.max(0, baseline.totalInterest - withPrepay.totalInterest),
+  };
+}
+
+export async function getPrepayment(userId: string, debtId: string, lumpSum: number): Promise<PrepaymentResult> {
+  const debts = await getUnifiedDebts(userId);
+  const debt = debts.find((d) => d.id === debtId);
+  if (!debt) throw createError('Debt not found', 404);
+  return simulatePrepayment(debt, lumpSum);
+}
+
+// ── EMI calendar ─────────────────────────────────────────────────────────────
+
+export interface CalendarEntry {
+  date: Date;
+  debtId: string;
+  sourceType: DebtSourceType;
+  name: string;
+  amount: number;
+}
+
+function addMonthsClamped(date: Date, months: number, anchorDay: number): Date {
+  const d = new Date(date.getFullYear(), date.getMonth() + months, 1);
+  const daysInMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+  d.setDate(Math.min(anchorDay, daysInMonth));
+  return d;
+}
+
+/**
+ * Pure function: projects upcoming due dates across every debt instrument
+ * over the next `monthsAhead` months. Loans and card EMIs have no explicit
+ * due-day field, so their day-of-month is inferred from startDate (the day
+ * they were taken out is the day the installment recurs). Credit cards
+ * carry an explicit dueDate that's rolled forward monthly. Loan/EMI
+ * occurrences are also capped by monthsToPayoff so a nearly-finished debt
+ * doesn't show phantom installments past its payoff.
+ */
+export function buildEMICalendar(debts: DebtWithStats[], monthsAhead: number, now: Date): CalendarEntry[] {
+  const entries: CalendarEntry[] = [];
+  const horizonEnd = new Date(now.getFullYear(), now.getMonth() + monthsAhead, 0, 23, 59, 59);
+
+  for (const debt of debts) {
+    if (debt.sourceType === 'CREDIT_CARD') {
+      if (!debt.dueDate) continue;
+      const anchorDay = debt.dueDate.getDate();
+      let occurrence = new Date(debt.dueDate);
+      let guard = 0;
+      while (occurrence < now && guard < 24) { occurrence = addMonthsClamped(occurrence, 1, anchorDay); guard++; }
+      while (occurrence <= horizonEnd) {
+        entries.push({ date: new Date(occurrence), debtId: debt.id, sourceType: debt.sourceType, name: debt.name, amount: debt.emi });
+        occurrence = addMonthsClamped(occurrence, 1, anchorDay);
+      }
+    } else {
+      if (!debt.startDate || debt.monthsToPayoff <= 0) continue;
+      const anchorDay = debt.startDate.getDate();
+      const maxOccurrences = Math.min(monthsAhead, debt.monthsToPayoff);
+      let cursor = new Date(now.getFullYear(), now.getMonth(), Math.min(anchorDay, new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()));
+      if (cursor < now) cursor = addMonthsClamped(cursor, 1, anchorDay);
+      for (let i = 0; i < maxOccurrences && cursor <= horizonEnd; i++) {
+        entries.push({ date: new Date(cursor), debtId: debt.id, sourceType: debt.sourceType, name: debt.name, amount: debt.emi });
+        cursor = addMonthsClamped(cursor, 1, anchorDay);
+      }
+    }
+  }
+
+  entries.sort((a, b) => a.date.getTime() - b.date.getTime());
+  return entries;
+}
+
+export async function getEMICalendar(userId: string, monthsAhead = 3): Promise<CalendarEntry[]> {
+  const debts = await getUnifiedDebtsWithStats(userId);
+  return buildEMICalendar(debts, monthsAhead, new Date());
+}
+
+// ── Structured recommendations ──────────────────────────────────────────────
+
+export type RecommendationSeverity = 'critical' | 'warning' | 'info' | 'positive';
+
+export interface Recommendation {
+  priority: number; // lower = more urgent, 1-based
+  severity: RecommendationSeverity;
+  title: string;
+  description: string;
+  debtId?: string;
+}
+
+/**
+ * Pure function: turns the health score factors + strategy comparison into
+ * a ranked list of concrete, individually actionable suggestions, instead
+ * of the single prose paragraph the strategy comparison previously carried
+ * alone. Ordering is by severity (critical debts first), not just factor
+ * weight, since a single 36%-interest card is more urgent to name than a
+ * generically low aggregate score.
+ */
+export function generateRecommendations(
+  health: HealthScoreResult,
+  strategy: { debts: DebtWithStats[]; avalancheOrder: string[]; bestStrategy: 'avalanche' | 'snowball'; totalInterestSaved: number; extraPayment: number },
+): Recommendation[] {
+  const recs: Recommendation[] = [];
+
+  if (strategy.debts.length === 0) {
+    return [{ priority: 1, severity: 'positive', title: "You're debt-free", description: 'No active loans, revolving card balances, or card EMIs. Keep it that way.' }];
+  }
+
+  // 1. Call out the single highest-rate debt by name -- the most actionable
+  //    first step regardless of overall score.
+  const worstRate = [...strategy.debts].sort((a, b) => b.interestRate - a.interestRate)[0];
+  if (worstRate.interestRate >= 20) {
+    recs.push({
+      priority: 1, severity: 'critical', debtId: worstRate.id,
+      title: `Target "${worstRate.name}" first`,
+      description: `Carrying a ${worstRate.interestRate.toFixed(1)}% rate -- your most expensive debt. Paying this down first (avalanche order) saves the most interest.`,
+    });
+  }
+
+  // 2. Any debt that mathematically never pays off at its current payment.
+  const stuck = strategy.debts.filter((d) => d.monthsToPayoff >= 999);
+  for (const d of stuck) {
+    recs.push({
+      priority: 1, severity: 'critical', debtId: d.id,
+      title: `"${d.name}" won't pay itself off`,
+      description: `Its ${d.emi > 0 ? 'current payment' : 'minimum payment'} doesn't cover the interest it accrues each month. Increase the payment above ${d.monthlyInterest.toFixed(0)}/mo or it will never reach zero.`,
+    });
+  }
+
+  // 3. Debt-to-income and utilization factor warnings.
+  for (const f of health.factors) {
+    if (f.score < 40 && f.label !== 'On-track loans') {
+      recs.push({
+        priority: 2, severity: f.score < 20 ? 'critical' : 'warning',
+        title: `${f.label} needs attention`,
+        description: f.detail,
+      });
+    }
+  }
+
+  // 4. Strategy recommendation with the concrete, computed savings number.
+  if (strategy.totalInterestSaved > 0) {
+    recs.push({
+      priority: 3, severity: 'info',
+      title: `Use the ${strategy.bestStrategy === 'avalanche' ? 'Avalanche' : 'Snowball'} strategy`,
+      description: `Adding ${strategy.extraPayment.toLocaleString('en-IN')}/mo extra toward "${strategy.debts.find((d) => d.id === strategy.avalancheOrder[0])?.name ?? 'your top debt'}" first saves an estimated ${Math.round(strategy.totalInterestSaved).toLocaleString('en-IN')} in interest.`,
+    });
+  }
+
+  // 5. Positive reinforcement when the score is already healthy and nothing urgent surfaced.
+  if (recs.length === 0 && health.band === 'excellent') {
+    recs.push({ priority: 1, severity: 'positive', title: 'Your debt is well under control', description: 'No urgent action needed -- keep making payments on schedule.' });
+  }
+
+  return recs.sort((a, b) => a.priority - b.priority).map((r, i) => ({ ...r, priority: i + 1 }));
+}
+
+export async function getRecommendations(userId: string): Promise<Recommendation[]> {
+  const [health, strategy] = await Promise.all([getHealthScore(userId), getDebtStrategy(userId)]);
+  return generateRecommendations(health, strategy);
 }

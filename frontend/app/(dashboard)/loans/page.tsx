@@ -24,6 +24,10 @@ import { cn } from '@/lib/utils';
 import { differenceInMonths, parseISO, format, addMonths } from 'date-fns';
 import { DebtHealthScore } from '@/components/loans/DebtHealthScore';
 import { PayoffStrategyComparison } from '@/components/loans/PayoffStrategyComparison';
+import { TotalInterestSaved } from '@/components/loans/TotalInterestSaved';
+import { RecommendationCards } from '@/components/loans/RecommendationCards';
+import { PrepaymentCalculator } from '@/components/loans/PrepaymentCalculator';
+import { EMICalendar } from '@/components/loans/EMICalendar';
 
 const LOAN_ICONS: Record<string, string> = {
   HOME: '🏠', CAR: '🚗', PERSONAL: '💼', EDUCATION: '🎓', BUSINESS: '🏢', OTHER: '💳',
@@ -667,8 +671,12 @@ function P2PTab() {
 function DebtInsightsTab() {
   return (
     <div className="space-y-4">
+      <TotalInterestSaved />
       <DebtHealthScore />
+      <RecommendationCards />
       <PayoffStrategyComparison />
+      <PrepaymentCalculator />
+      <EMICalendar />
     </div>
   );
 }
