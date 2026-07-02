@@ -1,16 +1,16 @@
 import { Router } from 'express';
+import * as categoryController from '../controllers/category.controller';
 import { authenticate } from '../middleware/auth.middleware';
-import * as categoryService from '../services/category.service';
-import { AuthRequest } from '../types';
-import { Response } from 'express';
+import { validate } from '../middleware/validate.middleware';
+import { createCategorySchema, updateCategorySchema } from '../validators/category.validator';
 
 const router = Router();
 
 router.use(authenticate);
 
-router.get('/', async (req: AuthRequest, res: Response) => {
-  const categories = await categoryService.getCategories(req.user!.userId);
-  res.json({ success: true, data: categories });
-});
+router.get('/', categoryController.getCategories);
+router.post('/', validate(createCategorySchema), categoryController.createCategory);
+router.put('/:id', validate(updateCategorySchema), categoryController.updateCategory);
+router.delete('/:id', categoryController.deleteCategory);
 
 export default router;

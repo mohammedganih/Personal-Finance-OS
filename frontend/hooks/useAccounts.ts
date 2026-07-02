@@ -13,14 +13,3 @@ export function useAccounts() {
     },
   });
 }
-
-export function useCategories() {
-  return useQuery({
-    queryKey: ['categories'],
-    queryFn: async () => {
-      const res = await api.get('/categories');
-      return res.data.data;
-    },
-    staleTime: 10 * 60 * 1000,
-  });
-}

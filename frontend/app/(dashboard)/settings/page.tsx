@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { LogOut, User, Shield } from 'lucide-react';
 import { FamilySetup } from '@/components/settings/FamilySetup';
 import { AccountSetup } from '@/components/settings/AccountSetup';
+import { CategorySetup } from '@/components/settings/CategorySetup';
 
 export default function SettingsPage() {
   const { user } = useAuthStore();
@@ -25,6 +26,9 @@ export default function SettingsPage() {
 
       {/* Bank Accounts */}
       <AccountSetup />
+
+      {/* Categories */}
+      <CategorySetup />
 
       {/* Profile */}
       <div className="glass-card rounded-2xl p-5 space-y-4">

@@ -1,5 +1,7 @@
 import { prisma } from '../lib/prisma';
+import { createError } from '../middleware/error.middleware';
 import { DEFAULT_CATEGORIES } from './auth.service';
+import { CreateCategoryInput, UpdateCategoryInput } from '../validators/category.validator';
 
 export async function getCategories(userId: string) {
   // Auto-seed any missing default categories for this user on every fetch
@@ -24,4 +26,26 @@ export async function getCategories(userId: string) {
     where: { userId },
     orderBy: [{ type: 'asc' }, { name: 'asc' }],
   });
+}
+
+export async function createCategory(userId: string, input: CreateCategoryInput) {
+  return prisma.category.create({
+    data: { userId, ...input, isDefault: false },
+  });
+}
+
+export async function updateCategory(userId: string, id: string, input: UpdateCategoryInput) {
+  const existing = await prisma.category.findFirst({ where: { id, userId } });
+  if (!existing) throw createError('Category not found', 404);
+  if (existing.isDefault) throw createError('Default categories cannot be edited', 400);
+
+  return prisma.category.update({ where: { id }, data: input });
+}
+
+export async function deleteCategory(userId: string, id: string) {
+  const existing = await prisma.category.findFirst({ where: { id, userId } });
+  if (!existing) throw createError('Category not found', 404);
+  if (existing.isDefault) throw createError('Default categories cannot be deleted', 400);
+
+  await prisma.category.delete({ where: { id } });
 }
