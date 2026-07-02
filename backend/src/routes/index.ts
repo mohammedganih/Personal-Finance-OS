@@ -12,6 +12,7 @@ import creditCardRoutes from './credit-card.routes';
 import p2pRoutes from './p2p.routes';
 import cardEMIRoutes from './card-emi.routes';
 import familyRoutes from './family.routes';
+import budgetRoutes from './budget.routes';
 
 const router = Router();
 
@@ -30,5 +31,6 @@ router.use('/credit-cards', creditCardRoutes);
 router.use('/p2p', p2pRoutes);
 router.use('/card-emis', cardEMIRoutes);
 router.use('/family', familyRoutes);
+router.use('/budgets', budgetRoutes);
 
 export default router;

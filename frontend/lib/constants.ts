@@ -7,11 +7,13 @@ import {
   Repeat,
   BarChart3,
   Settings,
+  PiggyBank,
 } from 'lucide-react';
 
 export const NAV_ITEMS = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/transactions', label: 'Transactions', icon: ArrowLeftRight },
+  { href: '/budgets', label: 'Budgets', icon: PiggyBank },
   { href: '/investments', label: 'Investments', icon: TrendingUp },
   { href: '/goals', label: 'Goals', icon: Target },
   { href: '/loans', label: 'Loans', icon: CreditCard },

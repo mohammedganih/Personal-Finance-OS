@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { KPICard } from '@/components/dashboard/KPICard';
 import { SafeToSaveBreakdown } from '@/components/dashboard/SafeToSaveBreakdown';
+import { BudgetOverview } from '@/components/dashboard/BudgetOverview';
 import { CashflowChart } from '@/components/dashboard/CashflowChart';
 import { ExpensePieChart } from '@/components/dashboard/ExpensePieChart';
 import { InvestmentAllocation } from '@/components/dashboard/InvestmentAllocation';
@@ -87,8 +88,11 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* Safe to Save Breakdown */}
-      <SafeToSaveBreakdown />
+      {/* Safe to Save Breakdown + Budgets */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+        <SafeToSaveBreakdown />
+        <BudgetOverview />
+      </div>
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

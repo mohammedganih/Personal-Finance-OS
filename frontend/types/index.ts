@@ -391,6 +391,24 @@ export interface P2PSummary {
   net: number;
 }
 
+// ─── Budget ───────────────────────────────────────────────────────────────────
+
+export type BudgetStatus = 'under' | 'near' | 'over';
+
+export interface Budget {
+  id: string;
+  categoryId: string;
+  category: Pick<Category, 'id' | 'name' | 'icon' | 'color'>;
+  monthlyLimit: number;
+  // computed by backend, current calendar month
+  spent: number;
+  remaining: number;
+  progressPct: number;
+  status: BudgetStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // ─── API ──────────────────────────────────────────────────────────────────────
 
 export interface ApiResponse<T> {
