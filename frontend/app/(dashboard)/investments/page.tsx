@@ -173,7 +173,7 @@ export default function InvestmentsPage() {
 
       {/* Summary strip */}
       {portfolio.length > 0 && (
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-5 gap-4">
           {[
             { label: 'Invested',     value: summary?.totalInvested ?? 0,  color: 'text-text-primary' },
             { label: 'Current Value', value: summary?.totalCurrent ?? 0,  color: 'text-text-primary' },
@@ -183,6 +183,11 @@ export default function InvestmentsPage() {
               value: summary?.totalInvested ? ((summary.totalPnl / summary.totalInvested) * 100) : 0,
               color: (summary?.totalPnl ?? 0) >= 0 ? 'text-success' : 'text-danger',
               isPercent: true,
+            },
+            {
+              label: 'Monthly Investment',
+              value: portfolio.reduce((s, inv) => s + (inv.monthlyAmount ?? 0), 0),
+              color: 'text-accent-violet-light',
             },
           ].map((s) => (
             <div key={s.label} className="glass-card rounded-2xl p-4">

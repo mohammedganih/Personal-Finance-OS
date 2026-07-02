@@ -58,8 +58,12 @@ export function SplitMemberSelector({ memberId, splitMemberId, splitRatio, onCha
   const secondaryMember = members.find((m) => m.id === splitMemberId);
 
   const enterSplit = () => {
-    const other = members.find((m) => m.id !== memberId) ?? members[1];
+    // Resolve the primary member FIRST. If no one was picked yet (memberId is
+    // null), it defaults to the first member -- so "other" must be searched
+    // against that resolved primary, not the original possibly-null memberId,
+    // or both slots collapse onto the same person (every id is "!== null").
     const primary = memberId ?? members[0]?.id ?? null;
+    const other = members.find((m) => m.id !== primary) ?? null;
     onChange(primary, other?.id ?? null, 50);
     setSplitMode(true);
   };
