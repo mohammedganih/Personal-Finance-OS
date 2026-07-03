@@ -86,4 +86,35 @@ describe('dashboard.service month scoping', () => {
     const overview = await dashboardService.getDashboardOverview(userId);
     expect(overview.monthlyIncome).toBe(4321);
   });
+
+  it('investmentValue values a Recurring Deposit by deposits + accrued interest, not quantity*currentPrice', async () => {
+    const userId = await setupUser();
+    // RD form never collects currentPrice (it stays 0) -- quantity is
+    // installments paid. The old naive quantity*currentPrice formula valued
+    // this at ₹0 no matter how much was actually deposited.
+    await prisma.investment.create({
+      data: {
+        userId, assetName: 'Test RD', assetType: 'RECURRING_DEPOSIT',
+        quantity: 4, currentPrice: 0, monthlyAmount: 30000, interestRate: 6,
+        purchaseDate: new Date(),
+      },
+    });
+
+    const overview = await dashboardService.getDashboardOverview(userId);
+    expect(overview.investmentValue).toBeGreaterThan(100000); // 4 * 30000 deposited, plus interest
+  });
+
+  it('investmentValue matches a simple SIP\'s quantity*currentPrice (the one case where the old formula was coincidentally right)', async () => {
+    const userId = await setupUser();
+    await prisma.investment.create({
+      data: {
+        userId, assetName: 'Test SIP', assetType: 'SIP',
+        quantity: 100, currentPrice: 50, monthlyAmount: 5000,
+        purchaseDate: new Date(),
+      },
+    });
+
+    const overview = await dashboardService.getDashboardOverview(userId);
+    expect(overview.investmentValue).toBe(5000); // 100 * 50
+  });
 });

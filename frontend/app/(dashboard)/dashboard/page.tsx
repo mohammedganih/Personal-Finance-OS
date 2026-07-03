@@ -69,7 +69,7 @@ export default function DashboardPage() {
               compact
             />
             <KPICard
-              title="Investments"
+              title="Investment Value"
               value={overview?.investmentValue ?? 0}
               icon={BarChart3}
               iconColor="bg-warning/15 text-warning"

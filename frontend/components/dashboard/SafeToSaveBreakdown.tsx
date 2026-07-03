@@ -149,34 +149,27 @@ export function SafeToSaveBreakdown() {
           </div>
 
           <div className="flex items-center justify-between p-2 rounded-xl bg-bg hover:bg-bg-elevated transition-colors text-text-secondary">
-            <span className="flex items-center gap-1.5">
-              Subscriptions
-              <span className="px-1.5 py-0.5 rounded text-[10px] bg-purple-600/10 text-purple-400">
-                Spent or Committed
-              </span>
-            </span>
+            <span>Subscriptions (this month)</span>
             <span className="font-mono text-text-primary">-{formatCurrency(effectiveSubscriptionSpent)}</span>
           </div>
 
           <div className="flex items-center justify-between p-2 rounded-xl bg-bg hover:bg-bg-elevated transition-colors text-text-secondary">
-            <span className="flex items-center gap-1.5">
-              Investments (SIP / RD)
-              <span className="px-1.5 py-0.5 rounded text-[10px] bg-amber-500/10 text-amber-400">
-                Spent or Committed
-              </span>
-            </span>
+            <span>Investments (this month&apos;s SIP, RD &amp; Gold Scheme)</span>
             <span className="font-mono text-text-primary">-{formatCurrency(effectiveInvestmentSpent)}</span>
           </div>
 
           <div className="flex items-center justify-between p-2 rounded-xl bg-bg hover:bg-bg-elevated transition-colors text-text-secondary">
-            <span className="flex items-center gap-1.5">
-              EMIs & Loans
-              <span className="px-1.5 py-0.5 rounded text-[10px] bg-orange-500/10 text-orange-400">
-                Spent or Committed
-              </span>
-            </span>
+            <span>EMIs & Loans (this month)</span>
             <span className="font-mono text-text-primary">-{formatCurrency(effectiveEMISpent)}</span>
           </div>
+
+          <p className="text-[11px] text-text-muted leading-relaxed px-2 flex items-start gap-1">
+            <Info className="w-3 h-3 mt-0.5 shrink-0" />
+            Each of the three rows above uses whichever is higher: what you&apos;ve already logged this
+            month, or what you&apos;re committed to pay — so nothing due is missed just because it
+            hasn&apos;t been paid yet. This is separate from your total investment portfolio value,
+            shown elsewhere on the dashboard.
+          </p>
 
           <div className="flex items-center justify-between p-2.5 rounded-xl border border-accent-violet/30 bg-accent-violet/5 hover:bg-accent-violet/10 transition-all font-semibold mt-2">
             <span className="text-accent-violet-light text-sm">Remaining Safe-to-Save Surplus</span>

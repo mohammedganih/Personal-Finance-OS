@@ -2,6 +2,7 @@ import { BillingCycle } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { QuickInsight } from '../types';
 import { resolveMonthRange } from '../lib/dateRange';
+import { computeInvestmentValue } from './investment.service';
 
 const BILLING_MULTIPLIERS: Record<BillingCycle, number> = {
   MONTHLY: 1, QUARTERLY: 1 / 3, HALF_YEARLY: 1 / 6, YEARLY: 1 / 12,
@@ -15,10 +16,7 @@ export async function getDashboardOverview(userId: string, month?: number, year?
       where: { userId, date: { gte: startOfMonth, lte: endOfMonth } },
       select: { type: true, amount: true, category: { select: { name: true } } },
     }),
-    prisma.investment.findMany({
-      where: { userId },
-      select: { quantity: true, currentPrice: true, monthlyAmount: true, assetType: true },
-    }),
+    prisma.investment.findMany({ where: { userId } }),
     prisma.loan.findMany({
       where: { userId, isActive: true },
       select: { remainingBalance: true, emi: true },
@@ -45,10 +43,12 @@ export async function getDashboardOverview(userId: string, month?: number, year?
     .filter((t) => t.type === 'EXPENSE')
     .reduce((s, t) => s + Number(t.amount), 0);
 
-  const investmentValue = investments.reduce(
-    (s, i) => s + Number(i.quantity) * Number(i.currentPrice),
-    0
-  );
+  // Reuses the same per-type valuation as the Investments page (a Recurring
+  // Deposit's value is deposits + accrued interest, not quantity*currentPrice
+  // -- that field isn't even collected for RDs/FDs, so the naive formula
+  // this used to use silently valued them at ₹0).
+  const now = new Date();
+  const investmentValue = investments.reduce((s, inv) => s + computeInvestmentValue(inv, now).currentValue, 0);
 
   const loanDebt = loans.reduce((s, l) => s + Number(l.remainingBalance), 0);
   const monthlyLoanEMI = loans.reduce((s, l) => s + Number(l.emi), 0);
