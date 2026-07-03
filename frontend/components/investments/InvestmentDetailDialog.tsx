@@ -73,6 +73,15 @@ export function InvestmentDetailDialog({ investment, onClose, onEdit, onDelete }
             </div>
           </div>
 
+          {/* Ownership share note -- Invested/Current/P&L above are already scaled
+              by this; shown so the numbers don't look mismatched against the full
+              market value entered on the form. */}
+          {(investment.assetType === 'REAL_ESTATE' || investment.assetType === 'VEHICLE') && investment.ownershipPercent !== null && investment.ownershipPercent < 100 && (
+            <p className="text-xs text-text-muted -mt-1">
+              You own {investment.ownershipPercent}% of this asset — full market value is {formatCurrency(investment.currentPrice, 'INR', true)}, figures above reflect your share only.
+            </p>
+          )}
+
           {/* Ownership */}
           {investment.member && (
             <div className="flex items-center gap-2">

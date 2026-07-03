@@ -209,7 +209,13 @@ export function computeInvestmentValue(inv: Investment, now: Date): { investedVa
 
     case 'REAL_ESTATE':
     case 'VEHICLE': {
-      return { investedValue: buyPx, currentValue: curPx };
+      // buyPrice/currentPrice are the asset's FULL market value -- only the
+      // household's actual ownership share (jointly-owned property, e.g.
+      // co-owned with someone outside this app) counts toward this app's
+      // portfolio/net worth. Untouched (ownershipPercent unset) = 100%,
+      // so pre-existing rows keep their current behavior exactly.
+      const ownershipShare = inv.ownershipPercent ? Number(inv.ownershipPercent) / 100 : 1;
+      return { investedValue: buyPx * ownershipShare, currentValue: curPx * ownershipShare };
     }
 
     default: {

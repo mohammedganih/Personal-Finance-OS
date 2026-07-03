@@ -113,7 +113,10 @@ function currentValueForType(inv: InvestmentWithPnl): number {
     return (inv.monthlyAmount ?? 0) * inv.quantity;
   }
   if (inv.assetType === 'GOLD_SCHEME') return inv.quantity * inv.currentPrice;
-  if (inv.assetType === 'REAL_ESTATE') return inv.currentPrice;
+  // REAL_ESTATE/VEHICLE (and everything else): inv.currentValue is the
+  // backend-computed figure, already scaled by ownershipPercent for
+  // collateral assets -- inv.currentPrice alone would be the FULL market
+  // value, ignoring what share of it the household actually owns.
   return inv.currentValue;
 }
 

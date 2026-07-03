@@ -13,6 +13,10 @@ export interface CashFlow {
 const XIRR_MAX_ITERATIONS = 100;
 const XIRR_TOLERANCE = 1e-7;
 const MS_PER_YEAR = 365 * 24 * 60 * 60 * 1000;
+// Below this, annualizing blows up into a meaningless number -- e.g. a
+// holding bought hours ago with a 12% unrealized gain isn't really earning
+// 12% *per hour, annualized*; it just hasn't had time to mean anything yet.
+const MIN_YEARS_FOR_XIRR = 7 / 365;
 
 /**
  * Newton-Raphson XIRR solver: the annualized rate r such that the present
@@ -29,7 +33,7 @@ export function calculateXIRR(cashflows: CashFlow[]): number | null {
   const t0 = sorted[0].date.getTime();
   const years = sorted.map((cf) => (cf.date.getTime() - t0) / MS_PER_YEAR);
 
-  if (years[years.length - 1] <= 0) return null; // no time elapsed to annualize over
+  if (years[years.length - 1] < MIN_YEARS_FOR_XIRR) return null; // too little time elapsed to annualize meaningfully
 
   if (sorted.length === 2 && sorted[0].amount < 0 && sorted[1].amount > 0) {
     const ratio = sorted[1].amount / -sorted[0].amount;

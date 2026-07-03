@@ -33,6 +33,15 @@ describe('calculateXIRR (pure)', () => {
     expect(calculateXIRR([{ date: d, amount: -100 }, { date: d, amount: 110 }])).toBeNull();
   });
 
+  it('returns null rather than an astronomical number for a holding bought hours ago', () => {
+    // Regression: the closed-form path raises `ratio` to the power of 1/years,
+    // so a few elapsed hours (years ~ 0.0001) used to blow a modest 12.5% gain
+    // up into a nonsensical e+31 percent "annualized return".
+    const start = new Date();
+    const now = new Date(start.getTime() + 3 * 60 * 60 * 1000); // 3 hours later
+    expect(calculateXIRR([{ date: start, amount: -8000000 }, { date: now, amount: 9000000 }])).toBeNull();
+  });
+
   it('solves the closed-form case exactly: 100000 -> 121000 in exactly 1 year is 21%', () => {
     const start = new Date(2024, 0, 1);
     const end = new Date(2025, 0, 1);
