@@ -44,7 +44,7 @@ export function CreditCardForm({ onClose, card }: { onClose: () => void; card?: 
           outstanding:    card.outstanding,
           minimumPayment: card.minimumPayment ?? undefined,
           dueDate:        format(new Date(card.dueDate), 'yyyy-MM-dd'),
-          statementDate:  card.statementDate ? format(new Date(card.statementDate), 'yyyy-MM-dd') : '',
+          statementDate:  card.statementDate ? format(new Date(card.statementDate), 'yyyy-MM-dd') : undefined,
           interestRate:   card.interestRate ?? undefined,
           notes:          card.notes ?? '',
         }

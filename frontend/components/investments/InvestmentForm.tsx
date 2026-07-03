@@ -175,7 +175,7 @@ export function InvestmentForm({ onClose, investment }: InvestmentFormProps) {
           interestRate:  investment.interestRate ?? undefined,
           maturityDate:  investment.maturityDate
             ? format(new Date(investment.maturityDate), 'yyyy-MM-dd')
-            : '',
+            : undefined,
           maturityAmount: investment.maturityAmount ?? undefined,
           notes:          investment.notes ?? '',
           platform:       investment.platform ?? '',

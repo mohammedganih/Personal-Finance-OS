@@ -41,7 +41,7 @@ export function P2PForm({ onClose, loan }: { onClose: () => void; loan?: P2PLoan
           amount:          loan.amount,
           remainingAmount: loan.remainingAmount,
           date:            format(new Date(loan.date), 'yyyy-MM-dd'),
-          dueDate:         loan.dueDate ? format(new Date(loan.dueDate), 'yyyy-MM-dd') : '',
+          dueDate:         loan.dueDate ? format(new Date(loan.dueDate), 'yyyy-MM-dd') : undefined,
           description:     loan.description ?? '',
           notes:           loan.notes ?? '',
         }
