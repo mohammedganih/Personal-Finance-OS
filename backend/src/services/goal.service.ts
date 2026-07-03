@@ -1,6 +1,12 @@
+import { Goal, FamilyMember, Account } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { createError } from '../middleware/error.middleware';
 import { CreateGoalInput, UpdateGoalInput, CreateGoalContributionInput } from '../validators/goal.validator';
+
+type GoalWithRelations = Goal & {
+  member?: Pick<FamilyMember, 'id' | 'name' | 'color' | 'emoji'> | null;
+  fundingAccount?: Pick<Account, 'id' | 'name' | 'type'> | null;
+};
 
 const MEMBER_SELECT = { select: { id: true, name: true, color: true, emoji: true } };
 
@@ -145,13 +151,13 @@ export async function deleteContribution(userId: string, goalId: string, contrib
   ]);
 }
 
-function serializeGoal(goal: Record<string, unknown>) {
+function serializeGoal(goal: GoalWithRelations) {
   return {
     ...goal,
-    targetAmount: Number((goal as { targetAmount: { toString(): string } }).targetAmount),
-    currentAmount: Number((goal as { currentAmount: { toString(): string } }).currentAmount),
-    monthlyContribution: goal.monthlyContribution ? Number(goal.monthlyContribution as { toString(): string }) : null,
-    expectedReturnRate: goal.expectedReturnRate ? Number(goal.expectedReturnRate as { toString(): string }) : null,
-    expectedInflationRate: goal.expectedInflationRate ? Number(goal.expectedInflationRate as { toString(): string }) : null,
+    targetAmount: Number(goal.targetAmount),
+    currentAmount: Number(goal.currentAmount),
+    monthlyContribution: goal.monthlyContribution ? Number(goal.monthlyContribution) : null,
+    expectedReturnRate: goal.expectedReturnRate ? Number(goal.expectedReturnRate) : null,
+    expectedInflationRate: goal.expectedInflationRate ? Number(goal.expectedInflationRate) : null,
   };
 }
