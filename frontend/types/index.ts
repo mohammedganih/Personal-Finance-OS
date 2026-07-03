@@ -56,6 +56,7 @@ export interface Transaction {
   notes: string | null;
   date: string;
   isRecurring: boolean;
+  isWealthTransfer: boolean;
   memberId: string | null;
   splitMemberId: string | null;
   splitRatio: number | null;
@@ -98,6 +99,7 @@ export type AssetType =
   | 'REAL_ESTATE'
   | 'GOLD'
   | 'GOLD_SCHEME'
+  | 'VEHICLE'
   | 'OTHER';
 
 export interface Investment {
@@ -125,6 +127,11 @@ export interface Investment {
   splitMemberId: string | null;
   splitRatio: number | null;
   bankAccountId: string | null;
+  // Collateral assets (Real Estate / Vehicle) -- may back a Loan
+  address: string | null;
+  ownershipPercent: number | null;
+  expectedAppreciationRate: number | null;
+  linkedLoans?: Pick<Loan, 'id' | 'name' | 'remainingBalance' | 'interestRate' | 'emi' | 'startDate' | 'tenureMonths' | 'principal'>[];
   member: Pick<FamilyMember, 'id' | 'name' | 'color' | 'emoji'> | null;
   splitMember: Pick<FamilyMember, 'id' | 'name' | 'color' | 'emoji'> | null;
   bankAccount: Pick<Account, 'id' | 'name' | 'type'> | null;
@@ -329,11 +336,70 @@ export interface Loan {
   memberId: string | null;
   payerMemberId: string | null;
   bankAccountId: string | null;
+  linkedInvestmentId: string | null;
   member: Pick<FamilyMember, 'id' | 'name' | 'color' | 'emoji'> | null;
   payer: Pick<FamilyMember, 'id' | 'name' | 'color' | 'emoji'> | null;
   bankAccount: Pick<Account, 'id' | 'name' | 'type'> | null;
+  linkedInvestment: Pick<Investment, 'id' | 'assetName' | 'assetType' | 'currentPrice' | 'ownershipPercent'> | null;
   createdAt: string;
   updatedAt: string;
+}
+
+// ─── Asset-Loan Intelligence ────────────────────────────────────────────────
+
+export interface AmortizationRow {
+  month: number;
+  date: string;
+  openingBalance: number;
+  interest: number;
+  principal: number;
+  closingBalance: number;
+  cumulativeInterest: number;
+  cumulativePrincipal: number;
+}
+
+export interface AssetLoanSummary {
+  loanId: string;
+  investmentId: string;
+  assetName: string;
+  assetType: AssetType;
+  currentPropertyValue: number;
+  purchasePrice: number;
+  originalLoanAmount: number;
+  remainingBalance: number;
+  ownershipPercent: number;
+  equity: number;
+  unrealizedGain: number;
+  loanToValue: number;
+  principalPaid: number;
+  interestPaid: number;
+  totalInterestRemaining: number;
+  monthsElapsed: number;
+  roi: number;
+  appreciationSincePurchasePct: number;
+  annualizedAppreciationPct: number;
+  projectedValueNextYear: number;
+  principalPaidThisMonth: number;
+  interestPaidThisMonth: number;
+  interestShareOfEMIPct: number;
+}
+
+export type AssetLoanInsightSeverity = 'positive' | 'info' | 'warning';
+
+export interface AssetLoanInsight {
+  severity: AssetLoanInsightSeverity;
+  message: string;
+  loanId: string;
+}
+
+export interface HomeEquitySummary {
+  assets: AssetLoanSummary[];
+  totalEquity: number;
+  totalPropertyValue: number;
+  totalOutstanding: number;
+  totalPrincipalPaid: number;
+  totalInterestPaid: number;
+  weightedLTV: number;
 }
 
 // ─── Subscription ─────────────────────────────────────────────────────────────
@@ -362,6 +428,7 @@ export interface DashboardOverview {
   totalLiabilities: number;
   monthlyIncome: number;
   monthlyExpenses: number;
+  monthlyWealthCreation: number;
   monthlySavings: number;
   savingsRate: number;
   investmentValue: number;

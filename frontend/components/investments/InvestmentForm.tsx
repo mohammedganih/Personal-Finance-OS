@@ -101,6 +101,11 @@ const FIELD_CONFIG: Record<AssetType, FieldSet> = {
     buyPriceLabel: 'Purchase Price (₹)',
     currentPriceLabel: 'Current Market Value (₹)',
   },
+  VEHICLE: {
+    quantity: false, buyPrice: true, currentPrice: true,
+    buyPriceLabel: 'Purchase Price (₹)',
+    currentPriceLabel: 'Current Market Value (₹)',
+  },
   OTHER: {
     quantity: true, buyPrice: true, currentPrice: true,
   },
@@ -125,6 +130,9 @@ const schema = z.object({
   maturityAmount: z.coerce.number().positive().optional(),
   platform:      z.string().optional(),
   bankAccountId: z.string().optional(),
+  address:                  z.string().optional(),
+  ownershipPercent:         z.coerce.number().min(0).max(100).optional(),
+  expectedAppreciationRate: z.coerce.number().min(-100).max(100).optional(),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -171,6 +179,9 @@ export function InvestmentForm({ onClose, investment }: InvestmentFormProps) {
           maturityAmount: investment.maturityAmount ?? undefined,
           notes:          investment.notes ?? '',
           platform:       investment.platform ?? '',
+          address:                  investment.address ?? '',
+          ownershipPercent:         investment.ownershipPercent ?? undefined,
+          expectedAppreciationRate: investment.expectedAppreciationRate ?? undefined,
         }
       : {
           assetType:    defaultType,
@@ -180,6 +191,7 @@ export function InvestmentForm({ onClose, investment }: InvestmentFormProps) {
 
   const selectedType = watch('assetType') as AssetType;
   const cfg = FIELD_CONFIG[selectedType] ?? FIELD_CONFIG.OTHER;
+  const isCollateralType = selectedType === 'REAL_ESTATE' || selectedType === 'VEHICLE';
 
   const onSubmit = (data: FormData) => {
     const payload = {
@@ -242,6 +254,8 @@ export function InvestmentForm({ onClose, investment }: InvestmentFormProps) {
                   ? 'Scheme / Jeweller Name'
                   : selectedType === 'REAL_ESTATE'
                   ? 'Property Description'
+                  : selectedType === 'VEHICLE'
+                  ? 'Vehicle Description'
                   : selectedType === 'SIP' || selectedType === 'MUTUAL_FUND'
                   ? 'Fund Name'
                   : 'Asset Name'}
@@ -357,6 +371,31 @@ export function InvestmentForm({ onClose, investment }: InvestmentFormProps) {
                   <Label>{cfg.currentPriceLabel ?? 'Current Price (₹)'}</Label>
                   <Input type="number" step="0.01" placeholder="0.00" {...register('currentPrice')} />
                 </div>
+              )}
+            </div>
+          )}
+
+          {/* Collateral asset fields (Real Estate / Vehicle) -- relevant when a Loan is linked to this asset */}
+          {isCollateralType && (
+            <div className="space-y-3 p-3 rounded-xl bg-bg-elevated border border-border">
+              <div className="space-y-1.5">
+                <Label>Address (optional)</Label>
+                <Input placeholder="e.g. Plot 12, Green Valley, Pune" {...register('address')} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Your Ownership %</Label>
+                  <Input type="number" step="0.01" placeholder="100" {...register('ownershipPercent')} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Expected Annual Appreciation %</Label>
+                  <Input type="number" step="0.1" placeholder="8" {...register('expectedAppreciationRate')} />
+                </div>
+              </div>
+              {isEdit && investment && (investment.linkedLoans?.length ?? 0) > 0 && (
+                <p className="text-xs text-text-muted">
+                  🔗 Linked to {investment.linkedLoans!.length} loan{investment.linkedLoans!.length > 1 ? 's' : ''}: {investment.linkedLoans!.map((l) => l.name).join(', ')}
+                </p>
               )}
             </div>
           )}

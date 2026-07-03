@@ -3,7 +3,7 @@ import { z } from 'zod';
 const ASSET_TYPES = [
   'STOCK', 'MUTUAL_FUND', 'SIP', 'CRYPTO', 'ETF',
   'FIXED_DEPOSIT', 'RECURRING_DEPOSIT', 'REAL_ESTATE',
-  'GOLD', 'GOLD_SCHEME', 'OTHER',
+  'GOLD', 'GOLD_SCHEME', 'VEHICLE', 'OTHER',
 ] as const;
 
 const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
@@ -35,6 +35,11 @@ export const createInvestmentSchema = z.object({
   splitMemberId: z.string().cuid().optional(),
   splitRatio:    z.number().min(0).max(100).optional(),
   bankAccountId: z.string().cuid().optional(),
+
+  // Collateral assets (Real Estate / Vehicle)
+  address:                  z.string().max(500).optional(),
+  ownershipPercent:         z.number().min(0).max(100).optional(),
+  expectedAppreciationRate: z.number().min(-100).max(100).optional(),
 });
 
 export const updateInvestmentSchema = createInvestmentSchema.partial();

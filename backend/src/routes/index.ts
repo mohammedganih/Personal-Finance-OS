@@ -14,6 +14,7 @@ import cardEMIRoutes from './card-emi.routes';
 import familyRoutes from './family.routes';
 import budgetRoutes from './budget.routes';
 import debtRoutes from './debt.routes';
+import assetLoanRoutes from './assetLoan.routes';
 
 const router = Router();
 
@@ -34,5 +35,6 @@ router.use('/card-emis', cardEMIRoutes);
 router.use('/family', familyRoutes);
 router.use('/budgets', budgetRoutes);
 router.use('/debt', debtRoutes);
+router.use('/asset-loans', assetLoanRoutes);
 
 export default router;

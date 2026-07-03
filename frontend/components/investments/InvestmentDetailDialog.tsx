@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { formatCurrency, formatDate, formatPercent, getDaysUntil } from '@/lib/format';
 import { ASSET_TYPE_LABELS, ASSET_TYPE_ICONS } from '@/lib/constants';
 import { useAnnualizedReturns, useInvestmentCalendar } from '@/hooks/useInvestmentIntelligence';
+import { useAssetLoanSummary } from '@/hooks/useLoans';
 import { MemberBadge } from '@/components/shared/MemberSelector';
 import { InvestmentWithPnl } from '@/types';
 import { cn } from '@/lib/utils';
@@ -30,6 +31,8 @@ interface InvestmentDetailDialogProps {
 export function InvestmentDetailDialog({ investment, onClose, onEdit, onDelete }: InvestmentDetailDialogProps) {
   const { data: returns } = useAnnualizedReturns();
   const { data: calendar } = useInvestmentCalendar(3);
+  const linkedLoanId = investment.linkedLoans?.[0]?.id;
+  const { data: equitySummary } = useAssetLoanSummary(linkedLoanId);
 
   const xirr = returns?.byHolding.find((h) => h.investmentId === investment.id)?.xirr ?? null;
   const upcoming = (calendar ?? []).filter((e) => e.investmentId === investment.id);
@@ -115,6 +118,29 @@ export function InvestmentDetailDialog({ investment, onClose, onEdit, onDelete }
               </div>
             )}
           </div>
+
+          {/* Equity -- present only when a Loan is linked to this asset */}
+          {equitySummary && (
+            <div className="bg-success/8 border border-success/20 rounded-xl p-3 space-y-2">
+              <p className="text-xs font-semibold text-success">🏡 Backed by a linked loan</p>
+              <div className="grid grid-cols-3 gap-2 text-xs">
+                <div>
+                  <p className="text-text-muted">Equity</p>
+                  <p className="font-mono font-semibold text-success mt-0.5">{formatCurrency(equitySummary.equity, 'INR', true)}</p>
+                </div>
+                <div>
+                  <p className="text-text-muted">Loan-to-Value</p>
+                  <p className="font-mono font-semibold text-text-primary mt-0.5">{equitySummary.loanToValue.toFixed(0)}%</p>
+                </div>
+                <div>
+                  <p className="text-text-muted">ROI (leveraged)</p>
+                  <p className={cn('font-mono font-semibold mt-0.5', equitySummary.roi >= 0 ? 'text-success' : 'text-danger')}>
+                    {equitySummary.roi >= 0 ? '+' : ''}{equitySummary.roi.toFixed(1)}%
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Maturity -- driven directly by the investment's own fields, not
               the windowed Maturity Radar list, so a far-off or already-past

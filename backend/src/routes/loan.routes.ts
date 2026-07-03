@@ -14,5 +14,6 @@ router.post('/', validate(createLoanSchema), loanController.createLoan);
 router.put('/:id', validate(updateLoanSchema), loanController.updateLoan);
 router.delete('/:id', loanController.deleteLoan);
 router.post('/:id/pay', loanController.payLoanEMI);
+router.post('/:id/link-asset', loanController.linkLoanAsset);
 
 export default router;

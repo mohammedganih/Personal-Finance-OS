@@ -27,6 +27,7 @@ export const DEFAULT_CATEGORIES = [
   { name: 'Subscriptions',       icon: '📱', color: '#6366F1', type: 'EXPENSE' as const },
   { name: 'Investment',          icon: '📈', color: '#F59E0B', type: 'EXPENSE' as const },
   { name: 'Loan EMI',            icon: '🏦', color: '#F97316', type: 'EXPENSE' as const },
+  { name: 'Wealth Creation',     icon: '🏡', color: '#22C55E', type: 'EXPENSE' as const },
   { name: 'Credit Card Bill',    icon: '💳', color: '#EF4444', type: 'EXPENSE' as const },
   { name: 'Card EMI',            icon: '📦', color: '#8B5CF6', type: 'EXPENSE' as const },
   { name: 'Other',               icon: '📦', color: '#6B7280', type: 'EXPENSE' as const },

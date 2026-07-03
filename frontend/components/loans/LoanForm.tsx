@@ -11,9 +11,10 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useCreateLoan, useUpdateLoan } from '@/hooks/useLoans';
 import { useAccounts } from '@/hooks/useAccounts';
+import { useInvestments } from '@/hooks/useInvestments';
 import { MemberSelector } from '@/components/shared/MemberSelector';
 import { Loader2 } from 'lucide-react';
-import { LOAN_TYPE_LABELS } from '@/lib/constants';
+import { LOAN_TYPE_LABELS, ASSET_TYPE_ICONS } from '@/lib/constants';
 import { Loan, Account } from '@/types';
 
 const schema = z.object({
@@ -29,6 +30,7 @@ const schema = z.object({
   memberId:         z.string().optional(),    // borrower
   payerMemberId:    z.string().optional(),    // who pays EMI
   bankAccountId:    z.string().optional(),    // linked account
+  linkedInvestmentId: z.string().nullable().optional(),  // collateral asset (Property, Vehicle, ...)
 });
 
 type FormData = z.infer<typeof schema>;
@@ -45,6 +47,7 @@ export function LoanForm({ onClose, loan }: LoanFormProps) {
   const isPending = isCreating || isUpdating;
 
   const { data: accounts } = useAccounts();
+  const { data: investments } = useInvestments();
   const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: loan
@@ -61,6 +64,7 @@ export function LoanForm({ onClose, loan }: LoanFormProps) {
           memberId:      loan.memberId ?? undefined,
           payerMemberId: loan.payerMemberId ?? undefined,
           bankAccountId: loan.bankAccountId ?? undefined,
+          linkedInvestmentId: loan.linkedInvestmentId ?? undefined,
         }
       : { startDate: format(new Date(), 'yyyy-MM-dd'), loanType: 'PERSONAL' },
   });
@@ -169,6 +173,28 @@ export function LoanForm({ onClose, loan }: LoanFormProps) {
               <SelectContent>
                 {(accounts as Account[] | undefined)?.map((acc) => (
                   <SelectItem key={acc.id} value={acc.id}>{acc.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Linked asset -- this is what makes EMI principal build equity instead of counting as an expense */}
+          <div className="space-y-1.5 p-3 rounded-xl bg-bg-elevated border border-border">
+            <Label>Linked Asset (optional)</Label>
+            <p className="text-xs text-text-muted -mt-0.5 mb-1">
+              Link this loan to a Property, Vehicle, or other asset it funded — the EMI&apos;s principal will then build that asset&apos;s equity instead of counting as a monthly expense.
+            </p>
+            <Select
+              defaultValue={loan?.linkedInvestmentId ?? undefined}
+              onValueChange={(v) => setValue('linkedInvestmentId', v === 'none' ? null : v)}
+            >
+              <SelectTrigger><SelectValue placeholder="Not linked to an asset" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Not linked</SelectItem>
+                {investments?.map((inv) => (
+                  <SelectItem key={inv.id} value={inv.id}>
+                    {ASSET_TYPE_ICONS[inv.assetType] ?? '💼'} {inv.assetName}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>

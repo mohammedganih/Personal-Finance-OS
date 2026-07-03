@@ -30,6 +30,8 @@ import { RecommendationCards } from '@/components/loans/RecommendationCards';
 import { PrepaymentCalculator } from '@/components/loans/PrepaymentCalculator';
 import { EMICalendar } from '@/components/loans/EMICalendar';
 import { FundingSources } from '@/components/loans/FundingSources';
+import { AssetLoanEquityCard, HomeEquityBanner } from '@/components/loans/AssetLoanEquityCard';
+import { useHomeEquitySummary, useAssetLoanInsights } from '@/hooks/useLoans';
 
 const LOAN_ICONS: Record<string, string> = {
   HOME: '🏠', CAR: '🚗', PERSONAL: '💼', EDUCATION: '🎓', BUSINESS: '🏢', OTHER: '💳',
@@ -102,6 +104,7 @@ function LoansTab() {
   const { data: loans, isLoading } = useLoans();
   const { mutate: deleteLoan } = useDeleteLoan();
   const { mutate: payEMI, isPending: isPaying } = usePayLoanEMI();
+  const { data: homeEquity } = useHomeEquitySummary();
 
   const active = (loans ?? []).filter((l) => l.isActive);
   const totalEMI = active.reduce((s, l) => s + l.emi, 0);
@@ -117,6 +120,10 @@ function LoansTab() {
           <Plus className="w-4 h-4 mr-1.5" /> Add Loan
         </Button>
       </div>
+
+      {homeEquity && homeEquity.assets.length > 0 && (
+        <HomeEquityBanner totalEquity={homeEquity.totalEquity} weightedLTV={homeEquity.weightedLTV} count={homeEquity.assets.length} />
+      )}
 
       {active.length > 0 && (
         <div className="grid grid-cols-4 gap-3">
@@ -243,6 +250,12 @@ function LoansTab() {
                   <p className="font-mono text-text-secondary">{formatCurrency(loan.emi * loan.tenureMonths, 'INR', true)}</p>
                 </div>
               </div>
+
+              {loan.linkedInvestment && (
+                <div className="pt-1">
+                  <AssetLoanEquityCard loanId={loan.id} loanName={loan.name} />
+                </div>
+              )}
             </div>
           );
         })}
@@ -669,12 +682,38 @@ function P2PTab() {
   );
 }
 
+// ─── Asset-Loan Insights ──────────────────────────────────────────────────────
+function AssetLoanInsightsCard() {
+  const { data: insights } = useAssetLoanInsights();
+  if (!insights?.length) return null;
+
+  const severityStyle = {
+    positive: 'bg-success/8 border-success/20 text-success',
+    warning: 'bg-warning/8 border-warning/20 text-warning',
+    info: 'bg-bg-elevated border-border text-text-secondary',
+  } as const;
+
+  return (
+    <div className="glass-card rounded-2xl p-5 space-y-3">
+      <h3 className="text-sm font-semibold text-text-primary">Asset & Equity Insights</h3>
+      <div className="space-y-2">
+        {insights.map((insight, i) => (
+          <div key={i} className={cn('rounded-xl border px-3 py-2 text-xs', severityStyle[insight.severity])}>
+            {insight.message}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── Debt Insights Tab ────────────────────────────────────────────────────────
 function DebtInsightsTab() {
   return (
     <div className="space-y-4">
       <TotalInterestSaved />
       <DebtHealthScore />
+      <AssetLoanInsightsCard />
       <RecommendationCards />
       <FundingSources />
       <PayoffStrategyComparison />

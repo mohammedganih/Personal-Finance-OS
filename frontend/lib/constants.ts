@@ -33,6 +33,7 @@ export const ASSET_TYPE_LABELS: Record<string, string> = {
   REAL_ESTATE:       'Real Estate',
   GOLD:              'Gold',
   GOLD_SCHEME:       'Gold Scheme',
+  VEHICLE:           'Vehicle',
   OTHER:             'Other',
 };
 
@@ -47,6 +48,7 @@ export const ASSET_TYPE_ICONS: Record<string, string> = {
   REAL_ESTATE:       '🏠',
   GOLD:              '🥇',
   GOLD_SCHEME:       '✨',
+  VEHICLE:           '🚗',
   OTHER:             '💼',
 };
 

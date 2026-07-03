@@ -34,6 +34,7 @@ enum AssetType {
   REAL_ESTATE
   GOLD
   GOLD_SCHEME
+  VEHICLE
   OTHER
 }
 
@@ -210,6 +211,10 @@ model Transaction {
   notes          String?
   date           DateTime
   isRecurring    Boolean   @default(false)
+  // True for the principal portion of an EMI on a loan linked to an asset --
+  // still real cash leaving the account (kept as type EXPENSE for balance
+  // accounting), but excluded from expense analytics: it builds equity, not spend.
+  isWealthTransfer Boolean @default(false)
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
@@ -257,6 +262,14 @@ model Investment {
   splitRatio     Decimal?   @default(50) @db.Decimal(5, 2) // % primary member owns; rest to splitMember
   bankAccountId  String?
 
+  // Collateral assets (Real Estate / Vehicle) that may back a Loan --
+  // ownership/appreciation only meaningful for those types, but kept as
+  // plain nullable columns on this table rather than a separate Property
+  // model, same as SIP/RD-specific fields above.
+  address                  String?
+  ownershipPercent         Decimal?  @db.Decimal(5, 2)
+  expectedAppreciationRate Decimal?  @db.Decimal(5, 2) // % p.a., for projected valuation
+
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
@@ -264,6 +277,7 @@ model Investment {
   member      FamilyMember?  @relation("InvPrimary", fields: [memberId],      references: [id], onDelete: SetNull)
   splitMember FamilyMember?  @relation("InvSplit",   fields: [splitMemberId], references: [id], onDelete: SetNull)
   bankAccount Account?       @relation("InvestmentBankAccount", fields: [bankAccountId], references: [id], onDelete: SetNull)
+  linkedLoans Loan[]         @relation("LoanCollateral")
 
   @@index([userId])
   @@index([userId, assetType])
@@ -332,6 +346,7 @@ model Loan {
   memberId         String?  // who is the borrower
   payerMemberId    String?  // who pays the EMI (may differ from borrower)
   bankAccountId    String?  // which account the loan is linked to
+  linkedInvestmentId String? // collateral asset this loan funded (Property, Vehicle, ...) -- EMI principal builds its equity instead of counting as an expense
   name             String
   loanType         LoanType
   principal        Decimal  @db.Decimal(14, 2)
@@ -346,13 +361,15 @@ model Loan {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  member      FamilyMember?  @relation("LoanBorrower", fields: [memberId], references: [id], onDelete: SetNull)
-  payer       FamilyMember?  @relation("LoanPayer",    fields: [payerMemberId], references: [id], onDelete: SetNull)
-  bankAccount Account?       @relation("LoanBankAccount", fields: [bankAccountId], references: [id], onDelete: SetNull)
+  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  member           FamilyMember?  @relation("LoanBorrower", fields: [memberId], references: [id], onDelete: SetNull)
+  payer            FamilyMember?  @relation("LoanPayer",    fields: [payerMemberId], references: [id], onDelete: SetNull)
+  bankAccount      Account?       @relation("LoanBankAccount", fields: [bankAccountId], references: [id], onDelete: SetNull)
+  linkedInvestment Investment?    @relation("LoanCollateral", fields: [linkedInvestmentId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([memberId])
+  @@index([linkedInvestmentId])
   @@map("loans")
 }
 

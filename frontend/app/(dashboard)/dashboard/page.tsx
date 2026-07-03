@@ -11,6 +11,7 @@ import { ExpensePieChart } from '@/components/dashboard/ExpensePieChart';
 import { InvestmentAllocation } from '@/components/dashboard/InvestmentAllocation';
 import { GoalProgressCard } from '@/components/dashboard/GoalProgressCard';
 import { UpcomingEMIs } from '@/components/dashboard/UpcomingEMIs';
+import { HomeEquityCard } from '@/components/dashboard/HomeEquityCard';
 import { RecentTransactions } from '@/components/dashboard/RecentTransactions';
 import { QuickInsights } from '@/components/dashboard/QuickInsights';
 import { KPICardSkeleton } from '@/components/shared/LoadingSkeleton';
@@ -106,6 +107,9 @@ export default function DashboardPage() {
         <GoalProgressCard />
         <UpcomingEMIs />
       </div>
+
+      {/* Home Equity -- only renders once a loan is linked to an asset */}
+      <HomeEquityCard />
 
       {/* Bottom Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

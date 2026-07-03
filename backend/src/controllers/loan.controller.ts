@@ -32,3 +32,9 @@ export async function payLoanEMI(req: AuthRequest, res: Response) {
   const result = await loanService.payLoanEMI(req.user!.userId, req.params.id, accountId);
   res.json({ success: true, data: result });
 }
+
+export async function linkLoanAsset(req: AuthRequest, res: Response) {
+  const { investmentId } = req.body as { investmentId: string | null };
+  const loan = await loanService.linkLoanAsset(req.user!.userId, req.params.id, investmentId ?? null);
+  res.json({ success: true, data: loan });
+}

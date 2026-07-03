@@ -14,7 +14,7 @@ export async function getDashboardOverview(userId: string, month?: number, year?
   const [transactions, investments, loans, accounts, subscriptions, cardEmis] = await Promise.all([
     prisma.transaction.findMany({
       where: { userId, date: { gte: startOfMonth, lte: endOfMonth } },
-      select: { type: true, amount: true, category: { select: { name: true } } },
+      select: { type: true, amount: true, isWealthTransfer: true, category: { select: { name: true } } },
     }),
     prisma.investment.findMany({ where: { userId } }),
     prisma.loan.findMany({
@@ -39,8 +39,15 @@ export async function getDashboardOverview(userId: string, month?: number, year?
     .filter((t) => t.type === 'INCOME')
     .reduce((s, t) => s + Number(t.amount), 0);
 
+  // Excludes wealth-transfer transactions (EMI principal on an asset-linked
+  // loan) -- that cash built equity, it wasn't spent, so it shouldn't count
+  // as a true expense even though the account balance did decrease.
   const monthlyExpenses = transactions
-    .filter((t) => t.type === 'EXPENSE')
+    .filter((t) => t.type === 'EXPENSE' && !t.isWealthTransfer)
+    .reduce((s, t) => s + Number(t.amount), 0);
+
+  const monthlyWealthCreation = transactions
+    .filter((t) => t.type === 'EXPENSE' && t.isWealthTransfer)
     .reduce((s, t) => s + Number(t.amount), 0);
 
   // Reuses the same per-type valuation as the Investments page (a Recurring
@@ -116,6 +123,7 @@ export async function getDashboardOverview(userId: string, month?: number, year?
     totalLiabilities: totalDebt,
     monthlyIncome,
     monthlyExpenses,
+    monthlyWealthCreation,
     monthlySavings,
     savingsRate,
     investmentValue,

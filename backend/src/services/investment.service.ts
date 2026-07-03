@@ -1,4 +1,4 @@
-import { Investment } from '@prisma/client';
+import { Investment, FamilyMember, Account, Loan } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { createError } from '../middleware/error.middleware';
 import { CreateInvestmentInput, UpdateInvestmentInput } from '../validators/investment.validator';
@@ -6,10 +6,21 @@ import { findCategory } from '../lib/paymentCategory';
 
 const MEMBER_SELECT = { select: { id: true, name: true, color: true, emoji: true } };
 
+type LinkedLoan = Pick<Loan, 'id' | 'name' | 'remainingBalance' | 'interestRate' | 'emi' | 'startDate' | 'tenureMonths' | 'principal'>;
+
+type InvestmentWithRelations = Investment & {
+  member?: Pick<FamilyMember, 'id' | 'name' | 'color' | 'emoji'> | null;
+  splitMember?: Pick<FamilyMember, 'id' | 'name' | 'color' | 'emoji'> | null;
+  bankAccount?: Pick<Account, 'id' | 'name' | 'type'> | null;
+  linkedLoans?: LinkedLoan[];
+};
+
+const LOAN_SELECT = { select: { id: true, name: true, remainingBalance: true, interestRate: true, emi: true, startDate: true, tenureMonths: true, principal: true } };
+
 export async function getInvestments(userId: string) {
   const investments = await prisma.investment.findMany({
     where: { userId },
-    include: { member: MEMBER_SELECT, splitMember: MEMBER_SELECT, bankAccount: { select: { id: true, name: true, type: true } } },
+    include: { member: MEMBER_SELECT, splitMember: MEMBER_SELECT, bankAccount: { select: { id: true, name: true, type: true } }, linkedLoans: LOAN_SELECT },
     orderBy: { purchaseDate: 'desc' },
   });
   return investments.map(serializeInvestment);
@@ -39,8 +50,11 @@ export async function createInvestment(userId: string, input: CreateInvestmentIn
       splitMemberId: input.splitMemberId,
       splitRatio:    input.splitRatio,
       bankAccountId: input.bankAccountId,
+      address:                  input.address,
+      ownershipPercent:         input.ownershipPercent,
+      expectedAppreciationRate: input.expectedAppreciationRate,
     },
-    include: { member: MEMBER_SELECT, splitMember: MEMBER_SELECT, bankAccount: { select: { id: true, name: true, type: true } } },
+    include: { member: MEMBER_SELECT, splitMember: MEMBER_SELECT, bankAccount: { select: { id: true, name: true, type: true } }, linkedLoans: LOAN_SELECT },
   });
   return serializeInvestment(investment);
 }
@@ -72,8 +86,11 @@ export async function updateInvestment(userId: string, id: string, input: Update
       ...(input.splitMemberId !== undefined && { splitMemberId: input.splitMemberId ?? null }),
       ...(input.splitRatio    !== undefined && { splitRatio:    input.splitRatio }),
       ...(input.bankAccountId !== undefined && { bankAccountId: input.bankAccountId ?? null }),
+      ...(input.address                  !== undefined && { address: input.address }),
+      ...(input.ownershipPercent         !== undefined && { ownershipPercent: input.ownershipPercent }),
+      ...(input.expectedAppreciationRate !== undefined && { expectedAppreciationRate: input.expectedAppreciationRate }),
     },
-    include: { member: MEMBER_SELECT, splitMember: MEMBER_SELECT, bankAccount: { select: { id: true, name: true, type: true } } },
+    include: { member: MEMBER_SELECT, splitMember: MEMBER_SELECT, bankAccount: { select: { id: true, name: true, type: true } }, linkedLoans: LOAN_SELECT },
   });
   return serializeInvestment(investment);
 }
@@ -190,7 +207,8 @@ export function computeInvestmentValue(inv: Investment, now: Date): { investedVa
       return { investedValue: monthly * monthsElapsed, currentValue: qty * curPx };
     }
 
-    case 'REAL_ESTATE': {
+    case 'REAL_ESTATE':
+    case 'VEHICLE': {
       return { investedValue: buyPx, currentValue: curPx };
     }
 
@@ -204,7 +222,7 @@ export function computeInvestmentValue(inv: Investment, now: Date): { investedVa
 export async function getPortfolioSummary(userId: string) {
   const investments = await prisma.investment.findMany({
     where: { userId },
-    include: { member: MEMBER_SELECT, splitMember: MEMBER_SELECT, bankAccount: { select: { id: true, name: true, type: true } } },
+    include: { member: MEMBER_SELECT, splitMember: MEMBER_SELECT, bankAccount: { select: { id: true, name: true, type: true } }, linkedLoans: LOAN_SELECT },
   });
 
   const now = new Date();
@@ -237,7 +255,7 @@ function monthDiff(from: Date, to: Date): number {
   );
 }
 
-function serializeInvestment(inv: Investment) {
+function serializeInvestment(inv: InvestmentWithRelations) {
   return {
     ...inv,
     quantity:       Number(inv.quantity),
@@ -246,5 +264,14 @@ function serializeInvestment(inv: Investment) {
     monthlyAmount:  inv.monthlyAmount  ? Number(inv.monthlyAmount)  : null,
     maturityAmount: inv.maturityAmount ? Number(inv.maturityAmount) : null,
     interestRate:   inv.interestRate   ? Number(inv.interestRate)   : null,
+    ownershipPercent:         inv.ownershipPercent         ? Number(inv.ownershipPercent)         : null,
+    expectedAppreciationRate: inv.expectedAppreciationRate ? Number(inv.expectedAppreciationRate) : null,
+    linkedLoans: inv.linkedLoans?.map((l) => ({
+      ...l,
+      remainingBalance: Number(l.remainingBalance),
+      interestRate:     Number(l.interestRate),
+      emi:              Number(l.emi),
+      principal:        Number(l.principal),
+    })),
   };
 }
