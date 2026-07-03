@@ -58,6 +58,42 @@ enum BillingCycle {
   YEARLY
 }
 
+enum GoalType {
+  FARM_HOUSE
+  EMERGENCY_FUND
+  RELOCATION
+  CAR_PURCHASE
+  RETIREMENT
+  TRAVEL
+  EDUCATION
+  CUSTOM
+}
+
+enum GoalPriority {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum GoalRiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum GoalStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+  ABANDONED
+}
+
+enum ContributionType {
+  RECURRING
+  ONE_TIME
+}
+
 // ─── Models ──────────────────────────────────────────────────────────────────
 
 model User {
@@ -83,6 +119,7 @@ model User {
   refreshTokens RefreshToken[]
   budgets       Budget[]
   investmentSnapshots InvestmentSnapshot[]
+  goalContributions   GoalContribution[]
 
   @@map("users")
 }
@@ -110,6 +147,7 @@ model FamilyMember {
   p2pLoans          P2PLoan[]
   subscriptions     Subscription[]
   cardEmis          CardEMI[]
+  goals             Goal[]
 
   @@index([userId])
   @@map("family_members")
@@ -133,6 +171,7 @@ model Account {
   transactions Transaction[]
   investments  Investment[]   @relation("InvestmentBankAccount")
   loans        Loan[]         @relation("LoanBankAccount")
+  goalsFunded  Goal[]         @relation("GoalFundingAccount")
 
   @@index([userId])
   @@index([memberId])
@@ -233,23 +272,58 @@ model Investment {
 }
 
 model Goal {
-  id            String   @id @default(cuid())
+  id            String       @id @default(cuid())
   userId        String
+  memberId      String?
   name          String
   description   String?
   icon          String?
   color         String?
-  targetAmount  Decimal  @db.Decimal(14, 2)
-  currentAmount Decimal  @default(0) @db.Decimal(14, 2)
+  goalType      GoalType     @default(CUSTOM)
+  priority      GoalPriority @default(MEDIUM)
+  status        GoalStatus   @default(ACTIVE)
+  targetAmount  Decimal      @db.Decimal(14, 2)
+  currentAmount Decimal      @default(0) @db.Decimal(14, 2)
   targetDate    DateTime
-  isCompleted   Boolean  @default(false)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Planning inputs -- everything the intelligence engine reasons over
+  monthlyContribution   Decimal?       @db.Decimal(14, 2) // planned recurring contribution
+  expectedReturnRate    Decimal?       @db.Decimal(5, 2)  // % p.a., for growth projection
+  expectedInflationRate Decimal?       @db.Decimal(5, 2)  // % p.a., for real-value projection
+  riskLevel             GoalRiskLevel?
+  fundingAccountId      String?        // which account funds this goal
+  notes                 String?
+
+  isCompleted Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user           User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  member         FamilyMember?      @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  fundingAccount Account?           @relation("GoalFundingAccount", fields: [fundingAccountId], references: [id], onDelete: SetNull)
+  contributions  GoalContribution[]
 
   @@index([userId])
+  @@index([memberId])
   @@map("goals")
+}
+
+model GoalContribution {
+  id        String           @id @default(cuid())
+  goalId    String
+  userId    String
+  amount    Decimal          @db.Decimal(14, 2)
+  date      DateTime
+  type      ContributionType @default(ONE_TIME)
+  notes     String?
+  createdAt DateTime         @default(now())
+
+  goal Goal @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([goalId])
+  @@index([userId])
+  @@map("goal_contributions")
 }
 
 model Loan {

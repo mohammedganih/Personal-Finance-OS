@@ -1,10 +1,50 @@
 'use client';
 
+import Link from 'next/link';
 import { Target } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
-import { formatCurrency, formatDate, getDaysUntil } from '@/lib/format';
-import { useGoals } from '@/hooks/useGoals';
+import { Badge } from '@/components/ui/badge';
+import { formatCurrency, formatDate } from '@/lib/format';
+import { useGoals, useGoalProgress, useGoalProbability } from '@/hooks/useGoals';
 import { TableSkeleton } from '@/components/shared/LoadingSkeleton';
+import { GOAL_TYPE_ICONS } from '@/lib/constants';
+import { Goal } from '@/types';
+import { cn } from '@/lib/utils';
+
+function GoalRow({ goal }: { goal: Goal }) {
+  const { data: progress } = useGoalProgress(goal.id);
+  const { data: probability } = useGoalProbability(goal.id);
+  const pct = progress?.currentPct ?? (goal.targetAmount > 0 ? Math.min((goal.currentAmount / goal.targetAmount) * 100, 100) : 0);
+
+  return (
+    <Link href={`/goals/${goal.id}`} className="block space-y-2 -mx-1 px-1 py-1 rounded-lg hover:bg-bg-elevated/50 transition-colors">
+      <div className="flex items-start justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-lg leading-none">{goal.icon || GOAL_TYPE_ICONS[goal.goalType] || '🎯'}</span>
+          <div>
+            <p className="text-xs font-medium text-text-primary">{goal.name}</p>
+            <p className="text-xs text-text-muted">{formatDate(goal.targetDate, 'MMM yyyy')}</p>
+          </div>
+        </div>
+        <div className="text-right flex flex-col items-end gap-0.5">
+          <p className="text-xs font-semibold text-text-primary font-mono">
+            {formatCurrency(goal.currentAmount, 'INR', true)}
+          </p>
+          {probability && <Badge variant={probability.color as 'success' | 'warning' | 'danger'} className="text-[10px] px-1.5 py-0">{probability.band}</Badge>}
+        </div>
+      </div>
+      <Progress value={pct} className="h-1.5" />
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-text-muted">{pct.toFixed(1)}% complete</span>
+        {progress && (
+          <span className={cn('text-xs', progress.savingsGap > 0 ? 'text-danger' : 'text-accent-violet-light')}>
+            ~{formatCurrency(progress.requiredMonthlySavings, 'INR', true)}/mo needed
+          </span>
+        )}
+      </div>
+    </Link>
+  );
+}
 
 export function GoalProgressCard() {
   const { data: goals, isLoading } = useGoals();
@@ -27,40 +67,7 @@ export function GoalProgressCard() {
         <p className="text-sm text-text-muted text-center py-8">No active goals. Add one!</p>
       ) : (
         <div className="space-y-4">
-          {active.map((goal) => {
-            const pct = goal.targetAmount > 0 ? Math.min((goal.currentAmount / goal.targetAmount) * 100, 100) : 0;
-            const daysLeft = getDaysUntil(goal.targetDate);
-            const monthsLeft = Math.max(Math.ceil(daysLeft / 30), 1);
-            const remaining = goal.targetAmount - goal.currentAmount;
-            const perMonth = remaining / monthsLeft;
-
-            return (
-              <div key={goal.id} className="space-y-2">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg leading-none">{goal.icon ?? '🎯'}</span>
-                    <div>
-                      <p className="text-xs font-medium text-text-primary">{goal.name}</p>
-                      <p className="text-xs text-text-muted">{formatDate(goal.targetDate, 'MMM yyyy')}</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs font-semibold text-text-primary font-mono">
-                      {formatCurrency(goal.currentAmount, 'INR', true)}
-                    </p>
-                    <p className="text-xs text-text-muted font-mono">/ {formatCurrency(goal.targetAmount, 'INR', true)}</p>
-                  </div>
-                </div>
-                <Progress value={pct} className="h-1.5" />
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-text-muted">{pct.toFixed(1)}% complete</span>
-                  <span className="text-xs text-accent-violet-light">
-                    ~{formatCurrency(perMonth, 'INR', true)}/mo needed
-                  </span>
-                </div>
-              </div>
-            );
-          })}
+          {active.map((goal) => <GoalRow key={goal.id} goal={goal} />)}
         </div>
       )}
     </div>

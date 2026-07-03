@@ -197,18 +197,116 @@ export interface MaturityEntry {
 
 // ─── Goal ─────────────────────────────────────────────────────────────────────
 
+export type GoalType = 'FARM_HOUSE' | 'EMERGENCY_FUND' | 'RELOCATION' | 'CAR_PURCHASE' | 'RETIREMENT' | 'TRAVEL' | 'EDUCATION' | 'CUSTOM';
+export type GoalPriority = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+export type GoalRiskLevel = 'LOW' | 'MEDIUM' | 'HIGH';
+export type GoalStatus = 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'ABANDONED';
+export type ContributionType = 'RECURRING' | 'ONE_TIME';
+
 export interface Goal {
   id: string;
   name: string;
   description: string | null;
   icon: string | null;
   color: string | null;
+  goalType: GoalType;
+  priority: GoalPriority;
+  status: GoalStatus;
   targetAmount: number;
   currentAmount: number;
   targetDate: string;
+  monthlyContribution: number | null;
+  expectedReturnRate: number | null;
+  expectedInflationRate: number | null;
+  riskLevel: GoalRiskLevel | null;
+  fundingAccountId: string | null;
+  memberId: string | null;
+  notes: string | null;
   isCompleted: boolean;
+  member: Pick<FamilyMember, 'id' | 'name' | 'color' | 'emoji'> | null;
+  fundingAccount: Pick<Account, 'id' | 'name' | 'type'> | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface GoalContribution {
+  id: string;
+  goalId: string;
+  amount: number;
+  date: string;
+  type: ContributionType;
+  notes: string | null;
+  createdAt: string;
+}
+
+// ─── Goal Intelligence ──────────────────────────────────────────────────────
+
+export interface GoalProgress {
+  currentPct: number;
+  remainingAmount: number;
+  monthsLeft: number;
+  requiredMonthlySavings: number;
+  requiredWeeklySavings: number;
+  requiredDailySavings: number;
+  requiredAnnualSavings: number;
+  currentMonthlySavings: number;
+  savingsGap: number;
+  averageMonthlyContribution: number;
+  contributionTrend: 'increasing' | 'decreasing' | 'flat' | 'insufficient_data';
+  expectedFinishDate: string | null;
+  projectedFutureValue: number;
+  inflationAdjustedGoalValue: number;
+  realPurchasingPower: number;
+}
+
+export type GoalProbabilityBand = 'Very Safe' | 'On Track' | 'Moderate Risk' | 'High Risk' | 'Unlikely';
+
+export interface GoalProbabilityFactor {
+  label: string;
+  score: number;
+  weight: number;
+  detail: string;
+}
+
+export interface GoalProbability {
+  score: number;
+  band: GoalProbabilityBand;
+  color: string;
+  factors: GoalProbabilityFactor[];
+}
+
+export interface GoalScenario {
+  name: string;
+  description: string;
+  completionDate: string | null;
+  monthlySavingNeeded: number;
+  probability: number;
+  totalContributions: number;
+  investmentGrowth: number;
+  inflationImpact: number;
+}
+
+export interface GoalMilestone {
+  percentage: number;
+  achieved: boolean;
+  achievedAt: string | null;
+  amountAtMilestone: number;
+}
+
+export type GoalRecommendationSeverity = 'critical' | 'warning' | 'info' | 'positive';
+
+export interface GoalRecommendation {
+  priority: number;
+  severity: GoalRecommendationSeverity;
+  title: string;
+  description: string;
+}
+
+export interface GoalInsight {
+  goalId: string;
+  goalName: string;
+  message: string;
+  severity: GoalRecommendationSeverity;
 }
 
 // ─── Loan ─────────────────────────────────────────────────────────────────────

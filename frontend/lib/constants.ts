@@ -78,6 +78,41 @@ export const BILLING_CYCLE_LABELS: Record<string, string> = {
   YEARLY: 'Yearly',
 };
 
+export const GOAL_TYPE_LABELS: Record<string, string> = {
+  FARM_HOUSE: 'Farm House',
+  EMERGENCY_FUND: 'Emergency Fund',
+  RELOCATION: 'Relocation',
+  CAR_PURCHASE: 'Car Purchase',
+  RETIREMENT: 'Retirement',
+  TRAVEL: 'International Trip',
+  EDUCATION: 'Child Education',
+  CUSTOM: 'Custom Goal',
+};
+
+export const GOAL_TYPE_ICONS: Record<string, string> = {
+  FARM_HOUSE: '🏡',
+  EMERGENCY_FUND: '🛟',
+  RELOCATION: '✈️',
+  CAR_PURCHASE: '🚗',
+  RETIREMENT: '🌅',
+  TRAVEL: '🌍',
+  EDUCATION: '🎓',
+  CUSTOM: '🎯',
+};
+
+export const GOAL_PRIORITY_LABELS: Record<string, string> = {
+  CRITICAL: 'Critical',
+  HIGH: 'High',
+  MEDIUM: 'Medium',
+  LOW: 'Low',
+};
+
+export const GOAL_RISK_LABELS: Record<string, string> = {
+  LOW: 'Low Risk',
+  MEDIUM: 'Medium Risk',
+  HIGH: 'High Risk',
+};
+
 export const ACCOUNT_TYPE_LABELS: Record<string, string> = {
   SAVINGS: 'Savings',
   CHECKING: 'Current',
