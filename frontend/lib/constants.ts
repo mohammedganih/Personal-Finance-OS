@@ -4,7 +4,7 @@ import {
   TrendingUp,
   Target,
   CreditCard,
-  Repeat,
+  Receipt,
   BarChart3,
   Settings,
   PiggyBank,
@@ -17,7 +17,7 @@ export const NAV_ITEMS = [
   { href: '/investments', label: 'Investments', icon: TrendingUp },
   { href: '/goals', label: 'Goals', icon: Target },
   { href: '/loans', label: 'Loans', icon: CreditCard },
-  { href: '/subscriptions', label: 'Subscriptions', icon: Repeat },
+  { href: '/bills', label: 'Bills', icon: Receipt },
   { href: '/analytics', label: 'Analytics', icon: BarChart3 },
   { href: '/settings', label: 'Settings', icon: Settings },
 ] as const;
@@ -73,11 +73,64 @@ export const LOAN_TYPE_LABELS: Record<string, string> = {
   OTHER: 'Other',
 };
 
-export const BILLING_CYCLE_LABELS: Record<string, string> = {
+// ─── Recurring Bills & Commitments ────────────────────────────────────────────
+
+export const BILL_FREQUENCY_LABELS: Record<string, string> = {
+  ONE_TIME: 'One Time',
+  WEEKLY: 'Weekly',
+  BIWEEKLY: 'Every 2 Weeks',
   MONTHLY: 'Monthly',
+  EVERY_2_MONTHS: 'Every 2 Months',
   QUARTERLY: 'Quarterly',
+  EVERY_4_MONTHS: 'Every 4 Months',
   HALF_YEARLY: 'Half Yearly',
   YEARLY: 'Yearly',
+  CUSTOM: 'Custom Interval',
+};
+
+export const BILL_FREQUENCY_SHORT: Record<string, string> = {
+  ONE_TIME: 'once',
+  WEEKLY: '/wk',
+  BIWEEKLY: '/2wk',
+  MONTHLY: '/mo',
+  EVERY_2_MONTHS: '/2mo',
+  QUARTERLY: '/qtr',
+  EVERY_4_MONTHS: '/4mo',
+  HALF_YEARLY: '/6mo',
+  YEARLY: '/yr',
+  CUSTOM: '',
+};
+
+// Icons + colors for the suggested categories (colors come from the validated
+// CHART_COLORS palette below so category charts stay CVD-safe). Free-form
+// custom categories fall back to BILL_CATEGORY_FALLBACK.
+export const BILL_CATEGORY_META: Record<string, { icon: string; color: string }> = {
+  Entertainment:        { icon: '🎬', color: '#9085e9' },
+  Utilities:            { icon: '💡', color: '#3987e5' },
+  Insurance:            { icon: '🛡️', color: '#199e70' },
+  Fitness:              { icon: '💪', color: '#008300' },
+  Finance:              { icon: '🏦', color: '#c98500' },
+  Software:             { icon: '🧑‍💻', color: '#d55181' },
+  Education:            { icon: '🎓', color: '#d95926' },
+  Transport:            { icon: '🚇', color: '#3987e5' },
+  Lifestyle:            { icon: '🧺', color: '#e66767' },
+  Family:               { icon: '👨‍👩‍👧', color: '#d55181' },
+  Housing:              { icon: '🏠', color: '#c98500' },
+  Healthcare:           { icon: '🩺', color: '#199e70' },
+  'Taxes & Government': { icon: '🏛️', color: '#d95926' },
+  Other:                { icon: '📦', color: '#8b8fa3' },
+};
+
+export const BILL_CATEGORY_FALLBACK = { icon: '📦', color: '#8b8fa3' };
+
+export function billCategoryMeta(category: string): { icon: string; color: string } {
+  return BILL_CATEGORY_META[category] ?? BILL_CATEGORY_FALLBACK;
+}
+
+export const BILL_STATUS_LABELS: Record<string, string> = {
+  ACTIVE: 'Active',
+  PAUSED: 'Paused',
+  ARCHIVED: 'Archived',
 };
 
 export const GOAL_TYPE_LABELS: Record<string, string> = {

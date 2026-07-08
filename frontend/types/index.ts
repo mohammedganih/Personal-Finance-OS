@@ -402,22 +402,177 @@ export interface HomeEquitySummary {
   weightedLTV: number;
 }
 
-// ─── Subscription ─────────────────────────────────────────────────────────────
+// ─── Recurring Bills & Commitments ───────────────────────────────────────────
 
-export type BillingCycle = 'MONTHLY' | 'QUARTERLY' | 'HALF_YEARLY' | 'YEARLY';
+export type BillFrequency =
+  | 'ONE_TIME'
+  | 'WEEKLY'
+  | 'BIWEEKLY'
+  | 'MONTHLY'
+  | 'EVERY_2_MONTHS'
+  | 'QUARTERLY'
+  | 'EVERY_4_MONTHS'
+  | 'HALF_YEARLY'
+  | 'YEARLY'
+  | 'CUSTOM';
 
-export interface Subscription {
+export type BillStatus = 'ACTIVE' | 'PAUSED' | 'ARCHIVED';
+
+/** Status of a single projected/materialized occurrence. */
+export type BillOccurrenceStatus = 'PAID' | 'SKIPPED' | 'PAUSED' | 'OVERDUE' | 'DUE_TODAY' | 'UPCOMING';
+
+export interface RecurringBill {
   id: string;
-  serviceName: string;
+  name: string;
+  vendor: string | null;
+  category: string;
+  icon: string | null;
+  color: string | null;
   amount: number;
-  billingCycle: BillingCycle;
-  renewalDate: string;
-  category: string | null;
+  currency: string;
+  frequency: BillFrequency;
+  customIntervalDays: number | null;
+  startDate: string;
+  endDate: string | null;
+  reminderDays: number;
+  autoDebit: boolean;
+  paymentMethod: string | null;
+  accountId: string | null;
+  creditCardId: string | null;
+  memberId: string | null;
+  status: BillStatus;
+  pausedUntil: string | null;
   url: string | null;
   notes: string | null;
-  isActive: boolean;
+  tags: string[];
+  member: Pick<FamilyMember, 'id' | 'name' | 'color' | 'emoji'> | null;
+  account: Pick<Account, 'id' | 'name' | 'type'> | null;
+  creditCard: { id: string; cardName: string; lastFourDigits: string | null } | null;
   createdAt: string;
   updatedAt: string;
+  // computed by backend
+  monthlyEquivalent: number;
+  effectiveStatus: BillStatus;
+  nextDueDate: string | null;
+  dueInDays: number | null;
+  lastPaidDate: string | null;
+}
+
+export interface BillHistoryEntry {
+  id: string;
+  dueDate: string;
+  status: 'PAID' | 'SKIPPED';
+  amount: number | null;
+  paidDate: string | null;
+  transactionId: string | null;
+  notes: string | null;
+}
+
+export interface BillDetail extends RecurringBill {
+  history: BillHistoryEntry[];
+}
+
+export interface BillRangeTotals {
+  total: number;
+  count: number;
+  paid: number;
+  paidCount: number;
+  overdue: number;
+  overdueCount: number;
+  dueToday: number;
+  dueTodayCount: number;
+  upcoming: number;
+  upcomingCount: number;
+  skipped: number;
+  remaining: number;
+}
+
+export interface BillsSummary {
+  monthlyCommitment: number;
+  annualCommitment: number;
+  avgMonthlyNext12: number;
+  autoDebitMonthly: number;
+  activeCount: number;
+  pausedCount: number;
+  archivedCount: number;
+  thisMonth: BillRangeTotals;
+  nextMonth: BillRangeTotals;
+  next3Months: BillRangeTotals;
+  next6Months: BillRangeTotals;
+  next12Months: BillRangeTotals;
+  dueThisWeek: BillRangeTotals;
+  byFrequency: {
+    frequency: BillFrequency;
+    count: number;
+    amountPerCycle: number;
+    monthlyEquivalent: number;
+  }[];
+}
+
+export interface BillCalendarOccurrence {
+  billId: string;
+  name: string;
+  vendor: string | null;
+  category: string;
+  icon: string | null;
+  color: string | null;
+  autoDebit: boolean;
+  frequency: BillFrequency;
+  dueDate: string; // yyyy-MM-dd
+  status: BillOccurrenceStatus;
+  amount: number;
+}
+
+export interface BillForecastMonth {
+  month: string; // yyyy-MM
+  label: string;
+  total: number;
+  paid: number;
+  remaining: number;
+  count: number;
+  byCategory: { category: string; total: number }[];
+}
+
+export interface BillInsight {
+  severity: 'critical' | 'warning' | 'info' | 'positive';
+  message: string;
+  icon: string;
+}
+
+export interface BillsAnalytics {
+  categoryBreakdown: { category: string; monthlyEquivalent: number; count: number; share: number }[];
+  vendorSpend: { vendor: string; monthlyEquivalent: number; count: number }[];
+  largestBills: {
+    id: string;
+    name: string;
+    category: string;
+    icon: string | null;
+    frequency: BillFrequency;
+    amount: number;
+    monthlyEquivalent: number;
+    share: number;
+  }[];
+  trend: { month: string; paid: number; projected: number }[];
+  totalMonthly: number;
+}
+
+export interface BillReminder {
+  billId: string;
+  name: string;
+  icon: string | null;
+  category: string;
+  amount: number;
+  autoDebit: boolean;
+  dueDate: string;
+  dueInDays: number;
+  kind: 'overdue' | 'due_today' | 'upcoming';
+}
+
+export interface BillFilters {
+  status?: BillStatus;
+  category?: string;
+  frequency?: BillFrequency;
+  search?: string;
 }
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────

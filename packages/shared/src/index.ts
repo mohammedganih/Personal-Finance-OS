@@ -5,7 +5,7 @@ export * from './schemas/transaction.schema';
 export * from './schemas/investment.schema';
 export * from './schemas/goal.schema';
 export * from './schemas/loan.schema';
-export * from './schemas/subscription.schema';
+export * from './schemas/bill.schema';
 export * from './schemas/credit-card.schema';
 export * from './schemas/card-emi.schema';
 export * from './schemas/p2p.schema';

@@ -11,6 +11,7 @@
     "prisma:studio": "prisma studio",
     "prisma:seed": "ts-node src/lib/seed.ts",
     "audit:balances": "ts-node src/scripts/auditAccountBalances.ts",
+    "migrate:bills": "ts-node src/scripts/migrateSubscriptionsToBills.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },

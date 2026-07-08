@@ -47,7 +47,7 @@ export function SafeToSaveBreakdown() {
   // Determine saving health status
   let statusText = 'Budget Conscious';
   let statusColor = 'text-amber-500 bg-amber-500/10';
-  let statusDesc = 'Try finding small areas to optimize subscriptions or general expenses.';
+  let statusDesc = 'Try finding small areas to optimize recurring bills or general expenses.';
 
   if (safeToSaveRate >= 30) {
     statusText = 'Super Saver';
@@ -93,7 +93,7 @@ export function SafeToSaveBreakdown() {
             Safe-to-Save Planner
           </h3>
           <p className="text-xs text-text-secondary mt-0.5">
-            Your true disposable surplus after accounting for all expenses, subscriptions, and investments.
+            Your true disposable surplus after accounting for all expenses, recurring bills, and investments.
           </p>
         </div>
 
@@ -110,7 +110,7 @@ export function SafeToSaveBreakdown() {
             <div
               className="bg-purple-600/80 transition-all duration-300"
               style={{ width: `${pctSubs}%` }}
-              title={`Subscriptions: ${pctSubs.toFixed(1)}%`}
+              title={`Recurring Bills: ${pctSubs.toFixed(1)}%`}
             />
           )}
           {pctInvest > 0 && (
@@ -149,7 +149,7 @@ export function SafeToSaveBreakdown() {
           </div>
 
           <div className="flex items-center justify-between p-2 rounded-xl bg-bg hover:bg-bg-elevated transition-colors text-text-secondary">
-            <span>Subscriptions (this month)</span>
+            <span>Recurring Bills (this month)</span>
             <span className="font-mono text-text-primary">-{formatCurrency(effectiveSubscriptionSpent)}</span>
           </div>
 

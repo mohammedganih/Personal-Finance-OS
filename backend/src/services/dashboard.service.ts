@@ -1,17 +1,23 @@
-import { BillingCycle } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { QuickInsight } from '../types';
 import { resolveMonthRange } from '../lib/dateRange';
 import { computeInvestmentValue } from './investment.service';
+import { effectiveStatus, monthlyEquivalent } from '../lib/billSchedule';
 
-const BILLING_MULTIPLIERS: Record<BillingCycle, number> = {
-  MONTHLY: 1, QUARTERLY: 1 / 3, HALF_YEARLY: 1 / 6, YEARLY: 1 / 12,
-};
+/** Monthly cash-flow impact of all currently-active recurring bills. */
+function monthlyBillCommitment(
+  bills: { amount: unknown; frequency: Parameters<typeof monthlyEquivalent>[0]; customIntervalDays: number | null; status: Parameters<typeof effectiveStatus>[0]['status']; pausedUntil: Date | null }[],
+  now: Date
+): number {
+  return bills
+    .filter((b) => effectiveStatus(b, now) === 'ACTIVE')
+    .reduce((s, b) => s + monthlyEquivalent(b.frequency, Number(b.amount), b.customIntervalDays), 0);
+}
 
 export async function getDashboardOverview(userId: string, month?: number, year?: number) {
   const { start: startOfMonth, end: endOfMonth } = resolveMonthRange(month, year);
 
-  const [transactions, investments, loans, accounts, subscriptions, cardEmis] = await Promise.all([
+  const [transactions, investments, loans, accounts, recurringBills, cardEmis] = await Promise.all([
     prisma.transaction.findMany({
       where: { userId, date: { gte: startOfMonth, lte: endOfMonth } },
       select: { type: true, amount: true, isWealthTransfer: true, category: { select: { name: true } } },
@@ -25,9 +31,9 @@ export async function getDashboardOverview(userId: string, month?: number, year?
       where: { userId },
       select: { balance: true },
     }),
-    prisma.subscription.findMany({
-      where: { userId, isActive: true },
-      select: { amount: true, billingCycle: true },
+    prisma.recurringBill.findMany({
+      where: { userId, status: { not: 'ARCHIVED' } },
+      select: { amount: true, frequency: true, customIntervalDays: true, status: true, pausedUntil: true },
     }),
     prisma.cardEMI.findMany({
       where: { userId, isArchived: false },
@@ -83,9 +89,7 @@ export async function getDashboardOverview(userId: string, month?: number, year?
   const savingsRate = monthlyIncome > 0 ? (monthlySavings / monthlyIncome) * 100 : 0;
   const debtRatio = totalAssets > 0 ? (totalDebt / totalAssets) * 100 : 0;
 
-  const totalSubscriptionCost = subscriptions.reduce((s, sub) => {
-    return s + Number(sub.amount) * (BILLING_MULTIPLIERS[sub.billingCycle] ?? 1);
-  }, 0);
+  const totalSubscriptionCost = monthlyBillCommitment(recurringBills, now);
 
   const totalMonthlyEMI = monthlyLoanEMI + monthlyCardEMI;
 
@@ -252,19 +256,17 @@ export async function getQuickInsights(userId: string, month?: number, year?: nu
     }
   }
 
-  const subscriptions = await prisma.subscription.findMany({
-    where: { userId, isActive: true },
-    select: { amount: true, billingCycle: true },
+  const recurringBills = await prisma.recurringBill.findMany({
+    where: { userId, status: { not: 'ARCHIVED' } },
+    select: { amount: true, frequency: true, customIntervalDays: true, status: true, pausedUntil: true },
   });
 
-  const subCost = subscriptions.reduce((s, sub) => {
-    return s + Number(sub.amount) * (BILLING_MULTIPLIERS[sub.billingCycle] ?? 1);
-  }, 0);
+  const billCost = monthlyBillCommitment(recurringBills, new Date());
 
-  if (subCost > 0) {
+  if (billCost > 0) {
     insights.push({
       type: 'neutral',
-      message: `Subscriptions cost ₹${subCost.toLocaleString('en-IN', { maximumFractionDigits: 0 })}/month.`,
+      message: `Recurring bills cost ₹${billCost.toLocaleString('en-IN', { maximumFractionDigits: 0 })}/month.`,
       icon: '📱',
     });
   }

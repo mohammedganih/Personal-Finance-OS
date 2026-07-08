@@ -59,6 +59,30 @@ enum BillingCycle {
   YEARLY
 }
 
+enum BillFrequency {
+  ONE_TIME
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+  EVERY_2_MONTHS
+  QUARTERLY
+  EVERY_4_MONTHS
+  HALF_YEARLY
+  YEARLY
+  CUSTOM
+}
+
+enum BillStatus {
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+enum BillOccurrenceStatus {
+  PAID
+  SKIPPED
+}
+
 enum GoalType {
   FARM_HOUSE
   EMERGENCY_FUND
@@ -113,6 +137,8 @@ model User {
   goals         Goal[]
   loans         Loan[]
   subscriptions Subscription[]
+  recurringBills  RecurringBill[]
+  billOccurrences BillOccurrence[]
   creditCards   CreditCard[]
   p2pLoans      P2PLoan[]
   cardEmis      CardEMI[]
@@ -147,6 +173,7 @@ model FamilyMember {
   creditCards       CreditCard[]
   p2pLoans          P2PLoan[]
   subscriptions     Subscription[]
+  recurringBills    RecurringBill[]
   cardEmis          CardEMI[]
   goals             Goal[]
 
@@ -169,10 +196,11 @@ model Account {
 
   user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   member       FamilyMember?  @relation(fields: [memberId], references: [id], onDelete: SetNull)
-  transactions Transaction[]
-  investments  Investment[]   @relation("InvestmentBankAccount")
-  loans        Loan[]         @relation("LoanBankAccount")
-  goalsFunded  Goal[]         @relation("GoalFundingAccount")
+  transactions   Transaction[]
+  investments    Investment[]    @relation("InvestmentBankAccount")
+  loans          Loan[]          @relation("LoanBankAccount")
+  goalsFunded    Goal[]          @relation("GoalFundingAccount")
+  recurringBills RecurringBill[] @relation("BillAccount")
 
   @@index([userId])
   @@index([memberId])
@@ -373,6 +401,10 @@ model Loan {
   @@map("loans")
 }
 
+// DEPRECATED: superseded by RecurringBill. Kept in the schema so `prisma db push`
+// doesn't drop the table (and its data) before the one-time migration script
+// (src/scripts/migrateSubscriptionsToBills.ts) has copied every row across.
+// Safe to delete this model once the migration has been run and verified.
 model Subscription {
   id          String       @id @default(cuid())
   userId      String
@@ -397,6 +429,89 @@ model Subscription {
   @@map("subscriptions")
 }
 
+// ─── Recurring Bills & Commitments ───────────────────────────────────────────
+//
+// A RecurringBill is the *definition* of a commitment (Netflix, rent, insurance
+// premium, gym...). Future occurrences are never stored -- they are projected on
+// the fly from (startDate, frequency, endDate) by lib/billSchedule.ts. Only
+// *materialized events* (an occurrence the user paid or explicitly skipped) get
+// a BillOccurrence row. This keeps the schema normalized, makes month-skipping
+// non-destructive, and lets forecasts extend arbitrarily far without row bloat.
+
+model RecurringBill {
+  id       String  @id @default(cuid())
+  userId   String
+  memberId String?
+
+  name     String
+  vendor   String? // who gets paid: "Netflix", "Airtel", "LIC", landlord's name...
+  category String  @default("Other") // free-form -- unlimited categories, suggested list lives in shared constants
+  icon     String?
+  color    String?
+
+  amount   Decimal @db.Decimal(12, 2)
+  currency String  @default("INR")
+
+  frequency          BillFrequency @default(MONTHLY)
+  customIntervalDays Int? // only for frequency = CUSTOM: repeat every N days
+
+  startDate DateTime // anchor: the first due date; day-of-month is the anchor day for monthly-family cycles
+  endDate   DateTime? // optional: no occurrences projected after this
+
+  reminderDays  Int     @default(3) // notify N days before each due date
+  autoDebit     Boolean @default(false)
+  paymentMethod String? // UPI, Debit Card, Credit Card, Net Banking, Cash...
+  accountId     String? // bank account the bill is debited from
+  creditCardId  String? // or the credit card it's charged to
+
+  status      BillStatus @default(ACTIVE)
+  pausedUntil DateTime? // PAUSED + date = auto-resume after; PAUSED + null = until manually resumed
+
+  url   String?
+  notes String?
+  tags  String[] @default([])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  member      FamilyMember?    @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  account     Account?         @relation("BillAccount", fields: [accountId], references: [id], onDelete: SetNull)
+  creditCard  CreditCard?      @relation("BillCreditCard", fields: [creditCardId], references: [id], onDelete: SetNull)
+  occurrences BillOccurrence[]
+
+  @@index([userId])
+  @@index([userId, status])
+  @@index([userId, category])
+  @@index([memberId])
+  @@map("recurring_bills")
+}
+
+model BillOccurrence {
+  id     String @id @default(cuid())
+  billId String
+  userId String
+
+  dueDate DateTime // the scheduled occurrence this event refers to (unique per bill)
+  status  BillOccurrenceStatus
+
+  // PAID-only fields
+  amount        Decimal?  @db.Decimal(12, 2) // what was actually paid (may differ from the bill's amount)
+  paidDate      DateTime?
+  transactionId String? // expense Transaction created for this payment, so undo can reverse it
+
+  notes     String?
+  createdAt DateTime @default(now())
+
+  bill RecurringBill @relation(fields: [billId], references: [id], onDelete: Cascade)
+  user User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([billId, dueDate])
+  @@index([userId, dueDate])
+  @@index([billId])
+  @@map("bill_occurrences")
+}
+
 model CreditCard {
   id             String   @id @default(cuid())
   userId         String
@@ -416,9 +531,10 @@ model CreditCard {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  member   FamilyMember?  @relation(fields: [memberId], references: [id], onDelete: SetNull)
-  cardEmis CardEMI[]
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  member         FamilyMember?   @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  cardEmis       CardEMI[]
+  recurringBills RecurringBill[] @relation("BillCreditCard")
 
   @@index([userId])
   @@map("credit_cards")
