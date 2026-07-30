@@ -17,7 +17,7 @@ function monthlyBillCommitment(
 export async function getDashboardOverview(userId: string, month?: number, year?: number) {
   const { start: startOfMonth, end: endOfMonth } = resolveMonthRange(month, year);
 
-  const [transactions, investments, loans, accounts, recurringBills, cardEmis] = await Promise.all([
+  const [transactions, investments, loans, accounts, recurringBills, cardEmis, p2pBorrowed] = await Promise.all([
     prisma.transaction.findMany({
       where: { userId, date: { gte: startOfMonth, lte: endOfMonth } },
       select: { type: true, amount: true, isWealthTransfer: true, category: { select: { name: true } } },
@@ -38,6 +38,10 @@ export async function getDashboardOverview(userId: string, month?: number, year?
     prisma.cardEMI.findMany({
       where: { userId, isArchived: false },
       select: { emiAmount: true, totalAmount: true, tenureMonths: true, emisPaid: true, isNoCost: true, interestRate: true },
+    }),
+    prisma.p2PLoan.findMany({
+      where: { userId, type: 'BORROWED', isSettled: false },
+      select: { remainingAmount: true },
     }),
   ]);
 
@@ -80,7 +84,12 @@ export async function getDashboardOverview(userId: string, month?: number, year?
     return s + Math.max(0, outstanding);
   }, 0);
 
-  const totalDebt = loanDebt + cardEMIDebt;
+  // Money borrowed from an individual is a real liability, just like a bank
+  // loan -- money lent OUT (P2PType.LENT) is a receivable/asset and correctly
+  // never enters this figure.
+  const p2pBorrowedDebt = p2pBorrowed.reduce((s, p) => s + Number(p.remainingAmount), 0);
+
+  const totalDebt = loanDebt + cardEMIDebt + p2pBorrowedDebt;
   const bankBalance = accounts.reduce((s, a) => s + Number(a.balance), 0);
   const totalAssets = bankBalance + investmentValue;
   const netWorth = totalAssets - totalDebt;

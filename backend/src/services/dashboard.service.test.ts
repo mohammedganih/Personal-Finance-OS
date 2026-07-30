@@ -118,3 +118,54 @@ describe('dashboard.service month scoping', () => {
     expect(overview.investmentValue).toBe(5000); // 100 * 50
   });
 });
+
+describe('dashboard.service P2P debt in Net Worth', () => {
+  // Regression coverage for the Phase 5 fix: money borrowed from an
+  // individual used to be invisible to totalDebt/netWorth/debtRatio.
+
+  it('a BORROWED P2P loan reduces netWorth and increases totalLiabilities by its remainingAmount', async () => {
+    const userId = await setupUser();
+    await prisma.account.create({ data: { userId, name: 'Bank', type: 'SAVINGS', balance: 100000 } });
+
+    const baseline = await dashboardService.getDashboardOverview(userId);
+
+    await prisma.p2PLoan.create({
+      data: { userId, personName: 'Alex', type: 'BORROWED', amount: 20000, remainingAmount: 20000, date: new Date() },
+    });
+
+    const overview = await dashboardService.getDashboardOverview(userId);
+    expect(overview.netWorth).toBeCloseTo(baseline.netWorth - 20000, 2);
+    expect(overview.totalLiabilities).toBeCloseTo(baseline.totalLiabilities + 20000, 2);
+  });
+
+  it('a LENT P2P loan does not change netWorth (it is a receivable, not a liability)', async () => {
+    const userId = await setupUser();
+    await prisma.account.create({ data: { userId, name: 'Bank', type: 'SAVINGS', balance: 100000 } });
+
+    const baseline = await dashboardService.getDashboardOverview(userId);
+
+    await prisma.p2PLoan.create({
+      data: { userId, personName: 'Sam', type: 'LENT', amount: 15000, remainingAmount: 15000, date: new Date() },
+    });
+
+    const overview = await dashboardService.getDashboardOverview(userId);
+    expect(overview.netWorth).toBeCloseTo(baseline.netWorth, 2);
+  });
+
+  it('a settled BORROWED P2P loan is excluded from totalLiabilities', async () => {
+    const userId = await setupUser();
+    await prisma.account.create({ data: { userId, name: 'Bank', type: 'SAVINGS', balance: 100000 } });
+
+    const baseline = await dashboardService.getDashboardOverview(userId);
+
+    await prisma.p2PLoan.create({
+      data: {
+        userId, personName: 'Jordan', type: 'BORROWED', amount: 10000, remainingAmount: 0,
+        date: new Date(), isSettled: true,
+      },
+    });
+
+    const overview = await dashboardService.getDashboardOverview(userId);
+    expect(overview.netWorth).toBeCloseTo(baseline.netWorth, 2);
+  });
+});
