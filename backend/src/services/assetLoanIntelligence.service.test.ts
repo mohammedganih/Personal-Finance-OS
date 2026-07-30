@@ -1,8 +1,14 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterAll } from 'vitest';
+import { resetDatabase, prisma } from '../test/db';
+import * as authService from './auth.service';
+import * as investmentService from './investment.service';
+import * as loanService from './loan.service';
 import {
   generateAmortizationSchedule,
   computeAssetLoanSummary,
   generateAssetLoanInsights,
+  getAssetLoanSummary,
+  getHomeEquitySummary,
   AssetLoanInput,
 } from './assetLoanIntelligence.service';
 
@@ -163,5 +169,63 @@ describe('generateAssetLoanInsights', () => {
     const interestInsight = insights.find((i) => i.message.includes('is interest'));
     expect(interestInsight).toBeDefined();
     if (summary.interestShareOfEMIPct > 50) expect(interestInsight?.severity).toBe('warning');
+  });
+});
+
+describe('getAssetLoanSummary / getHomeEquitySummary (I/O, DB-backed)', () => {
+  // Regression coverage for the collateral-field extraction: ownershipPercent
+  // and expectedAppreciationRate used to be flat columns selected directly off
+  // Loan.linkedInvestment, now they're read through the InvestmentCollateral
+  // overlay (LOAN_WITH_ASSET_INCLUDE / toAssetLoanInput in
+  // assetLoanIntelligence.service.ts). This exercises that real DB join.
+
+  beforeEach(resetDatabase);
+  afterAll(() => prisma.$disconnect());
+
+  async function setupLinkedAsset(ownershipPercent?: number, expectedAppreciationRate?: number) {
+    const { user } = await authService.register({
+      name: 'Test User',
+      email: `test-${Date.now()}-${Math.random()}@example.com`,
+      password: 'Password123',
+    });
+    const investment = await investmentService.createInvestment(user.id, {
+      assetName: 'Family Home', assetType: 'REAL_ESTATE', purchaseDate: '2020-01-01',
+      quantity: 0, buyPrice: 8000000, currentPrice: 9000000,
+      ...(ownershipPercent !== undefined && { ownershipPercent }),
+      ...(expectedAppreciationRate !== undefined && { expectedAppreciationRate }),
+    } as any) as any;
+    const loan = await loanService.createLoan(user.id, {
+      name: 'Home Loan', loanType: 'HOME', principal: 6000000, interestRate: 8,
+      emi: 50000, remainingBalance: 5000000, tenureMonths: 240, startDate: '2020-01-01',
+      linkedInvestmentId: investment.id,
+    } as any) as any;
+    return { userId: user.id, investmentId: investment.id, loanId: loan.id };
+  }
+
+  it('reads a partial ownershipPercent through the InvestmentCollateral join', async () => {
+    const { userId, loanId } = await setupLinkedAsset(60);
+    const summary = await getAssetLoanSummary(userId, loanId);
+    expect(summary.ownershipPercent).toBe(60);
+    expect(summary.equity).toBeCloseTo(9000000 * 0.6 - 5000000, 0);
+  });
+
+  it('defaults to 100% ownership when no InvestmentCollateral row exists', async () => {
+    const { userId, loanId } = await setupLinkedAsset();
+    const summary = await getAssetLoanSummary(userId, loanId);
+    expect(summary.ownershipPercent).toBe(100);
+    expect(summary.equity).toBeCloseTo(9000000 - 5000000, 0);
+  });
+
+  it('projects next-year value using expectedAppreciationRate read through the join', async () => {
+    const { userId, loanId } = await setupLinkedAsset(100, 12);
+    const summary = await getAssetLoanSummary(userId, loanId);
+    expect(summary.projectedValueNextYear).toBeCloseTo(9000000 * 1.12, 0);
+  });
+
+  it('getHomeEquitySummary scales totalPropertyValue by ownershipPercent across all linked assets', async () => {
+    const { userId } = await setupLinkedAsset(60);
+    const home = await getHomeEquitySummary(userId);
+    expect(home.totalPropertyValue).toBeCloseTo(9000000 * 0.6, 0);
+    expect(home.assets).toHaveLength(1);
   });
 });

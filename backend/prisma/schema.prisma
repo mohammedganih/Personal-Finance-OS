@@ -281,26 +281,38 @@ model Investment {
   memberId       String?    // primary owner
   bankAccountId  String?
 
-  // Collateral assets (Real Estate / Vehicle) that may back a Loan --
-  // ownership/appreciation only meaningful for those types, but kept as
-  // plain nullable columns on this table rather than a separate Property
-  // model, same as SIP/RD-specific fields above.
-  address                  String?
-  ownershipPercent         Decimal?  @db.Decimal(5, 2)
-  expectedAppreciationRate Decimal?  @db.Decimal(5, 2) // % p.a., for projected valuation
-
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  member      FamilyMember?  @relation("InvPrimary", fields: [memberId],      references: [id], onDelete: SetNull)
-  bankAccount Account?       @relation("InvestmentBankAccount", fields: [bankAccountId], references: [id], onDelete: SetNull)
-  linkedLoans Loan[]         @relation("LoanCollateral")
+  user        User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  member      FamilyMember?         @relation("InvPrimary", fields: [memberId],      references: [id], onDelete: SetNull)
+  bankAccount Account?              @relation("InvestmentBankAccount", fields: [bankAccountId], references: [id], onDelete: SetNull)
+  linkedLoans Loan[]                @relation("LoanCollateral")
+  collateral  InvestmentCollateral?
 
   @@index([userId])
   @@index([userId, assetType])
   @@index([memberId])
   @@map("investments")
+}
+
+// Real-estate/vehicle-only fields (address, ownership share, projected
+// appreciation) kept as an opt-in 1:1 overlay rather than plain nullable
+// columns on Investment, same reasoning as OwnershipSplit above -- only
+// REAL_ESTATE/VEHICLE rows ever populate this.
+model InvestmentCollateral {
+  id                       String   @id @default(cuid())
+  investmentId             String   @unique
+  address                  String?
+  ownershipPercent         Decimal? @db.Decimal(5, 2)
+  expectedAppreciationRate Decimal? @db.Decimal(5, 2) // % p.a., for projected valuation
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  investment Investment @relation(fields: [investmentId], references: [id], onDelete: Cascade)
+
+  @@map("investment_collateral")
 }
 
 model Goal {

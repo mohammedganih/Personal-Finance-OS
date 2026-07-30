@@ -18,7 +18,6 @@ function makeInvestment(overrides: Partial<Investment>): Investment {
     maturityDate: null, maturityAmount: null, interestRate: null,
     platform: null, memberId: null,
     bankAccountId: null, createdAt: new Date(), updatedAt: new Date(),
-    address: null, ownershipPercent: null as any, expectedAppreciationRate: null as any,
     ...overrides,
   } as Investment;
 }

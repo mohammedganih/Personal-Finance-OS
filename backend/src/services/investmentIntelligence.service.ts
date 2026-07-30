@@ -106,7 +106,7 @@ export interface HoldingReturn {
 }
 
 export async function getAnnualizedReturns(userId: string): Promise<{ overall: number | null; byHolding: HoldingReturn[] }> {
-  const investments = await prisma.investment.findMany({ where: { userId } });
+  const investments = await prisma.investment.findMany({ where: { userId }, include: { collateral: { select: { ownershipPercent: true } } } });
   const now = new Date();
   return {
     overall: getPortfolioAnnualizedReturn(investments, now),

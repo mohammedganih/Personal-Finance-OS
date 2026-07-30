@@ -94,7 +94,7 @@ export function buildFundingOpportunities(
 export async function getFundingOpportunities(userId: string, maturityMonthsAhead = 6): Promise<FundingOpportunity[]> {
   const now = new Date();
   const [investmentsRaw, debts] = await Promise.all([
-    prisma.investment.findMany({ where: { userId } }),
+    prisma.investment.findMany({ where: { userId }, include: { collateral: { select: { ownershipPercent: true } } } }),
     getUnifiedDebtsWithStats(userId),
   ]);
 

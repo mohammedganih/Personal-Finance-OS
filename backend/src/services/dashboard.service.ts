@@ -22,7 +22,7 @@ export async function getDashboardOverview(userId: string, month?: number, year?
       where: { userId, date: { gte: startOfMonth, lte: endOfMonth } },
       select: { type: true, amount: true, isWealthTransfer: true, category: { select: { name: true } } },
     }),
-    prisma.investment.findMany({ where: { userId } }),
+    prisma.investment.findMany({ where: { userId }, include: { collateral: { select: { ownershipPercent: true } } } }),
     prisma.loan.findMany({
       where: { userId, isActive: true },
       select: { remainingBalance: true, emi: true },

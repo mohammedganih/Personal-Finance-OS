@@ -1,9 +1,10 @@
-import { Investment, FamilyMember, Account, Loan } from '@prisma/client';
+import { Investment, InvestmentCollateral, FamilyMember, Account, Loan } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { createError } from '../middleware/error.middleware';
 import { CreateInvestmentInput, UpdateInvestmentInput } from '../validators/investment.validator';
 import { findCategory } from '../lib/paymentCategory';
 import { writeSplit, fetchSplits, attachSplit, SplitFields } from '../lib/ownershipSplit';
+import { writeCollateral } from '../lib/investmentCollateral';
 
 const MEMBER_SELECT = { select: { id: true, name: true, color: true, emoji: true } };
 
@@ -14,6 +15,7 @@ type InvestmentWithRelations = Investment &
     member?: Pick<FamilyMember, 'id' | 'name' | 'color' | 'emoji'> | null;
     bankAccount?: Pick<Account, 'id' | 'name' | 'type'> | null;
     linkedLoans?: LinkedLoan[];
+    collateral?: Pick<InvestmentCollateral, 'address' | 'ownershipPercent' | 'expectedAppreciationRate'> | null;
   };
 
 const LOAN_SELECT = { select: { id: true, name: true, remainingBalance: true, interestRate: true, emi: true, startDate: true, tenureMonths: true, principal: true } };
@@ -22,6 +24,7 @@ const INVESTMENT_INCLUDE = {
   member: MEMBER_SELECT,
   bankAccount: { select: { id: true, name: true, type: true } },
   linkedLoans: LOAN_SELECT,
+  collateral: true,
 } as const;
 
 export async function getInvestments(userId: string) {
@@ -57,16 +60,14 @@ export async function createInvestment(userId: string, input: CreateInvestmentIn
         platform:      input.platform,
         memberId:      input.memberId,
         bankAccountId: input.bankAccountId,
-        address:                  input.address,
-        ownershipPercent:         input.ownershipPercent,
-        expectedAppreciationRate: input.expectedAppreciationRate,
       },
       include: INVESTMENT_INCLUDE,
     });
 
     await writeSplit(tx, userId, 'INVESTMENT', created.id, input);
+    await writeCollateral(tx, created.id, input);
 
-    return created;
+    return { ...created, collateral: await tx.investmentCollateral.findUnique({ where: { investmentId: created.id } }) };
   });
 
   const splits = await fetchSplits('INVESTMENT', [investment.id]);
@@ -99,9 +100,6 @@ export async function updateInvestment(userId: string, id: string, input: Update
         ...(input.platform      !== undefined && { platform:      input.platform }),
         ...(input.memberId      !== undefined && { memberId:      input.memberId ?? null }),
         ...(input.bankAccountId !== undefined && { bankAccountId: input.bankAccountId ?? null }),
-        ...(input.address                  !== undefined && { address: input.address }),
-        ...(input.ownershipPercent         !== undefined && { ownershipPercent: input.ownershipPercent }),
-        ...(input.expectedAppreciationRate !== undefined && { expectedAppreciationRate: input.expectedAppreciationRate }),
       },
       include: INVESTMENT_INCLUDE,
     });
@@ -109,8 +107,9 @@ export async function updateInvestment(userId: string, id: string, input: Update
     if (input.splitMemberId !== undefined) {
       await writeSplit(tx, userId, 'INVESTMENT', id, input);
     }
+    await writeCollateral(tx, id, input);
 
-    return updated;
+    return { ...updated, collateral: await tx.investmentCollateral.findUnique({ where: { investmentId: id } }) };
   });
 
   const splits = await fetchSplits('INVESTMENT', [id]);
@@ -194,7 +193,10 @@ export async function payInvestment(userId: string, id: string, accountId?: stri
  * .service.ts (annualized return, diversification, etc.) can reuse the exact
  * same valuation rules instead of re-deriving them.
  */
-export function computeInvestmentValue(inv: Investment, now: Date): { investedValue: number; currentValue: number } {
+export function computeInvestmentValue(
+  inv: Investment & { collateral?: Pick<InvestmentCollateral, 'ownershipPercent'> | null },
+  now: Date
+): { investedValue: number; currentValue: number } {
   const qty     = Number(inv.quantity);
   const buyPx   = Number(inv.buyPrice);
   const curPx   = Number(inv.currentPrice);
@@ -239,7 +241,7 @@ export function computeInvestmentValue(inv: Investment, now: Date): { investedVa
       // co-owned with someone outside this app) counts toward this app's
       // portfolio/net worth. Untouched (ownershipPercent unset) = 100%,
       // so pre-existing rows keep their current behavior exactly.
-      const ownershipShare = inv.ownershipPercent ? Number(inv.ownershipPercent) / 100 : 1;
+      const ownershipShare = inv.collateral?.ownershipPercent ? Number(inv.collateral.ownershipPercent) / 100 : 1;
       return { investedValue: buyPx * ownershipShare, currentValue: curPx * ownershipShare };
     }
 
@@ -288,16 +290,18 @@ function monthDiff(from: Date, to: Date): number {
 }
 
 function serializeInvestment(inv: InvestmentWithRelations) {
+  const { collateral, ...rest } = inv;
   return {
-    ...inv,
+    ...rest,
     quantity:       Number(inv.quantity),
     buyPrice:       Number(inv.buyPrice),
     currentPrice:   Number(inv.currentPrice),
     monthlyAmount:  inv.monthlyAmount  ? Number(inv.monthlyAmount)  : null,
     maturityAmount: inv.maturityAmount ? Number(inv.maturityAmount) : null,
     interestRate:   inv.interestRate   ? Number(inv.interestRate)   : null,
-    ownershipPercent:         inv.ownershipPercent         ? Number(inv.ownershipPercent)         : null,
-    expectedAppreciationRate: inv.expectedAppreciationRate ? Number(inv.expectedAppreciationRate) : null,
+    address:                  collateral?.address ?? null,
+    ownershipPercent:         collateral?.ownershipPercent         ? Number(collateral.ownershipPercent)         : null,
+    expectedAppreciationRate: collateral?.expectedAppreciationRate ? Number(collateral.expectedAppreciationRate) : null,
     linkedLoans: inv.linkedLoans?.map((l) => ({
       ...l,
       remainingBalance: Number(l.remainingBalance),

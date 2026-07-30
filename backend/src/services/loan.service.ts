@@ -9,14 +9,18 @@ type LoanWithRelations = Loan & {
   member?: Pick<FamilyMember, 'id' | 'name' | 'color' | 'emoji'> | null;
   payer?: Pick<FamilyMember, 'id' | 'name' | 'color' | 'emoji'> | null;
   bankAccount?: Pick<Account, 'id' | 'name' | 'type'> | null;
-  linkedInvestment?: Pick<Investment, 'id' | 'assetName' | 'assetType' | 'currentPrice' | 'ownershipPercent'> | null;
+  linkedInvestment?:
+    | (Pick<Investment, 'id' | 'assetName' | 'assetType' | 'currentPrice'> & { collateral: { ownershipPercent: unknown } | null })
+    | null;
 };
 
 const LOAN_INCLUDE = {
-  member:           { select: { id: true, name: true, color: true, emoji: true } },
-  payer:            { select: { id: true, name: true, color: true, emoji: true } },
-  bankAccount:      { select: { id: true, name: true, type: true } },
-  linkedInvestment: { select: { id: true, assetName: true, assetType: true, currentPrice: true, ownershipPercent: true } },
+  member:      { select: { id: true, name: true, color: true, emoji: true } },
+  payer:       { select: { id: true, name: true, color: true, emoji: true } },
+  bankAccount: { select: { id: true, name: true, type: true } },
+  linkedInvestment: {
+    select: { id: true, assetName: true, assetType: true, currentPrice: true, collateral: { select: { ownershipPercent: true } } },
+  },
 } as const;
 
 export async function getLoans(userId: string) {
@@ -220,7 +224,12 @@ function serializeLoan(loan: LoanWithRelations) {
     remainingBalance: Number(loan.remainingBalance),
     interestRate: Number(loan.interestRate),
     linkedInvestment: loan.linkedInvestment
-      ? { ...loan.linkedInvestment, currentPrice: Number(loan.linkedInvestment.currentPrice), ownershipPercent: loan.linkedInvestment.ownershipPercent ? Number(loan.linkedInvestment.ownershipPercent) : null }
+      ? {
+          ...loan.linkedInvestment,
+          collateral: undefined,
+          currentPrice: Number(loan.linkedInvestment.currentPrice),
+          ownershipPercent: loan.linkedInvestment.collateral?.ownershipPercent ? Number(loan.linkedInvestment.collateral.ownershipPercent) : null,
+        }
       : null,
   };
 }

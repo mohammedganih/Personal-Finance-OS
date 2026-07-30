@@ -267,8 +267,7 @@ interface LoadedLoan {
     assetType: string;
     buyPrice: unknown;
     currentPrice: unknown;
-    ownershipPercent: unknown;
-    expectedAppreciationRate: unknown;
+    collateral: { ownershipPercent: unknown; expectedAppreciationRate: unknown } | null;
   } | null;
 }
 
@@ -282,8 +281,8 @@ function toAssetLoanInput(loan: LoadedLoan): AssetLoanInput {
     assetType: inv.assetType,
     purchasePrice: Number(inv.buyPrice),
     currentPropertyValue: Number(inv.currentPrice),
-    ownershipPercent: inv.ownershipPercent ? Number(inv.ownershipPercent) : 100,
-    expectedAppreciationRate: inv.expectedAppreciationRate ? Number(inv.expectedAppreciationRate) : null,
+    ownershipPercent: inv.collateral?.ownershipPercent ? Number(inv.collateral.ownershipPercent) : 100,
+    expectedAppreciationRate: inv.collateral?.expectedAppreciationRate ? Number(inv.collateral.expectedAppreciationRate) : null,
     originalLoanAmount: Number(loan.principal),
     remainingBalance: Number(loan.remainingBalance),
     loan: {
@@ -298,7 +297,10 @@ function toAssetLoanInput(loan: LoadedLoan): AssetLoanInput {
 
 const LOAN_WITH_ASSET_INCLUDE = {
   linkedInvestment: {
-    select: { id: true, assetName: true, assetType: true, buyPrice: true, currentPrice: true, ownershipPercent: true, expectedAppreciationRate: true },
+    select: {
+      id: true, assetName: true, assetType: true, buyPrice: true, currentPrice: true,
+      collateral: { select: { ownershipPercent: true, expectedAppreciationRate: true } },
+    },
   },
 } as const;
 
