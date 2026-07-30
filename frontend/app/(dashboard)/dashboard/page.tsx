@@ -3,7 +3,9 @@
 import {
   Wallet, TrendingUp, TrendingDown, PiggyBank, BarChart3, CreditCard,
 } from 'lucide-react';
-import { KPICard } from '@/components/dashboard/KPICard';
+import { StatCard } from '@/components/ui/StatCard';
+import { PageShell } from '@/components/ui/PageShell';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { SafeToSaveBreakdown } from '@/components/dashboard/SafeToSaveBreakdown';
 import { BudgetOverview } from '@/components/dashboard/BudgetOverview';
 import { CashflowChart } from '@/components/dashboard/CashflowChart';
@@ -27,14 +29,11 @@ export default function DashboardPage() {
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
-      {/* Greeting */}
-      <div>
-        <h2 className="text-xl font-bold text-text-primary">
-          {greeting}, {user?.name?.split(' ')[0] ?? 'there'} 👋
-        </h2>
-        <p className="text-sm text-text-secondary mt-0.5">Here&apos;s your financial snapshot</p>
-      </div>
+    <PageShell width="wide">
+      <PageHeader
+        title={`${greeting}, ${user?.name?.split(' ')[0] ?? 'there'} 👋`}
+        subtitle="Here's your financial snapshot"
+      />
 
       {/* KPI Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
@@ -42,42 +41,37 @@ export default function DashboardPage() {
           Array.from({ length: 6 }).map((_, i) => <KPICardSkeleton key={i} />)
         ) : (
           <>
-            <KPICard
+            <StatCard
               title="Net Worth"
               value={overview?.netWorth ?? 0}
               icon={Wallet}
               iconColor="bg-accent-violet/15 text-accent-violet-light"
-              compact
             />
-            <KPICard
+            <StatCard
               title="Monthly Income"
               value={overview?.monthlyIncome ?? 0}
               icon={TrendingUp}
               iconColor="bg-success/15 text-success"
-              compact
             />
-            <KPICard
+            <StatCard
               title="Monthly Expenses"
               value={overview?.monthlyExpenses ?? 0}
               icon={TrendingDown}
               iconColor="bg-danger/15 text-danger"
-              compact
             />
-            <KPICard
+            <StatCard
               title="Safe to Save"
               value={overview?.remainingSafeToSave ?? 0}
               icon={PiggyBank}
               iconColor="bg-info/15 text-info"
-              compact
             />
-            <KPICard
+            <StatCard
               title="Investment Value"
               value={overview?.investmentValue ?? 0}
               icon={BarChart3}
               iconColor="bg-warning/15 text-warning"
-              compact
             />
-            <KPICard
+            <StatCard
               title="Debt Ratio"
               value={overview?.debtRatio ?? 0}
               icon={CreditCard}
@@ -121,6 +115,6 @@ export default function DashboardPage() {
         </div>
         <QuickInsights />
       </div>
-    </div>
+    </PageShell>
   );
 }

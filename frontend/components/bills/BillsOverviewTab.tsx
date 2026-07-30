@@ -2,6 +2,7 @@
 
 import { Bell, CalendarClock, Sparkles, Zap } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
+import { StatCard } from '@/components/ui/StatCard';
 import { useBillReminders, useBillsInsights, useBillsSummary, usePayBillOccurrence, useSkipBillOccurrence } from '@/hooks/useBills';
 import { formatCurrency, formatDate } from '@/lib/format';
 import { BILL_FREQUENCY_LABELS, billCategoryMeta } from '@/lib/constants';
@@ -28,38 +29,42 @@ export function BillsOverviewTab() {
     <div className="space-y-4">
       {/* Hero cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="glass-card rounded-2xl p-4">
-          <p className="text-xs text-text-secondary">Due Today</p>
-          <p className={cn('text-xl font-bold mt-1', m.dueTodayCount > 0 ? 'text-danger' : 'text-text-primary')}>
-            {m.dueTodayCount > 0 ? formatCurrency(m.dueToday, 'INR', true) : '—'}
-          </p>
-          <p className="text-xs text-text-muted mt-0.5">
-            {m.dueTodayCount > 0 ? `${m.dueTodayCount} payment${m.dueTodayCount > 1 ? 's' : ''}` : 'Nothing due today'}
-          </p>
-        </div>
+        <StatCard
+          compact
+          title="Due Today"
+          value={m.dueToday}
+          displayValue={m.dueTodayCount > 0 ? undefined : '—'}
+          forceColor={m.dueTodayCount > 0 ? 'danger' : undefined}
+          footer={m.dueTodayCount > 0 ? `${m.dueTodayCount} payment${m.dueTodayCount > 1 ? 's' : ''}` : 'Nothing due today'}
+        />
 
-        <div className="glass-card rounded-2xl p-4">
-          <p className="text-xs text-text-secondary">This Month</p>
-          <p className="text-xl font-bold text-text-primary mt-1">{formatCurrency(m.total, 'INR', true)}</p>
-          <div className="mt-1.5 space-y-1">
-            <Progress value={paidPct} className="h-1.5" indicatorClassName="bg-gradient-success" />
-            <p className="text-xs text-text-muted">
-              {formatCurrency(m.paid, 'INR', true)} paid · {formatCurrency(m.remaining, 'INR', true)} left
-            </p>
-          </div>
-        </div>
+        <StatCard
+          compact
+          title="This Month"
+          value={m.total}
+          footer={
+            <div className="space-y-1">
+              <Progress value={paidPct} className="h-1.5" indicatorClassName="bg-gradient-success" />
+              <p className="text-xs text-text-muted">
+                {formatCurrency(m.paid, 'INR', true)} paid · {formatCurrency(m.remaining, 'INR', true)} left
+              </p>
+            </div>
+          }
+        />
 
-        <div className="glass-card rounded-2xl p-4">
-          <p className="text-xs text-text-secondary">Monthly Commitment</p>
-          <p className="text-xl font-bold text-text-primary mt-1">{formatCurrency(summary.monthlyCommitment, 'INR', true)}</p>
-          <p className="text-xs text-text-muted mt-0.5">{formatCurrency(summary.annualCommitment, 'INR', true)}/year · {summary.activeCount} active</p>
-        </div>
+        <StatCard
+          compact
+          title="Monthly Commitment"
+          value={summary.monthlyCommitment}
+          footer={`${formatCurrency(summary.annualCommitment, 'INR', true)}/year · ${summary.activeCount} active`}
+        />
 
-        <div className="glass-card rounded-2xl p-4">
-          <p className="text-xs text-text-secondary">Next Month</p>
-          <p className="text-xl font-bold text-text-primary mt-1">{formatCurrency(summary.nextMonth.total, 'INR', true)}</p>
-          <p className="text-xs text-text-muted mt-0.5">{summary.nextMonth.count} payment{summary.nextMonth.count !== 1 ? 's' : ''} scheduled</p>
-        </div>
+        <StatCard
+          compact
+          title="Next Month"
+          value={summary.nextMonth.total}
+          footer={`${summary.nextMonth.count} payment${summary.nextMonth.count !== 1 ? 's' : ''} scheduled`}
+        />
       </div>
 
       {/* Overdue banner */}

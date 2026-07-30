@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { Plus, Target } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { PageShell } from '@/components/ui/PageShell';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { useGoals } from '@/hooks/useGoals';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { formatCurrency } from '@/lib/format';
@@ -27,16 +29,16 @@ export default function GoalsPage() {
   const completed = (goals ?? []).filter((g) => g.isCompleted);
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-bold text-text-primary">Goals</h2>
-          <p className="text-sm text-text-secondary mt-0.5">{active.length} active · {completed.length} completed</p>
-        </div>
-        <Button onClick={() => setShowForm(true)} size="sm">
-          <Plus className="w-4 h-4 mr-1.5" /> New Goal
-        </Button>
-      </div>
+    <PageShell>
+      <PageHeader
+        title="Goals"
+        subtitle={`${active.length} active · ${completed.length} completed`}
+        action={
+          <Button onClick={() => setShowForm(true)} size="sm">
+            <Plus className="w-4 h-4 mr-1.5" /> New Goal
+          </Button>
+        }
+      />
 
       {isLoading ? (
         <div className="grid grid-cols-2 gap-4">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="glass-card rounded-2xl h-52 shimmer" />)}</div>
@@ -70,6 +72,6 @@ export default function GoalsPage() {
       )}
 
       {showForm && <GoalForm onClose={() => setShowForm(false)} />}
-    </div>
+    </PageShell>
   );
 }

@@ -8,6 +8,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { PageShell } from '@/components/ui/PageShell';
 import { useGoal, useDeleteGoal } from '@/hooks/useGoals';
 import { GoalForm } from '@/components/goals/GoalForm';
 import { GoalOverviewTab } from '@/components/goals/GoalOverviewTab';
@@ -32,11 +33,11 @@ export default function GoalDetailPage({ params }: { params: { id: string } }) {
 
   if (isLoading || !goal) {
     return (
-      <div className="max-w-4xl mx-auto space-y-4">
+      <PageShell>
         <div className="h-8 w-48 rounded-lg shimmer" />
         <div className="h-32 rounded-2xl shimmer" />
         <div className="h-96 rounded-2xl shimmer" />
-      </div>
+      </PageShell>
     );
   }
 
@@ -45,7 +46,7 @@ export default function GoalDetailPage({ params }: { params: { id: string } }) {
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-5">
+    <PageShell>
       <Link href="/goals" className="inline-flex items-center gap-1.5 text-xs text-text-secondary hover:text-text-primary transition-colors">
         <ArrowLeft className="w-3.5 h-3.5" /> Back to Goals
       </Link>
@@ -96,6 +97,6 @@ export default function GoalDetailPage({ params }: { params: { id: string } }) {
       </Tabs>
 
       {showEdit && <GoalForm goal={goal} onClose={() => setShowEdit(false)} />}
-    </div>
+    </PageShell>
   );
 }

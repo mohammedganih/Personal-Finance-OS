@@ -5,6 +5,8 @@ import { Plus, ArrowUpRight, ArrowDownRight, Search, Pencil, Trash2, ArrowLeftRi
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { PageShell } from '@/components/ui/PageShell';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { useTransactions, useDeleteTransaction } from '@/hooks/useTransactions';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { TableSkeleton } from '@/components/shared/LoadingSkeleton';
@@ -30,19 +32,16 @@ export default function TransactionsPage() {
   const closeForm = () => { setShowForm(false); setEditingTransaction(null); };
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-bold text-text-primary">Transactions</h2>
-          <p className="text-sm text-text-secondary mt-0.5">
-            {data?.pagination.total ?? 0} total records
-          </p>
-        </div>
-        <Button onClick={openAdd} size="sm">
-          <Plus className="w-4 h-4 mr-1.5" /> Add Transaction
-        </Button>
-      </div>
+    <PageShell>
+      <PageHeader
+        title="Transactions"
+        subtitle={`${data?.pagination.total ?? 0} total records`}
+        action={
+          <Button onClick={openAdd} size="sm">
+            <Plus className="w-4 h-4 mr-1.5" /> Add Transaction
+          </Button>
+        }
+      />
 
       {/* Filters */}
       <div className="glass-card rounded-2xl p-4 flex items-center gap-3 flex-wrap">
@@ -170,6 +169,6 @@ export default function TransactionsPage() {
           transaction={editingTransaction ?? undefined}
         />
       )}
-    </div>
+    </PageShell>
   );
 }

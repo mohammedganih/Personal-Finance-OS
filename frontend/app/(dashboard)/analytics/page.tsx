@@ -1,5 +1,7 @@
 'use client';
 
+import { PageShell } from '@/components/ui/PageShell';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { CashflowChart } from '@/components/dashboard/CashflowChart';
 import { ExpensePieChart } from '@/components/dashboard/ExpensePieChart';
 import { useMemberAnalytics } from '@/hooks/useFamilyMembers';
@@ -124,11 +126,8 @@ function SavingsTrend() {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function AnalyticsPage() {
   return (
-    <div className="space-y-6 max-w-6xl mx-auto">
-      <div>
-        <h2 className="text-xl font-bold text-text-primary">Analytics & Insights</h2>
-        <p className="text-sm text-text-secondary mt-0.5">Per-person split and spending trends</p>
-      </div>
+    <PageShell>
+      <PageHeader title="Analytics & Insights" subtitle="Per-person split and spending trends" />
 
       {/* Per-member split — most important */}
       <MemberSplitSection />
@@ -140,6 +139,6 @@ export default function AnalyticsPage() {
       </div>
 
       <SavingsTrend />
-    </div>
+    </PageShell>
   );
 }

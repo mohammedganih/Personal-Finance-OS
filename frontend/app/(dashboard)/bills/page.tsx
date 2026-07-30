@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { BarChart3, CalendarDays, LayoutGrid, Plus, Receipt } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { PageShell } from '@/components/ui/PageShell';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { useBillsSummary } from '@/hooks/useBills';
 import { BillsOverviewTab } from '@/components/bills/BillsOverviewTab';
 import { BillsCalendarTab } from '@/components/bills/BillsCalendarTab';
@@ -21,19 +23,16 @@ export default function BillsPage() {
   const openEdit = (bill: RecurringBill) => { setEditingBill(bill); setShowForm(true); };
 
   return (
-    <div className="space-y-5 max-w-5xl mx-auto">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-bold text-text-primary">Bills & Commitments</h2>
-          <p className="text-sm text-text-secondary mt-0.5">
-            Every recurring payment — subscriptions, utilities, insurance, rent, fees
-            {summary && summary.activeCount > 0 && ` · ${summary.activeCount} active`}
-          </p>
-        </div>
-        <Button onClick={openCreate} size="sm">
-          <Plus className="w-4 h-4 mr-1.5" /> Add Bill
-        </Button>
-      </div>
+    <PageShell>
+      <PageHeader
+        title="Bills & Commitments"
+        subtitle={`Every recurring payment — subscriptions, utilities, insurance, rent, fees${summary && summary.activeCount > 0 ? ` · ${summary.activeCount} active` : ''}`}
+        action={
+          <Button onClick={openCreate} size="sm">
+            <Plus className="w-4 h-4 mr-1.5" /> Add Bill
+          </Button>
+        }
+      />
 
       <Tabs defaultValue="overview">
         <TabsList>
@@ -66,6 +65,6 @@ export default function BillsPage() {
           bill={editingBill ?? undefined}
         />
       )}
-    </div>
+    </PageShell>
   );
 }

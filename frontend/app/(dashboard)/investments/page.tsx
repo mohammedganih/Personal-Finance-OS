@@ -5,7 +5,9 @@ import { Plus, TrendingUp, Pencil, Trash2, List, Sparkles, Wallet, IndianRupee, 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { KPICard } from '@/components/dashboard/KPICard';
+import { StatCard } from '@/components/ui/StatCard';
+import { PageShell } from '@/components/ui/PageShell';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { usePortfolioSummary, useDeleteInvestment, usePayInvestment } from '@/hooks/useInvestments';
 import { useAnnualizedReturns } from '@/hooks/useInvestmentIntelligence';
 import { EmptyState } from '@/components/shared/EmptyState';
@@ -144,56 +146,50 @@ export default function InvestmentsPage() {
   }, {});
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
-
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-bold text-text-primary">Investments</h2>
-          <p className="text-sm text-text-secondary mt-0.5">{portfolio.length} holdings</p>
-        </div>
-        <Button onClick={openAdd} size="sm">
-          <Plus className="w-4 h-4 mr-1.5" /> Add Holding
-        </Button>
-      </div>
+    <PageShell>
+      <PageHeader
+        title="Investments"
+        subtitle={`${portfolio.length} holdings`}
+        action={
+          <Button onClick={openAdd} size="sm">
+            <Plus className="w-4 h-4 mr-1.5" /> Add Holding
+          </Button>
+        }
+      />
 
       {/* Summary strip -- Current Value carries the real annualized return
           (XIRR) as its trend, not a blended flat P&L% that can mislead when
           the portfolio mixes a guaranteed FD with a brand-new SIP. Uses the
-          same KPICard the Dashboard already uses, for visual consistency. */}
+          same StatCard the Dashboard already uses, for visual consistency. */}
       {portfolio.length > 0 && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <KPICard
+          <StatCard
             title="Invested"
             value={summary?.totalInvested ?? 0}
             icon={Wallet}
             iconColor="bg-info/15 text-info"
-            compact
           />
-          <KPICard
+          <StatCard
             title="Current Value"
             value={summary?.totalCurrent ?? 0}
             change={returns?.overall !== null && returns?.overall !== undefined ? returns.overall * 100 : undefined}
             changeLabel="annualized"
             icon={TrendingUp}
             iconColor="bg-accent-violet/15 text-accent-violet-light"
-            compact
           />
-          <KPICard
+          <StatCard
             title="Total P&L"
             value={summary?.totalPnl ?? 0}
             change={summary?.totalInvested ? (summary.totalPnl / summary.totalInvested) * 100 : undefined}
             icon={IndianRupee}
             iconColor="bg-success/15 text-success"
             colorizePositive
-            compact
           />
-          <KPICard
+          <StatCard
             title="Monthly Investment"
             value={portfolio.reduce((s, inv) => s + (inv.monthlyAmount ?? 0), 0)}
             icon={Repeat}
             iconColor="bg-warning/15 text-warning"
-            compact
           />
         </div>
       )}
@@ -384,6 +380,6 @@ export default function InvestmentsPage() {
           onDelete={() => { deleteInvestment(viewingInvestment.id); setViewingInvestment(null); }}
         />
       )}
-    </div>
+    </PageShell>
   );
 }

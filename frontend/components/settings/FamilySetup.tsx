@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { EmptyState } from '@/components/shared/EmptyState';
 import { Loader2 } from 'lucide-react';
 
 const PRESET_COLORS = ['#7C3AED', '#EF4444', '#10B981', '#F59E0B', '#3B82F6', '#EC4899', '#8B5CF6'];
@@ -154,12 +155,12 @@ export function FamilySetup() {
           {Array.from({ length: 2 }).map((_, i) => <div key={i} className="h-14 glass-card rounded-xl shimmer" />)}
         </div>
       ) : !members?.length ? (
-        <div className="text-center py-6">
-          <p className="text-sm text-text-muted mb-3">No members added yet</p>
-          <Button size="sm" onClick={() => setShowForm(true)}>
-            <Plus className="w-4 h-4 mr-1" /> Add First Member
-          </Button>
-        </div>
+        <EmptyState
+          icon={Users}
+          title="No family members yet"
+          description="Add everyone in your household to track who paid, who owns what, and get a per-person financial split."
+          action={{ label: 'Add First Member', onClick: () => setShowForm(true) }}
+        />
       ) : (
         <div className="space-y-2">
           {members.map((m) => (

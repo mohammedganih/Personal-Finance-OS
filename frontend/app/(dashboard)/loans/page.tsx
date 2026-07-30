@@ -7,6 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { PageShell } from '@/components/ui/PageShell';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { StatCard } from '@/components/ui/StatCard';
 import { useLoans, useDeleteLoan } from '@/hooks/useLoans';
 import { useCreditCards, useDeleteCreditCard, usePayCreditCardBill } from '@/hooks/useCreditCards';
 import { useP2PLoans, useUpdateP2PLoan, useDeleteP2PLoan } from '@/hooks/useP2P';
@@ -127,20 +130,10 @@ function LoansTab() {
 
       {active.length > 0 && (
         <div className="grid grid-cols-4 gap-3">
-          {[
-            { label: 'Outstanding', value: totalDebt, color: 'text-danger' },
-            { label: 'Monthly EMI', value: totalEMI, color: 'text-warning' },
-            { label: 'Repaid', value: totalPrincipal - totalDebt, color: 'text-success' },
-          ].map((s) => (
-            <div key={s.label} className="glass-card rounded-2xl p-4">
-              <p className="text-xs text-text-secondary">{s.label}</p>
-              <p className={cn('text-lg font-bold mt-1', s.color)}>{formatCurrency(s.value, 'INR', true)}</p>
-            </div>
-          ))}
-          <div className="glass-card rounded-2xl p-4">
-            <p className="text-xs text-text-secondary">Overall Progress</p>
-            <p className="text-lg font-bold text-text-primary mt-1">{overallPct.toFixed(1)}%</p>
-          </div>
+          <StatCard compact title="Outstanding" value={totalDebt} forceColor="danger" />
+          <StatCard compact title="Monthly EMI" value={totalEMI} forceColor="warning" />
+          <StatCard compact title="Repaid" value={totalPrincipal - totalDebt} forceColor="success" />
+          <StatCard compact title="Overall Progress" value={overallPct} isCurrency={false} isPercent />
         </div>
       )}
 
@@ -301,22 +294,12 @@ function CreditCardsTab() {
     <div className="space-y-4">
       {/* Sub-tab switcher */}
       <div className="flex items-center justify-between">
-        <div className="flex gap-1 bg-bg-elevated rounded-xl p-1 border border-border">
-          {(['cards', 'emis'] as const).map((t) => (
-            <button
-              key={t}
-              onClick={() => setSubTab(t)}
-              className={cn(
-                'px-4 py-1.5 rounded-lg text-xs font-medium transition-colors',
-                subTab === t
-                  ? 'bg-bg-surface text-text-primary shadow-sm'
-                  : 'text-text-secondary hover:text-text-primary'
-              )}
-            >
-              {t === 'cards' ? '💳 Cards' : `📆 EMIs${activeEMIs.length > 0 ? ` (${activeEMIs.length})` : ''}`}
-            </button>
-          ))}
-        </div>
+        <Tabs value={subTab} onValueChange={(v) => setSubTab(v as 'cards' | 'emis')}>
+          <TabsList>
+            <TabsTrigger value="cards">💳 Cards</TabsTrigger>
+            <TabsTrigger value="emis">📆 EMIs{activeEMIs.length > 0 ? ` (${activeEMIs.length})` : ''}</TabsTrigger>
+          </TabsList>
+        </Tabs>
         {subTab === 'cards' ? (
           <Button size="sm" onClick={() => { setEditingCard(null); setShowCardForm(true); }}>
             <Plus className="w-4 h-4 mr-1.5" /> Add Card
@@ -331,22 +314,10 @@ function CreditCardsTab() {
       {/* Summary strip — always visible */}
       {(cards ?? []).length > 0 && (
         <div className="grid grid-cols-4 gap-3">
-          <div className="glass-card rounded-2xl p-3">
-            <p className="text-xs text-text-muted">Revolving</p>
-            <p className="text-base font-bold text-danger mt-0.5">{formatCurrency(revolvingOutstanding, 'INR', true)}</p>
-          </div>
-          <div className="glass-card rounded-2xl p-3">
-            <p className="text-xs text-text-muted">EMI Blocked</p>
-            <p className="text-base font-bold text-warning mt-0.5">{formatCurrency(emiOutstanding, 'INR', true)}</p>
-          </div>
-          <div className="glass-card rounded-2xl p-3">
-            <p className="text-xs text-text-muted">Total Outstanding</p>
-            <p className="text-base font-bold text-danger mt-0.5">{formatCurrency(totalOutstanding, 'INR', true)}</p>
-          </div>
-          <div className="glass-card rounded-2xl p-3">
-            <p className="text-xs text-text-muted">Utilization</p>
-            <p className={cn('text-base font-bold mt-0.5', utilization > 30 ? 'text-danger' : 'text-success')}>{utilization.toFixed(1)}%</p>
-          </div>
+          <StatCard compact title="Revolving" value={revolvingOutstanding} forceColor="danger" />
+          <StatCard compact title="EMI Blocked" value={emiOutstanding} forceColor="warning" />
+          <StatCard compact title="Total Outstanding" value={totalOutstanding} forceColor="danger" />
+          <StatCard compact title="Utilization" value={utilization} isCurrency={false} isPercent forceColor={utilization > 30 ? 'danger' : 'success'} />
         </div>
       )}
 
@@ -452,18 +423,9 @@ function CreditCardsTab() {
           {/* EMI summary */}
           {activeEMIs.length > 0 && (
             <div className="grid grid-cols-3 gap-3">
-              <div className="glass-card rounded-2xl p-4">
-                <p className="text-xs text-text-secondary">Monthly EMI Deduction</p>
-                <p className="text-lg font-bold text-warning mt-1">{formatCurrency(emisSummary?.monthlyBurden ?? 0, 'INR', true)}</p>
-              </div>
-              <div className="glass-card rounded-2xl p-4">
-                <p className="text-xs text-text-secondary">Total EMI Outstanding</p>
-                <p className="text-lg font-bold text-danger mt-1">{formatCurrency(emisSummary?.totalOutstanding ?? 0, 'INR', true)}</p>
-              </div>
-              <div className="glass-card rounded-2xl p-4">
-                <p className="text-xs text-text-secondary">Active EMIs</p>
-                <p className="text-lg font-bold text-text-primary mt-1">{activeEMIs.length}</p>
-              </div>
+              <StatCard compact title="Monthly EMI Deduction" value={emisSummary?.monthlyBurden ?? 0} forceColor="warning" />
+              <StatCard compact title="Total EMI Outstanding" value={emisSummary?.totalOutstanding ?? 0} forceColor="danger" />
+              <StatCard compact title="Active EMIs" value={activeEMIs.length} isCurrency={false} />
             </div>
           )}
 
@@ -596,14 +558,15 @@ function P2PTab() {
 
       {active.length > 0 && (
         <div className="grid grid-cols-3 gap-3">
-          <div className="glass-card rounded-2xl p-4"><p className="text-xs text-text-secondary">Lent (they owe me)</p><p className="text-lg font-bold text-success mt-1">{formatCurrency(lent, 'INR', true)}</p></div>
-          <div className="glass-card rounded-2xl p-4"><p className="text-xs text-text-secondary">Borrowed (I owe)</p><p className="text-lg font-bold text-danger mt-1">{formatCurrency(borrowed, 'INR', true)}</p></div>
-          <div className="glass-card rounded-2xl p-4">
-            <p className="text-xs text-text-secondary">Net Position</p>
-            <p className={cn('text-lg font-bold mt-1', lent >= borrowed ? 'text-success' : 'text-danger')}>
-              {lent >= borrowed ? '+' : ''}{formatCurrency(lent - borrowed, 'INR', true)}
-            </p>
-          </div>
+          <StatCard compact title="Lent (they owe me)" value={lent} forceColor="success" />
+          <StatCard compact title="Borrowed (I owe)" value={borrowed} forceColor="danger" />
+          <StatCard
+            compact
+            title="Net Position"
+            value={lent - borrowed}
+            colorizePositive
+            displayValue={`${lent - borrowed >= 0 ? '+' : ''}${formatCurrency(lent - borrowed, 'INR', true)}`}
+          />
         </div>
       )}
 
@@ -736,11 +699,8 @@ export default function LoansPage() {
   const p2pCount  = (p2p ?? []).filter((l) => !l.isSettled).length;
 
   return (
-    <div className="space-y-5 max-w-4xl mx-auto">
-      <div>
-        <h2 className="text-xl font-bold text-text-primary">Loans & Liabilities</h2>
-        <p className="text-sm text-text-secondary mt-0.5">Loans · Credit Cards · Peer-to-Peer</p>
-      </div>
+    <PageShell>
+      <PageHeader title="Loans & Liabilities" subtitle="Loans · Credit Cards · Peer-to-Peer" />
 
       <Tabs defaultValue={initialTab}>
         <TabsList>
@@ -767,6 +727,6 @@ export default function LoansPage() {
         <TabsContent value="p2p"><P2PTab /></TabsContent>
         <TabsContent value="insights"><DebtInsightsTab /></TabsContent>
       </Tabs>
-    </div>
+    </PageShell>
   );
 }

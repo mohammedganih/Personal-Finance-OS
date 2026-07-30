@@ -5,6 +5,8 @@ import { Plus, PiggyBank, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { PageShell } from '@/components/ui/PageShell';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { useBudgets, useDeleteBudget } from '@/hooks/useBudgets';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { formatCurrency } from '@/lib/format';
@@ -74,16 +76,16 @@ export default function BudgetsPage() {
   const list = budgets ?? [];
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-bold text-text-primary">Budgets</h2>
-          <p className="text-sm text-text-secondary mt-0.5">{list.length} category budgets this month</p>
-        </div>
-        <Button onClick={() => setShowForm(true)} size="sm">
-          <Plus className="w-4 h-4 mr-1.5" /> New Budget
-        </Button>
-      </div>
+    <PageShell>
+      <PageHeader
+        title="Budgets"
+        subtitle={`${list.length} category budgets this month`}
+        action={
+          <Button onClick={() => setShowForm(true)} size="sm">
+            <Plus className="w-4 h-4 mr-1.5" /> New Budget
+          </Button>
+        }
+      />
 
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -105,6 +107,6 @@ export default function BudgetsPage() {
       )}
 
       {showForm && <BudgetForm existingBudgets={list} onClose={() => setShowForm(false)} />}
-    </div>
+    </PageShell>
   );
 }

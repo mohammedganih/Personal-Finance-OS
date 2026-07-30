@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { LogOut, User, Shield } from 'lucide-react';
+import { PageShell } from '@/components/ui/PageShell';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { FamilySetup } from '@/components/settings/FamilySetup';
 import { AccountSetup } from '@/components/settings/AccountSetup';
 import { CategorySetup } from '@/components/settings/CategorySetup';
@@ -15,11 +17,8 @@ export default function SettingsPage() {
   const logout = useLogout();
 
   return (
-    <div className="space-y-6 max-w-2xl mx-auto">
-      <div>
-        <h2 className="text-xl font-bold text-text-primary">Settings</h2>
-        <p className="text-sm text-text-secondary mt-0.5">Manage your account and family preferences</p>
-      </div>
+    <PageShell width="narrow">
+      <PageHeader title="Settings" subtitle="Manage your account and family preferences" />
 
       {/* Family Members — most important for tracking */}
       <FamilySetup />
@@ -67,6 +66,6 @@ export default function SettingsPage() {
           <LogOut className="w-4 h-4 mr-2" /> Sign Out
         </Button>
       </div>
-    </div>
+    </PageShell>
   );
 }
