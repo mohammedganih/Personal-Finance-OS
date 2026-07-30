@@ -52,13 +52,6 @@ enum P2PType {
   BORROWED
 }
 
-enum BillingCycle {
-  MONTHLY
-  QUARTERLY
-  HALF_YEARLY
-  YEARLY
-}
-
 enum BillFrequency {
   ONE_TIME
   WEEKLY
@@ -119,6 +112,11 @@ enum ContributionType {
   ONE_TIME
 }
 
+enum SplitEntityType {
+  TRANSACTION
+  INVESTMENT
+}
+
 // ─── Models ──────────────────────────────────────────────────────────────────
 
 model User {
@@ -136,7 +134,6 @@ model User {
   investments   Investment[]
   goals         Goal[]
   loans         Loan[]
-  subscriptions Subscription[]
   recurringBills  RecurringBill[]
   billOccurrences BillOccurrence[]
   creditCards   CreditCard[]
@@ -147,6 +144,7 @@ model User {
   budgets       Budget[]
   investmentSnapshots InvestmentSnapshot[]
   goalContributions   GoalContribution[]
+  ownershipSplits     OwnershipSplit[]
 
   @@map("users")
 }
@@ -165,17 +163,15 @@ model FamilyMember {
   user              User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   ownedAccounts     Account[]
   transactions      Transaction[]  @relation("TxnPrimary")
-  splitTransactions Transaction[]  @relation("TxnSplit")
   investments       Investment[]   @relation("InvPrimary")
-  splitInvestments  Investment[]   @relation("InvSplit")
   loans             Loan[]         @relation("LoanBorrower")
   loanPayments      Loan[]         @relation("LoanPayer")
   creditCards       CreditCard[]
   p2pLoans          P2PLoan[]
-  subscriptions     Subscription[]
   recurringBills    RecurringBill[]
   cardEmis          CardEMI[]
   goals             Goal[]
+  secondaryOwnershipSplits OwnershipSplit[] @relation("SplitSecondaryMember")
 
   @@index([userId])
   @@map("family_members")
@@ -231,8 +227,6 @@ model Transaction {
   accountId      String?
   categoryId     String?
   memberId       String?
-  splitMemberId  String?
-  splitRatio     Decimal?  @default(50) @db.Decimal(5, 2) // % that goes to memberId; rest to splitMemberId
   type           TransactionType
   amount         Decimal   @db.Decimal(14, 2)
   description    String?
@@ -250,7 +244,6 @@ model Transaction {
   account     Account?       @relation(fields: [accountId], references: [id], onDelete: SetNull)
   category    Category?      @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   member      FamilyMember?  @relation("TxnPrimary",  fields: [memberId],      references: [id], onDelete: SetNull)
-  splitMember FamilyMember?  @relation("TxnSplit",    fields: [splitMemberId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([userId, date])
@@ -286,8 +279,6 @@ model Investment {
   // Common
   platform       String?
   memberId       String?    // primary owner
-  splitMemberId  String?    // secondary owner (for split investments)
-  splitRatio     Decimal?   @default(50) @db.Decimal(5, 2) // % primary member owns; rest to splitMember
   bankAccountId  String?
 
   // Collateral assets (Real Estate / Vehicle) that may back a Loan --
@@ -303,7 +294,6 @@ model Investment {
 
   user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   member      FamilyMember?  @relation("InvPrimary", fields: [memberId],      references: [id], onDelete: SetNull)
-  splitMember FamilyMember?  @relation("InvSplit",   fields: [splitMemberId], references: [id], onDelete: SetNull)
   bankAccount Account?       @relation("InvestmentBankAccount", fields: [bankAccountId], references: [id], onDelete: SetNull)
   linkedLoans Loan[]         @relation("LoanCollateral")
 
@@ -399,34 +389,6 @@ model Loan {
   @@index([memberId])
   @@index([linkedInvestmentId])
   @@map("loans")
-}
-
-// DEPRECATED: superseded by RecurringBill. Kept in the schema so `prisma db push`
-// doesn't drop the table (and its data) before the one-time migration script
-// (src/scripts/migrateSubscriptionsToBills.ts) has copied every row across.
-// Safe to delete this model once the migration has been run and verified.
-model Subscription {
-  id          String       @id @default(cuid())
-  userId      String
-  memberId    String?
-  serviceName String
-  amount      Decimal      @db.Decimal(10, 2)
-  billingCycle BillingCycle
-  renewalDate DateTime
-  category    String?
-  url         String?
-  notes       String?
-  isActive    Boolean      @default(true)
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-
-  user   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  member FamilyMember?  @relation(fields: [memberId], references: [id], onDelete: SetNull)
-
-  @@index([userId])
-  @@index([userId, renewalDate])
-  @@index([memberId])
-  @@map("subscriptions")
 }
 
 // ─── Recurring Bills & Commitments ───────────────────────────────────────────
@@ -636,4 +598,27 @@ model Budget {
   @@unique([userId, categoryId])
   @@index([userId])
   @@map("budgets")
+}
+
+// An opt-in overlay for co-ownership: most transactions/investments belong to
+// one member (memberId, on the entity itself). A row here only exists when the
+// user has explicitly split that specific entity with a second member -- so
+// single-member households (and the common single-owner case) carry zero
+// extra columns anywhere.
+model OwnershipSplit {
+  id                String          @id @default(cuid())
+  userId            String
+  entityType        SplitEntityType
+  entityId          String
+  secondaryMemberId String
+  ratio             Decimal         @default(50) @db.Decimal(5, 2) // % owned by the entity's own memberId; rest to secondaryMemberId
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  secondaryMember FamilyMember @relation("SplitSecondaryMember", fields: [secondaryMemberId], references: [id], onDelete: Cascade)
+
+  @@unique([entityType, entityId])
+  @@index([userId])
+  @@map("ownership_splits")
 }

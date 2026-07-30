@@ -51,6 +51,9 @@ export function SplitMemberSelector({ memberId, splitMemberId, splitRatio, onCha
   const [splitMode, setSplitMode] = useState(!!splitMemberId);
 
   if (!members?.length) return null;
+  // Splitting needs a second person to split with -- with only one member,
+  // behave like a plain owner picker (no "Split" affordance to dead-end into).
+  const canSplit = members.length > 1;
 
   const ratio       = splitRatio ?? 50;
   const secondRatio = 100 - ratio;
@@ -79,16 +82,18 @@ export function SplitMemberSelector({ memberId, splitMemberId, splitRatio, onCha
     <div className="space-y-2">
       <p className="text-xs font-medium text-text-secondary">{label}</p>
 
-      {!splitMode ? (
+      {!(splitMode && canSplit) ? (
         <div className="flex items-center gap-1.5 flex-wrap">
           {members.map((m) => (
             <MemberChip key={m.id} member={m} selected={memberId === m.id}
               onClick={() => onChange(memberId === m.id ? null : m.id, null, 100)} />
           ))}
-          <button type="button" onClick={enterSplit}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-dashed border-border text-xs font-medium text-text-muted hover:text-text-primary hover:border-border-strong transition-colors">
-            ✂️ Split
-          </button>
+          {canSplit && (
+            <button type="button" onClick={enterSplit}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-dashed border-border text-xs font-medium text-text-muted hover:text-text-primary hover:border-border-strong transition-colors">
+              ✂️ Split
+            </button>
+          )}
         </div>
       ) : (
         <div className="space-y-2.5 p-3 rounded-xl bg-bg-elevated border border-border">

@@ -2,6 +2,7 @@ import { prisma } from '../lib/prisma';
 import { createError } from '../middleware/error.middleware';
 import { CreateFamilyMemberInput, UpdateFamilyMemberInput } from '../validators/family.validator';
 import { resolveMonthRange } from '../lib/dateRange';
+import { fetchSplits, SplitFields } from '../lib/ownershipSplit';
 
 interface SimulatedLoan {
   remainingBalance: number;
@@ -64,49 +65,36 @@ export async function deleteFamilyMember(userId: string, id: string) {
 
 // ── Contribution helpers ───────────────────────────────────────────────────────
 
-type TxnRow = {
-  memberId: string | null;
-  splitMemberId: string | null;
-  splitRatio: { toNumber(): number } | null;
-  type: string;
-  amount: { toNumber(): number };
-};
+type TxnRow = { id: string; memberId: string | null; type: string; amount: { toNumber(): number } };
+type InvRow = { id: string; memberId: string | null; quantity: { toNumber(): number }; currentPrice: { toNumber(): number } };
 
-type InvRow = {
-  memberId: string | null;
-  splitMemberId: string | null;
-  splitRatio: { toNumber(): number } | null;
-  quantity: { toNumber(): number };
-  currentPrice: { toNumber(): number };
-};
-
-/** Amount of this transaction that belongs to `memberId` */
-function txnShare(t: TxnRow, memberId: string): number {
+/** Amount of this transaction that belongs to `memberId`, given its (possibly absent) split overlay row. */
+function txnShare(t: TxnRow, memberId: string, split: SplitFields | undefined): number {
   const amount = Number(t.amount);
   if (!t.memberId) return 0; // unassigned — skip
 
   if (t.memberId === memberId) {
-    const ratio = t.splitMemberId ? (t.splitRatio?.toNumber() ?? 50) / 100 : 1;
+    const ratio = split ? (split.splitRatio ?? 50) / 100 : 1;
     return amount * ratio;
   }
-  if (t.splitMemberId === memberId) {
-    const ratio = 1 - (t.splitRatio?.toNumber() ?? 50) / 100;
+  if (split?.splitMemberId === memberId) {
+    const ratio = 1 - (split.splitRatio ?? 50) / 100;
     return amount * ratio;
   }
   return 0;
 }
 
-/** Current value of this investment that belongs to `memberId` */
-function invShare(inv: InvRow, memberId: string): number {
+/** Current value of this investment that belongs to `memberId`, given its (possibly absent) split overlay row. */
+function invShare(inv: InvRow, memberId: string, split: SplitFields | undefined): number {
   const value = Number(inv.quantity) * Number(inv.currentPrice);
   if (!inv.memberId) return 0;
 
   if (inv.memberId === memberId) {
-    const ratio = inv.splitMemberId ? (inv.splitRatio?.toNumber() ?? 50) / 100 : 1;
+    const ratio = split ? (split.splitRatio ?? 50) / 100 : 1;
     return value * ratio;
   }
-  if (inv.splitMemberId === memberId) {
-    const ratio = 1 - (inv.splitRatio?.toNumber() ?? 50) / 100;
+  if (split?.splitMemberId === memberId) {
+    const ratio = 1 - (split.splitRatio ?? 50) / 100;
     return value * ratio;
   }
   return 0;
@@ -125,12 +113,12 @@ export async function getMemberAnalytics(userId: string, month?: number, year?: 
       // for any past month, which would silently include every transaction
       // from that month onward through today.
       where: { userId, date: { gte: startOfMonth, lte: endOfMonth } },
-      select: { memberId: true, splitMemberId: true, splitRatio: true, type: true, amount: true },
+      select: { id: true, memberId: true, type: true, amount: true },
     }),
 
     prisma.transaction.findMany({
       where: { userId },
-      select: { memberId: true, splitMemberId: true, splitRatio: true, type: true, amount: true },
+      select: { id: true, memberId: true, type: true, amount: true },
     }),
 
     prisma.loan.findMany({
@@ -140,18 +128,25 @@ export async function getMemberAnalytics(userId: string, month?: number, year?: 
 
     prisma.investment.findMany({
       where: { userId },
-      select: { memberId: true, splitMemberId: true, splitRatio: true, quantity: true, currentPrice: true },
+      select: { id: true, memberId: true, quantity: true, currentPrice: true },
     }),
   ]);
 
+  // allTxns is unfiltered by date, so it's a superset of monthlyTxns -- one
+  // fetch covers the split lookups for both.
+  const [txnSplits, invSplits] = await Promise.all([
+    fetchSplits('TRANSACTION', allTxns.map((t) => t.id)),
+    fetchSplits('INVESTMENT', investments.map((i) => i.id)),
+  ]);
+
   const breakdown = members.map((m) => {
-    const monthlyIncome   = monthlyTxns.filter((t) => t.type === 'INCOME').reduce((s, t) => s + txnShare(t as TxnRow, m.id), 0);
-    const monthlyExpenses = monthlyTxns.filter((t) => t.type === 'EXPENSE').reduce((s, t) => s + txnShare(t as TxnRow, m.id), 0);
-    const totalIncome     = allTxns.filter((t) => t.type === 'INCOME').reduce((s, t) => s + txnShare(t as TxnRow, m.id), 0);
-    const totalExpenses   = allTxns.filter((t) => t.type === 'EXPENSE').reduce((s, t) => s + txnShare(t as TxnRow, m.id), 0);
+    const monthlyIncome   = monthlyTxns.filter((t) => t.type === 'INCOME').reduce((s, t) => s + txnShare(t, m.id, txnSplits.get(t.id)), 0);
+    const monthlyExpenses = monthlyTxns.filter((t) => t.type === 'EXPENSE').reduce((s, t) => s + txnShare(t, m.id, txnSplits.get(t.id)), 0);
+    const totalIncome     = allTxns.filter((t) => t.type === 'INCOME').reduce((s, t) => s + txnShare(t, m.id, txnSplits.get(t.id)), 0);
+    const totalExpenses   = allTxns.filter((t) => t.type === 'EXPENSE').reduce((s, t) => s + txnShare(t, m.id, txnSplits.get(t.id)), 0);
     const loanOwed        = loans.filter((l) => l.memberId === m.id).reduce((s, l) => s + Number(l.remainingBalance), 0);
     const monthlyEMI      = loans.filter((l) => l.payerMemberId === m.id).reduce((s, l) => s + Number(l.emi), 0);
-    const investmentValue = investments.reduce((s, i) => s + invShare(i as InvRow, m.id), 0);
+    const investmentValue = investments.reduce((s, i) => s + invShare(i, m.id, invSplits.get(i.id)), 0);
 
     return {
       member: m,
@@ -166,7 +161,7 @@ export async function getMemberAnalytics(userId: string, month?: number, year?: 
     };
   });
 
-  const unassigned         = monthlyTxns.filter((t) => !t.memberId && !t.splitMemberId);
+  const unassigned         = monthlyTxns.filter((t) => !t.memberId && !txnSplits.get(t.id)?.splitMemberId);
   const unassignedIncome   = unassigned.filter((t) => t.type === 'INCOME').reduce((s, t) => s + Number(t.amount), 0);
   const unassignedExpenses = unassigned.filter((t) => t.type === 'EXPENSE').reduce((s, t) => s + Number(t.amount), 0);
 

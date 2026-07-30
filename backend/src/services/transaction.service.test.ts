@@ -118,3 +118,89 @@ describe('transaction.service balance sync', () => {
     expect(await getBalance(accountId)).toBeCloseTo(10000, 2);
   });
 });
+
+describe('transaction.service ownership split overlay', () => {
+  // Regression coverage for the split-ratio migration: splitMemberId/splitRatio
+  // used to be plain columns on Transaction, now they live in the OwnershipSplit
+  // overlay table (see lib/ownershipSplit.ts). The API response shape must stay
+  // identical even though the storage moved.
+
+  async function setupTwoMembers(userId: string) {
+    const primary   = await prisma.familyMember.create({ data: { userId, name: 'Primary' } });
+    const secondary = await prisma.familyMember.create({ data: { userId, name: 'Secondary' } });
+    return { primary, secondary };
+  }
+
+  it('create: a split is stored as one OwnershipSplit row and returned on the transaction', async () => {
+    const { userId } = await setupUserWithAccount();
+    const { primary, secondary } = await setupTwoMembers(userId);
+
+    const txn = await createTxn(userId, {
+      type: 'EXPENSE', amount: 1000, date: '2026-01-01', isRecurring: false,
+      memberId: primary.id, splitMemberId: secondary.id, splitRatio: 60,
+    });
+
+    expect((txn as any).splitMemberId).toBe(secondary.id);
+    expect((txn as any).splitRatio).toBe(60);
+    expect((txn as any).splitMember?.id).toBe(secondary.id);
+
+    const splits = await prisma.ownershipSplit.findMany({ where: { entityType: 'TRANSACTION', entityId: txn.id } });
+    expect(splits).toHaveLength(1);
+    expect(splits[0].secondaryMemberId).toBe(secondary.id);
+    expect(splits[0].ratio.toNumber()).toBe(60);
+  });
+
+  it('getTransactions: batch-attaches the split to the right row among many', async () => {
+    const { userId, accountId } = await setupUserWithAccount();
+    const { primary, secondary } = await setupTwoMembers(userId);
+
+    const split = await createTxn(userId, {
+      type: 'EXPENSE', amount: 500, date: '2026-01-02', accountId, isRecurring: false,
+      memberId: primary.id, splitMemberId: secondary.id, splitRatio: 70,
+    });
+    const plain = await createTxn(userId, {
+      type: 'EXPENSE', amount: 500, date: '2026-01-03', accountId, isRecurring: false,
+    });
+
+    const { transactions } = await transactionService.getTransactions(userId, {} as any);
+    const foundSplit = transactions.find((t) => t.id === split.id)!;
+    const foundPlain = transactions.find((t) => t.id === plain.id)!;
+
+    expect(foundSplit.splitMemberId).toBe(secondary.id);
+    expect(foundSplit.splitRatio).toBe(70);
+    expect(foundPlain.splitMemberId).toBeNull();
+  });
+
+  it('update: adding a split creates it, clearing it (splitMemberId: null) removes it', async () => {
+    const { userId } = await setupUserWithAccount();
+    const { primary, secondary } = await setupTwoMembers(userId);
+
+    const txn = await createTxn(userId, {
+      type: 'EXPENSE', amount: 800, date: '2026-01-01', isRecurring: false, memberId: primary.id,
+    });
+    expect(await prisma.ownershipSplit.findMany({ where: { entityType: 'TRANSACTION', entityId: txn.id } })).toHaveLength(0);
+
+    const withSplit = await transactionService.updateTransaction(userId, txn.id, {
+      splitMemberId: secondary.id, splitRatio: 40,
+    } as any);
+    expect((withSplit as any).splitMemberId).toBe(secondary.id);
+    expect(await prisma.ownershipSplit.findMany({ where: { entityType: 'TRANSACTION', entityId: txn.id } })).toHaveLength(1);
+
+    const cleared = await transactionService.updateTransaction(userId, txn.id, { splitMemberId: null } as any);
+    expect((cleared as any).splitMemberId).toBeNull();
+    expect(await prisma.ownershipSplit.findMany({ where: { entityType: 'TRANSACTION', entityId: txn.id } })).toHaveLength(0);
+  });
+
+  it('delete: removes the OwnershipSplit row along with the transaction', async () => {
+    const { userId } = await setupUserWithAccount();
+    const { primary, secondary } = await setupTwoMembers(userId);
+
+    const txn = await createTxn(userId, {
+      type: 'EXPENSE', amount: 300, date: '2026-01-01', isRecurring: false,
+      memberId: primary.id, splitMemberId: secondary.id, splitRatio: 50,
+    });
+
+    await transactionService.deleteTransaction(userId, txn.id);
+    expect(await prisma.ownershipSplit.findMany({ where: { entityType: 'TRANSACTION', entityId: txn.id } })).toHaveLength(0);
+  });
+});

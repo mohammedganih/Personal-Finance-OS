@@ -1,7 +1,5 @@
 'use client';
 
-import Link from 'next/link';
-import { ArrowRight } from 'lucide-react';
 import { CashflowChart } from '@/components/dashboard/CashflowChart';
 import { ExpensePieChart } from '@/components/dashboard/ExpensePieChart';
 import { useMemberAnalytics } from '@/hooks/useFamilyMembers';
@@ -129,27 +127,11 @@ export default function AnalyticsPage() {
     <div className="space-y-6 max-w-6xl mx-auto">
       <div>
         <h2 className="text-xl font-bold text-text-primary">Analytics & Insights</h2>
-        <p className="text-sm text-text-secondary mt-0.5">Per-person split, spending trends, and loan strategy</p>
+        <p className="text-sm text-text-secondary mt-0.5">Per-person split and spending trends</p>
       </div>
 
       {/* Per-member split — most important */}
       <MemberSplitSection />
-
-      {/* Loan strategy now lives in Loans -> Debt Insights (covers credit cards
-          and card EMIs too, not just loans) */}
-      <Link
-        href="/loans"
-        className="glass-card-hover rounded-2xl p-4 flex items-center justify-between group"
-      >
-        <div className="flex items-center gap-3">
-          <span className="text-lg">🧠</span>
-          <div>
-            <p className="text-sm font-semibold text-text-primary">Debt Health Score & Payoff Strategy</p>
-            <p className="text-xs text-text-secondary mt-0.5">Avalanche vs Snowball, prepayment savings, and more — now in Loans</p>
-          </div>
-        </div>
-        <ArrowRight className="w-4 h-4 text-text-muted group-hover:text-accent-violet-light group-hover:translate-x-0.5 transition-all" />
-      </Link>
 
       {/* Standard charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

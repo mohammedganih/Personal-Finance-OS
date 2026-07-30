@@ -3,102 +3,127 @@ import { prisma } from '../lib/prisma';
 import { createError } from '../middleware/error.middleware';
 import { CreateInvestmentInput, UpdateInvestmentInput } from '../validators/investment.validator';
 import { findCategory } from '../lib/paymentCategory';
+import { writeSplit, fetchSplits, attachSplit, SplitFields } from '../lib/ownershipSplit';
 
 const MEMBER_SELECT = { select: { id: true, name: true, color: true, emoji: true } };
 
 type LinkedLoan = Pick<Loan, 'id' | 'name' | 'remainingBalance' | 'interestRate' | 'emi' | 'startDate' | 'tenureMonths' | 'principal'>;
 
-type InvestmentWithRelations = Investment & {
-  member?: Pick<FamilyMember, 'id' | 'name' | 'color' | 'emoji'> | null;
-  splitMember?: Pick<FamilyMember, 'id' | 'name' | 'color' | 'emoji'> | null;
-  bankAccount?: Pick<Account, 'id' | 'name' | 'type'> | null;
-  linkedLoans?: LinkedLoan[];
-};
+type InvestmentWithRelations = Investment &
+  Partial<SplitFields> & {
+    member?: Pick<FamilyMember, 'id' | 'name' | 'color' | 'emoji'> | null;
+    bankAccount?: Pick<Account, 'id' | 'name' | 'type'> | null;
+    linkedLoans?: LinkedLoan[];
+  };
 
 const LOAN_SELECT = { select: { id: true, name: true, remainingBalance: true, interestRate: true, emi: true, startDate: true, tenureMonths: true, principal: true } };
+
+const INVESTMENT_INCLUDE = {
+  member: MEMBER_SELECT,
+  bankAccount: { select: { id: true, name: true, type: true } },
+  linkedLoans: LOAN_SELECT,
+} as const;
 
 export async function getInvestments(userId: string) {
   const investments = await prisma.investment.findMany({
     where: { userId },
-    include: { member: MEMBER_SELECT, splitMember: MEMBER_SELECT, bankAccount: { select: { id: true, name: true, type: true } }, linkedLoans: LOAN_SELECT },
+    include: INVESTMENT_INCLUDE,
     orderBy: { purchaseDate: 'desc' },
   });
-  return investments.map(serializeInvestment);
+  const splits = await fetchSplits('INVESTMENT', investments.map((i) => i.id));
+  return investments.map((i) => serializeInvestment(attachSplit(i, splits.get(i.id))));
 }
 
 export async function createInvestment(userId: string, input: CreateInvestmentInput) {
-  const investment = await prisma.investment.create({
-    data: {
-      userId,
-      assetName:     input.assetName,
-      assetType:     input.assetType,
-      ticker:        input.ticker,
-      quantity:      input.quantity ?? 0,
-      buyPrice:      input.buyPrice ?? 0,
-      currentPrice:  input.currentPrice ?? 0,
-      purchaseDate:  new Date(input.purchaseDate),
-      exchange:      input.exchange,
-      notes:         input.notes,
-      monthlyAmount: input.monthlyAmount,
-      fundCategory:  input.fundCategory,
-      folioNumber:   input.folioNumber,
-      maturityDate:  input.maturityDate ? new Date(input.maturityDate) : null,
-      maturityAmount: input.maturityAmount,
-      interestRate:  input.interestRate,
-      platform:      input.platform,
-      memberId:      input.memberId,
-      splitMemberId: input.splitMemberId,
-      splitRatio:    input.splitRatio,
-      bankAccountId: input.bankAccountId,
-      address:                  input.address,
-      ownershipPercent:         input.ownershipPercent,
-      expectedAppreciationRate: input.expectedAppreciationRate,
-    },
-    include: { member: MEMBER_SELECT, splitMember: MEMBER_SELECT, bankAccount: { select: { id: true, name: true, type: true } }, linkedLoans: LOAN_SELECT },
+  const investment = await prisma.$transaction(async (tx) => {
+    const created = await tx.investment.create({
+      data: {
+        userId,
+        assetName:     input.assetName,
+        assetType:     input.assetType,
+        ticker:        input.ticker,
+        quantity:      input.quantity ?? 0,
+        buyPrice:      input.buyPrice ?? 0,
+        currentPrice:  input.currentPrice ?? 0,
+        purchaseDate:  new Date(input.purchaseDate),
+        exchange:      input.exchange,
+        notes:         input.notes,
+        monthlyAmount: input.monthlyAmount,
+        fundCategory:  input.fundCategory,
+        folioNumber:   input.folioNumber,
+        maturityDate:  input.maturityDate ? new Date(input.maturityDate) : null,
+        maturityAmount: input.maturityAmount,
+        interestRate:  input.interestRate,
+        platform:      input.platform,
+        memberId:      input.memberId,
+        bankAccountId: input.bankAccountId,
+        address:                  input.address,
+        ownershipPercent:         input.ownershipPercent,
+        expectedAppreciationRate: input.expectedAppreciationRate,
+      },
+      include: INVESTMENT_INCLUDE,
+    });
+
+    await writeSplit(tx, userId, 'INVESTMENT', created.id, input);
+
+    return created;
   });
-  return serializeInvestment(investment);
+
+  const splits = await fetchSplits('INVESTMENT', [investment.id]);
+  return serializeInvestment(attachSplit(investment, splits.get(investment.id)));
 }
 
 export async function updateInvestment(userId: string, id: string, input: UpdateInvestmentInput) {
   const existing = await prisma.investment.findFirst({ where: { id, userId } });
   if (!existing) throw createError('Investment not found', 404);
 
-  const investment = await prisma.investment.update({
-    where: { id },
-    data: {
-      ...(input.assetName    !== undefined && { assetName: input.assetName }),
-      ...(input.assetType    !== undefined && { assetType: input.assetType }),
-      ...(input.ticker       !== undefined && { ticker: input.ticker }),
-      ...(input.quantity     !== undefined && { quantity: input.quantity }),
-      ...(input.buyPrice     !== undefined && { buyPrice: input.buyPrice }),
-      ...(input.currentPrice !== undefined && { currentPrice: input.currentPrice }),
-      ...(input.purchaseDate !== undefined && { purchaseDate: new Date(input.purchaseDate) }),
-      ...(input.exchange     !== undefined && { exchange: input.exchange }),
-      ...(input.notes        !== undefined && { notes: input.notes }),
-      ...(input.monthlyAmount !== undefined && { monthlyAmount: input.monthlyAmount }),
-      ...(input.fundCategory !== undefined && { fundCategory: input.fundCategory }),
-      ...(input.folioNumber  !== undefined && { folioNumber: input.folioNumber }),
-      ...(input.maturityDate !== undefined && { maturityDate: input.maturityDate ? new Date(input.maturityDate) : null }),
-      ...(input.maturityAmount !== undefined && { maturityAmount: input.maturityAmount }),
-      ...(input.interestRate !== undefined && { interestRate: input.interestRate }),
-      ...(input.platform      !== undefined && { platform:      input.platform }),
-      ...(input.memberId      !== undefined && { memberId:      input.memberId      ?? null }),
-      ...(input.splitMemberId !== undefined && { splitMemberId: input.splitMemberId ?? null }),
-      ...(input.splitRatio    !== undefined && { splitRatio:    input.splitRatio }),
-      ...(input.bankAccountId !== undefined && { bankAccountId: input.bankAccountId ?? null }),
-      ...(input.address                  !== undefined && { address: input.address }),
-      ...(input.ownershipPercent         !== undefined && { ownershipPercent: input.ownershipPercent }),
-      ...(input.expectedAppreciationRate !== undefined && { expectedAppreciationRate: input.expectedAppreciationRate }),
-    },
-    include: { member: MEMBER_SELECT, splitMember: MEMBER_SELECT, bankAccount: { select: { id: true, name: true, type: true } }, linkedLoans: LOAN_SELECT },
+  const investment = await prisma.$transaction(async (tx) => {
+    const updated = await tx.investment.update({
+      where: { id },
+      data: {
+        ...(input.assetName    !== undefined && { assetName: input.assetName }),
+        ...(input.assetType    !== undefined && { assetType: input.assetType }),
+        ...(input.ticker       !== undefined && { ticker: input.ticker }),
+        ...(input.quantity     !== undefined && { quantity: input.quantity }),
+        ...(input.buyPrice     !== undefined && { buyPrice: input.buyPrice }),
+        ...(input.currentPrice !== undefined && { currentPrice: input.currentPrice }),
+        ...(input.purchaseDate !== undefined && { purchaseDate: new Date(input.purchaseDate) }),
+        ...(input.exchange     !== undefined && { exchange: input.exchange }),
+        ...(input.notes        !== undefined && { notes: input.notes }),
+        ...(input.monthlyAmount !== undefined && { monthlyAmount: input.monthlyAmount }),
+        ...(input.fundCategory !== undefined && { fundCategory: input.fundCategory }),
+        ...(input.folioNumber  !== undefined && { folioNumber: input.folioNumber }),
+        ...(input.maturityDate !== undefined && { maturityDate: input.maturityDate ? new Date(input.maturityDate) : null }),
+        ...(input.maturityAmount !== undefined && { maturityAmount: input.maturityAmount }),
+        ...(input.interestRate !== undefined && { interestRate: input.interestRate }),
+        ...(input.platform      !== undefined && { platform:      input.platform }),
+        ...(input.memberId      !== undefined && { memberId:      input.memberId ?? null }),
+        ...(input.bankAccountId !== undefined && { bankAccountId: input.bankAccountId ?? null }),
+        ...(input.address                  !== undefined && { address: input.address }),
+        ...(input.ownershipPercent         !== undefined && { ownershipPercent: input.ownershipPercent }),
+        ...(input.expectedAppreciationRate !== undefined && { expectedAppreciationRate: input.expectedAppreciationRate }),
+      },
+      include: INVESTMENT_INCLUDE,
+    });
+
+    if (input.splitMemberId !== undefined) {
+      await writeSplit(tx, userId, 'INVESTMENT', id, input);
+    }
+
+    return updated;
   });
-  return serializeInvestment(investment);
+
+  const splits = await fetchSplits('INVESTMENT', [id]);
+  return serializeInvestment(attachSplit(investment, splits.get(id)));
 }
 
 export async function deleteInvestment(userId: string, id: string) {
   const existing = await prisma.investment.findFirst({ where: { id, userId } });
   if (!existing) throw createError('Investment not found', 404);
-  await prisma.investment.delete({ where: { id } });
+  await prisma.$transaction(async (tx) => {
+    await tx.investment.delete({ where: { id } });
+    await tx.ownershipSplit.deleteMany({ where: { entityType: 'INVESTMENT', entityId: id } });
+  });
 }
 
 // ── Types that have a recurring monthly payment ───────────────────────────────
@@ -228,8 +253,9 @@ export function computeInvestmentValue(inv: Investment, now: Date): { investedVa
 export async function getPortfolioSummary(userId: string) {
   const investments = await prisma.investment.findMany({
     where: { userId },
-    include: { member: MEMBER_SELECT, splitMember: MEMBER_SELECT, bankAccount: { select: { id: true, name: true, type: true } }, linkedLoans: LOAN_SELECT },
+    include: INVESTMENT_INCLUDE,
   });
+  const splits = await fetchSplits('INVESTMENT', investments.map((i) => i.id));
 
   const now = new Date();
 
@@ -238,7 +264,7 @@ export async function getPortfolioSummary(userId: string) {
     const pnl        = currentValue - investedValue;
     const pnlPercent = investedValue > 0 ? (pnl / investedValue) * 100 : 0;
 
-    return { ...serializeInvestment(inv), investedValue, currentValue, pnl, pnlPercent };
+    return { ...serializeInvestment(attachSplit(inv, splits.get(inv.id))), investedValue, currentValue, pnl, pnlPercent };
   });
 
   const totalInvested = portfolio.reduce((s, i) => s + i.investedValue, 0);
