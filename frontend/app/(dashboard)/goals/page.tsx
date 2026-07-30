@@ -5,6 +5,7 @@ import { Plus, Target } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PageShell } from '@/components/ui/PageShell';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { FinancialFreedomPlan } from '@/components/dashboard/FinancialFreedomPlan';
 import { useGoals } from '@/hooks/useGoals';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { formatCurrency } from '@/lib/format';
@@ -39,6 +40,8 @@ export default function GoalsPage() {
           </Button>
         }
       />
+
+      <FinancialFreedomPlan />
 
       {isLoading ? (
         <div className="grid grid-cols-2 gap-4">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="glass-card rounded-2xl h-52 shimmer" />)}</div>

@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { PageShell } from '@/components/ui/PageShell';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { SafeToSaveBreakdown } from '@/components/dashboard/SafeToSaveBreakdown';
 import { useBudgets, useDeleteBudget } from '@/hooks/useBudgets';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { formatCurrency } from '@/lib/format';
@@ -86,6 +87,8 @@ export default function BudgetsPage() {
           </Button>
         }
       />
+
+      <SafeToSaveBreakdown />
 
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
