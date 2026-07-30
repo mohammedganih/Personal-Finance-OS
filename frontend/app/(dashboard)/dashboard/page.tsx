@@ -14,6 +14,7 @@ import { UpcomingEMIs } from '@/components/dashboard/UpcomingEMIs';
 import { HomeEquityCard } from '@/components/dashboard/HomeEquityCard';
 import { RecentTransactions } from '@/components/dashboard/RecentTransactions';
 import { QuickInsights } from '@/components/dashboard/QuickInsights';
+import { FinancialFreedomPlan } from '@/components/dashboard/FinancialFreedomPlan';
 import { KPICardSkeleton } from '@/components/shared/LoadingSkeleton';
 import { useDashboardOverview } from '@/hooks/useDashboard';
 import { useAuthStore } from '@/stores/auth.store';
@@ -88,6 +89,8 @@ export default function DashboardPage() {
           </>
         )}
       </div>
+
+      <FinancialFreedomPlan />
 
       {/* Safe to Save Breakdown + Budgets */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
