@@ -39,9 +39,12 @@ type FormData = z.infer<typeof schema>;
 interface GoalFormProps {
   onClose: () => void;
   goal?: Goal;
+  // Prefills a fresh goal from one of the empty state's starting points
+  // (Emergency Fund, Vacation, ...) -- ignored in edit mode.
+  template?: { goalType: GoalType; name: string };
 }
 
-export function GoalForm({ onClose, goal }: GoalFormProps) {
+export function GoalForm({ onClose, goal, template }: GoalFormProps) {
   const isEdit = !!goal;
   const { mutate: create, isPending: isCreating } = useCreateGoal();
   const { mutate: update, isPending: isUpdating } = useUpdateGoal();
@@ -70,7 +73,8 @@ export function GoalForm({ onClose, goal }: GoalFormProps) {
           notes: goal.notes ?? '',
         }
       : {
-          goalType: 'CUSTOM',
+          goalType: template?.goalType ?? 'CUSTOM',
+          name: template?.name,
           priority: 'MEDIUM',
           currentAmount: 0,
           targetDate: format(addYears(new Date(), 1), 'yyyy-MM-dd'),

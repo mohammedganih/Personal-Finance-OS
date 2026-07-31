@@ -14,6 +14,37 @@ import { cn } from '@/lib/utils';
 
 const ALL = 'all';
 
+interface BillGroupDef { key: string; icon: string; label: string; items: RecurringBill[] }
+
+/**
+ * Pure re-bucketing of the same list the flat filtered view already shows --
+ * no new endpoint. A bill lands in the first group it matches (archived and
+ * paused always win regardless of due date), so nothing renders twice.
+ */
+function groupBillsByStatus(bills: RecurringBill[]): BillGroupDef[] {
+  const archived: RecurringBill[] = [];
+  const paused: RecurringBill[] = [];
+  const dueThisWeek: RecurringBill[] = [];
+  const autoDebit: RecurringBill[] = [];
+  const later: RecurringBill[] = [];
+
+  for (const b of bills) {
+    if (b.effectiveStatus === 'ARCHIVED') archived.push(b);
+    else if (b.effectiveStatus === 'PAUSED') paused.push(b);
+    else if (b.dueInDays !== null && b.dueInDays <= 7) dueThisWeek.push(b);
+    else if (b.autoDebit) autoDebit.push(b);
+    else later.push(b);
+  }
+
+  return [
+    { key: 'due-this-week', icon: '🔴', label: 'Due this week', items: dueThisWeek },
+    { key: 'auto-debit', icon: '⚡', label: 'Auto-debit', items: autoDebit },
+    { key: 'later', icon: '🗓️', label: 'Later', items: later },
+    { key: 'paused', icon: '⏸', label: 'Paused', items: paused },
+    { key: 'archived', icon: '🗄️', label: 'Archived', items: archived },
+  ].filter((g) => g.items.length > 0);
+}
+
 export function BillsListTab({ onEdit, onAdd }: { onEdit: (bill: RecurringBill) => void; onAdd: () => void }) {
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState(ALL);
@@ -33,6 +64,9 @@ export function BillsListTab({ onEdit, onAdd }: { onEdit: (bill: RecurringBill) 
 
   const { data: bills, isLoading } = useBills(filters);
   const { mutate: bulkAction, isPending: isBulkPending } = useBulkBillAction();
+
+  const hasActiveFilter = Boolean(search) || category !== ALL || frequency !== ALL || status !== ALL;
+  const groups = !hasActiveFilter && bills ? groupBillsByStatus(bills) : null;
 
   // Custom categories the user has actually used belong in the filter too.
   const categories = useMemo(() => {
@@ -142,21 +176,47 @@ export function BillsListTab({ onEdit, onAdd }: { onEdit: (bill: RecurringBill) 
         </div>
       )}
 
-      {/* Bill cards */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        {isLoading ? (
-          Array.from({ length: 4 }).map((_, i) => <div key={i} className="glass-card rounded-2xl h-28 shimmer" />)
-        ) : (bills ?? []).length === 0 ? (
-          <div className="col-span-full">
-            <EmptyState
-              icon={Receipt}
-              title={search || category !== ALL || frequency !== ALL || status !== ALL ? 'No bills match these filters' : 'No recurring bills yet'}
-              description="Track subscriptions, utilities, insurance, rent, fees — every recurring commitment in one place"
-              action={{ label: 'Add Bill', onClick: onAdd }}
-            />
-          </div>
-        ) : (
-          (bills ?? []).map((bill) => (
+      {/* Bill cards -- grouped by status by default; a flat grid the moment
+          any filter narrows the list, since a filter cuts across groups. */}
+      {isLoading ? (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          {Array.from({ length: 4 }).map((_, i) => <div key={i} className="glass-card rounded-2xl h-28 shimmer" />)}
+        </div>
+      ) : (bills ?? []).length === 0 ? (
+        <EmptyState
+          icon={Receipt}
+          title={hasActiveFilter ? 'No bills match these filters' : 'No recurring bills yet'}
+          description="Track subscriptions, utilities, insurance, rent, fees — every recurring commitment in one place"
+          action={{ label: 'Add Bill', onClick: onAdd }}
+        />
+      ) : groups ? (
+        <div className="space-y-6">
+          {groups.map((g) => (
+            <div key={g.key}>
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-lg">{g.icon}</span>
+                <h3 className="text-sm font-semibold text-text-secondary">{g.label}</h3>
+                <span className="text-xs text-text-muted">({g.items.length})</span>
+                <div className="flex-1 h-px bg-border" />
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                {g.items.map((bill) => (
+                  <BillCard
+                    key={bill.id}
+                    bill={bill}
+                    onEdit={onEdit}
+                    selectable
+                    selected={selectedIds.has(bill.id)}
+                    onToggleSelect={toggleSelect}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          {(bills ?? []).map((bill) => (
             <BillCard
               key={bill.id}
               bill={bill}
@@ -165,9 +225,9 @@ export function BillsListTab({ onEdit, onAdd }: { onEdit: (bill: RecurringBill) 
               selected={selectedIds.has(bill.id)}
               onToggleSelect={toggleSelect}
             />
-          ))
-        )}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useDebtStrategy } from '@/hooks/useDebtIntelligence';
@@ -46,9 +45,12 @@ function StrategyColumn({
   );
 }
 
-export function PayoffStrategyComparison() {
-  const [extraInput, setExtraInput] = useState('5000');
-  const extraPayment = Math.max(0, Number(extraInput) || 0);
+interface PayoffStrategyComparisonProps {
+  extraPayment: number;
+  onExtraPaymentChange: (value: number) => void;
+}
+
+export function PayoffStrategyComparison({ extraPayment, onExtraPaymentChange }: PayoffStrategyComparisonProps) {
   const { data, isLoading } = useDebtStrategy(extraPayment);
 
   if (isLoading) return <div className="glass-card rounded-2xl h-96 shimmer" />;
@@ -72,8 +74,8 @@ export function PayoffStrategyComparison() {
           <Input
             type="number"
             step="500"
-            value={extraInput}
-            onChange={(e) => setExtraInput(e.target.value)}
+            value={extraPayment}
+            onChange={(e) => onExtraPaymentChange(Math.max(0, Number(e.target.value) || 0))}
             className="w-28 h-8 text-sm"
           />
         </div>

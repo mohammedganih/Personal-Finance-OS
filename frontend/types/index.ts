@@ -202,6 +202,19 @@ export interface MaturityEntry {
   maturityAmount: number | null;
 }
 
+export interface RiskProfile {
+  position: number;
+  label: 'Conservative' | 'Balanced' | 'Aggressive';
+  caption: string;
+}
+
+export interface InvestmentHealth {
+  score: number;
+  label: 'Excellent' | 'Good' | 'Fair' | 'Needs attention';
+  caption: string;
+  risk: RiskProfile;
+}
+
 // ─── Goal ─────────────────────────────────────────────────────────────────────
 
 export type GoalType = 'FARM_HOUSE' | 'EMERGENCY_FUND' | 'RELOCATION' | 'CAR_PURCHASE' | 'RETIREMENT' | 'TRAVEL' | 'EDUCATION' | 'CUSTOM';
@@ -787,6 +800,33 @@ export interface HealthScoreResult {
   factors: HealthScoreFactor[];
 }
 
+export interface SpendingRhythmDay {
+  day: string;
+  dayIndex: number;
+  avgAmount: number;
+  occurrences: number;
+}
+
+export interface SpendingRhythm {
+  days: SpendingRhythmDay[];
+  weeksOfData: number;
+  hasEnoughData: boolean;
+  peakDay: SpendingRhythmDay | null;
+}
+
+export interface FinancialScoreComponent {
+  label: string;
+  score: number;
+  weight: number;
+  detail: string;
+}
+
+export interface FinancialScoreResult {
+  score: number;
+  band: HealthScoreBand;
+  components: FinancialScoreComponent[];
+}
+
 export type FundingSourceType = 'MATURITY' | 'LIQUID_HOLDING';
 
 export interface FundingOpportunity {
@@ -816,6 +856,8 @@ export interface DebtStrategy {
   interestSavedSnowball: number;
   bestStrategy: 'avalanche' | 'snowball';
   totalInterestSaved: number;
+  contractedSchedule: number[];
+  acceleratedSchedule: number[];
 }
 
 export interface PrepaymentResult {

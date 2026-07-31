@@ -39,7 +39,7 @@ export function MaturityRadar() {
       </div>
 
       <Link
-        href="/loans?tab=insights"
+        href="/loans"
         className="flex items-center justify-between text-xs text-text-secondary hover:text-accent-violet-light transition-colors pt-1 group"
       >
         <span>💡 See if one of these could pay off a debt sooner</span>

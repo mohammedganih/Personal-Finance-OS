@@ -165,7 +165,7 @@ function clampScore(value: number): number {
   return Math.max(0, Math.min(100, value));
 }
 
-function bandFor(score: number): HealthScoreBand {
+export function bandFor(score: number): HealthScoreBand {
   if (score >= 80) return 'excellent';
   if (score >= 60) return 'good';
   if (score >= 40) return 'fair';
@@ -304,6 +304,11 @@ export async function getDebtStrategy(userId: string, extraPayment = 5000) {
     interestSavedSnowball,
     bestStrategy,
     totalInterestSaved,
+    // Month-by-month total balance for the repayment timeline chart -- the
+    // "contracted" pace (today's actual EMIs/minimums, no extra payment) vs
+    // the "accelerated" pace (the recommended order + the extra payment).
+    contractedSchedule: base.schedule,
+    acceleratedSchedule: bestStrategy === 'avalanche' ? avalancheWithExtra.schedule : snowballWithExtra.schedule,
   };
 }
 

@@ -1,12 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import {
-  Wallet, TrendingUp, TrendingDown, PiggyBank, BarChart3, CreditCard, LineChart, ArrowRight,
-} from 'lucide-react';
-import { StatCard } from '@/components/ui/StatCard';
+import { LineChart, ArrowRight } from 'lucide-react';
 import { PageShell } from '@/components/ui/PageShell';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { FinancialHero } from '@/components/dashboard/FinancialHero';
+import { SnapshotBar } from '@/components/dashboard/SnapshotBar';
 import { BudgetOverview } from '@/components/dashboard/BudgetOverview';
 import { InvestmentAllocation } from '@/components/dashboard/InvestmentAllocation';
 import { GoalProgressCard } from '@/components/dashboard/GoalProgressCard';
@@ -14,72 +13,17 @@ import { UpcomingEMIs } from '@/components/dashboard/UpcomingEMIs';
 import { HomeEquityCard } from '@/components/dashboard/HomeEquityCard';
 import { RecentTransactions } from '@/components/dashboard/RecentTransactions';
 import { QuickInsights } from '@/components/dashboard/QuickInsights';
-import { KPICardSkeleton } from '@/components/shared/LoadingSkeleton';
-import { useDashboardOverview } from '@/hooks/useDashboard';
-import { useAuthStore } from '@/stores/auth.store';
 
 export default function DashboardPage() {
-  const { data: overview, isLoading } = useDashboardOverview();
-  const { user } = useAuthStore();
-
-  const hour = new Date().getHours();
-  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
-
   return (
     <PageShell width="wide">
-      <PageHeader
-        title={`${greeting}, ${user?.name?.split(' ')[0] ?? 'there'} 👋`}
-        subtitle="Here's your financial snapshot"
-      />
+      <PageHeader title="Dashboard" />
 
-      {/* KPI Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-        {isLoading ? (
-          Array.from({ length: 6 }).map((_, i) => <KPICardSkeleton key={i} />)
-        ) : (
-          <>
-            <StatCard
-              title="Net Worth"
-              value={overview?.netWorth ?? 0}
-              icon={Wallet}
-              iconColor="bg-accent-violet/15 text-accent-violet-light"
-            />
-            <StatCard
-              title="Monthly Income"
-              value={overview?.monthlyIncome ?? 0}
-              icon={TrendingUp}
-              iconColor="bg-success/15 text-success"
-            />
-            <StatCard
-              title="Monthly Expenses"
-              value={overview?.monthlyExpenses ?? 0}
-              icon={TrendingDown}
-              iconColor="bg-danger/15 text-danger"
-            />
-            <StatCard
-              title="Safe to Save"
-              value={overview?.remainingSafeToSave ?? 0}
-              icon={PiggyBank}
-              iconColor="bg-info/15 text-info"
-            />
-            <StatCard
-              title="Investment Value"
-              value={overview?.investmentValue ?? 0}
-              icon={BarChart3}
-              iconColor="bg-warning/15 text-warning"
-            />
-            <StatCard
-              title="Debt Ratio"
-              value={overview?.debtRatio ?? 0}
-              icon={CreditCard}
-              iconColor="bg-danger/15 text-danger"
-              isCurrency={false}
-              isPercent
-              invertChange
-            />
-          </>
-        )}
-      </div>
+      {/* The hero carries the greeting, the "how am I doing" narrative, and
+          the one number that matters most -- net worth. Everything below is
+          context, not competition. See the redesign dossier, pass 01. */}
+      <FinancialHero />
+      <SnapshotBar />
 
       {/* Retirement planning (Freedom Plan) and the full Safe-to-Save
           breakdown live on Goals and Budgets respectively -- this page

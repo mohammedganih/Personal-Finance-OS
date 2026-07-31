@@ -316,3 +316,102 @@ export async function getMaturityRadar(userId: string, monthsAhead = 6): Promise
   const { portfolio } = await getPortfolioSummary(userId);
   return getUpcomingMaturities(portfolio, monthsAhead, new Date());
 }
+
+// ── Investment health & risk profile ────────────────────────────────────────
+//
+// The only two pieces of intelligence on this page that don't already exist
+// elsewhere: everything they're built from (diversification, XIRR) is a
+// reuse of the functions above, not a new data source.
+
+export type RiskLabel = 'Conservative' | 'Balanced' | 'Aggressive';
+export type HealthLabel = 'Excellent' | 'Good' | 'Fair' | 'Needs attention';
+
+// How much portfolio risk each asset class carries, 0-100. Used to place the
+// portfolio on the Conservative -> Aggressive meter as a weighted average.
+const RISK_WEIGHT: Record<AssetClass, number> = {
+  Equity: 90,
+  Crypto: 100,
+  'Real Estate': 55,
+  Gold: 25,
+  Debt: 5,
+  Other: 50,
+};
+
+export interface RiskProfile {
+  position: number; // 0-100, meter position
+  label: RiskLabel;
+  caption: string;
+}
+
+/** Pure function: weighted-average risk position + a plain-language tilt sentence. */
+export function computeRiskProfile(classBreakdown: { assetClass: AssetClass; percentage: number }[]): RiskProfile {
+  if (classBreakdown.length === 0) {
+    return { position: 50, label: 'Balanced', caption: 'Add a holding to see your risk tilt.' };
+  }
+
+  const position = Math.round(
+    Math.min(100, Math.max(0, classBreakdown.reduce((s, c) => s + (c.percentage / 100) * RISK_WEIGHT[c.assetClass], 0)))
+  );
+  const label: RiskLabel = position < 34 ? 'Conservative' : position < 67 ? 'Balanced' : 'Aggressive';
+
+  const sorted = [...classBreakdown].sort((a, b) => b.percentage - a.percentage);
+  const top = sorted[0];
+  const ballast = sorted.find((c) => c.assetClass !== top.assetClass && (c.assetClass === 'Gold' || c.assetClass === 'Debt'));
+  const tilt =
+    top.assetClass === 'Equity' || top.assetClass === 'Crypto' ? 'Growth-tilted' :
+    top.assetClass === 'Debt' ? 'Capital-protection tilted' :
+    top.assetClass === 'Real Estate' ? 'Real-estate weighted' : 'Balanced spread';
+
+  const caption = ballast
+    ? `${tilt} — ${top.percentage.toFixed(0)}% ${top.assetClass.toLowerCase()}, ${ballast.percentage.toFixed(0)}% ${ballast.assetClass.toLowerCase()} as ballast`
+    : `${tilt} — ${top.percentage.toFixed(0)}% in ${top.assetClass.toLowerCase()}`;
+
+  return { position, label, caption };
+}
+
+export interface InvestmentHealth {
+  score: number; // 0-100
+  label: HealthLabel;
+  caption: string;
+  risk: RiskProfile;
+}
+
+/**
+ * Pure function: a 0-100 health score from real signals only --
+ * concentration (each diversification warning already fired at a meaningful
+ * threshold, see analyzeDiversification) and the portfolio's own annualized
+ * return. Starts from a neutral 70 rather than 100 so a merely-adequate
+ * portfolio with no return data yet doesn't misleadingly read as "perfect".
+ */
+export function computeHealthScore(
+  classBreakdown: { assetClass: AssetClass; percentage: number }[],
+  warnings: DiversificationWarning[],
+  overallXirr: number | null,
+): { score: number; label: HealthLabel; caption: string } {
+  if (classBreakdown.length === 0) {
+    return { score: 0, label: 'Needs attention', caption: 'Add a holding to get a health score.' };
+  }
+
+  const concentrationPenalty = warnings.length * 15;
+  const returnAdjustment = overallXirr === null ? 0 : Math.min(20, Math.max(-20, overallXirr * 100));
+  const score = Math.round(Math.min(100, Math.max(0, 70 + returnAdjustment - concentrationPenalty)));
+
+  const label: HealthLabel = score >= 80 ? 'Excellent' : score >= 65 ? 'Good' : score >= 45 ? 'Fair' : 'Needs attention';
+  const caption =
+    warnings.length === 0 ? 'diversified, no concentration flags' :
+    warnings.length === 1 ? 'diversified, but one concentration flag below' :
+    'a couple of concentration flags below are worth a look';
+
+  return { score, label, caption };
+}
+
+export async function getInvestmentHealth(userId: string): Promise<InvestmentHealth> {
+  const [{ classBreakdown, warnings }, { overall }] = await Promise.all([
+    getDiversification(userId),
+    getAnnualizedReturns(userId),
+  ]);
+
+  const risk = computeRiskProfile(classBreakdown);
+  const { score, label, caption } = computeHealthScore(classBreakdown, warnings, overall);
+  return { score, label, caption, risk };
+}

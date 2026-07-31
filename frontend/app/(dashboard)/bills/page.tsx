@@ -1,13 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import { BarChart3, CalendarDays, LayoutGrid, Plus, Receipt } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { PageShell } from '@/components/ui/PageShell';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { useBillsSummary } from '@/hooks/useBills';
-import { BillsOverviewTab } from '@/components/bills/BillsOverviewTab';
+import { BillsHero } from '@/components/bills/BillsHero';
+import { PaymentRadar, CommitmentOutlook, FrequencyMix, InsightsPanel } from '@/components/bills/BillsOverviewTab';
 import { BillsCalendarTab } from '@/components/bills/BillsCalendarTab';
 import { BillsListTab } from '@/components/bills/BillsListTab';
 import { BillsAnalyticsTab } from '@/components/bills/BillsAnalyticsTab';
@@ -34,30 +34,35 @@ export default function BillsPage() {
         }
       />
 
-      <Tabs defaultValue="overview">
-        <TabsList>
-          <TabsTrigger value="overview">
-            <LayoutGrid className="w-3.5 h-3.5" /> Overview
-          </TabsTrigger>
-          <TabsTrigger value="calendar">
-            <CalendarDays className="w-3.5 h-3.5" /> Calendar
-          </TabsTrigger>
-          <TabsTrigger value="bills">
-            <Receipt className="w-3.5 h-3.5" /> All Bills
-            {summary && summary.activeCount > 0 && (
-              <span className="ml-1 text-xs bg-bg-overlay px-1.5 py-0.5 rounded-full">{summary.activeCount}</span>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="analytics">
-            <BarChart3 className="w-3.5 h-3.5" /> Analytics
-          </TabsTrigger>
-        </TabsList>
+      {/* Tier 1: what needs payment next, and how much. */}
+      <BillsHero />
 
-        <TabsContent value="overview"><BillsOverviewTab /></TabsContent>
-        <TabsContent value="calendar"><BillsCalendarTab /></TabsContent>
-        <TabsContent value="bills"><BillsListTab onEdit={openEdit} onAdd={openCreate} /></TabsContent>
-        <TabsContent value="analytics"><BillsAnalyticsTab /></TabsContent>
-      </Tabs>
+      {/* Tier 2: Payment Radar, promoted -- pay/skip inline, no longer sharing the page with four StatCards. */}
+      <PaymentRadar />
+
+      {/* Tier 3: planning ahead, for anyone who wants it. */}
+      {summary && (
+        <div className="grid lg:grid-cols-2 gap-4">
+          <div className="space-y-4">
+            <CommitmentOutlook summary={summary} />
+            <FrequencyMix summary={summary} />
+          </div>
+          <InsightsPanel />
+        </div>
+      )}
+
+      {/* Tier 4: every bill, grouped by status -- a scroll away for auditing, not the landing view. */}
+      <BillsListTab onEdit={openEdit} onAdd={openCreate} />
+
+      {/* Calendar and Analytics are sections in the same scroll now, not separate tabs. */}
+      <div>
+        <p className="text-xs font-semibold text-text-muted uppercase tracking-wider px-1 mb-3">Calendar</p>
+        <BillsCalendarTab />
+      </div>
+      <div>
+        <p className="text-xs font-semibold text-text-muted uppercase tracking-wider px-1 mb-3">Bill Analytics</p>
+        <BillsAnalyticsTab />
+      </div>
 
       {showForm && (
         <BillForm

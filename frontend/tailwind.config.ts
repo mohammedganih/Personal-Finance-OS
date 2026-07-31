@@ -100,6 +100,21 @@ const config: Config = {
         'glow-sm': '0 0 10px rgba(124, 58, 237, 0.2)',
         card: '0 4px 24px rgba(0, 0, 0, 0.4)',
         'card-hover': '0 8px 40px rgba(0, 0, 0, 0.6)',
+        // Redesign elevation scale (see design dossier): level 1 (grouped rows)
+        // uses a background tint only, no shadow -- these two cover level 2
+        // (raised, standalone modules) and level 3 (floating, modals/sheets).
+        raised: '0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.35)',
+        floating: '0 4px 16px rgba(0, 0, 0, 0.4), 0 24px 56px rgba(0, 0, 0, 0.5)',
+      },
+      transitionDuration: {
+        micro: '120ms',
+        standard: '220ms',
+        entrance: '420ms',
+        hero: '700ms',
+      },
+      transitionTimingFunction: {
+        standard: 'cubic-bezier(.2, .8, .2, 1)',
+        'out-expo': 'cubic-bezier(.16, 1, .3, 1)',
       },
       keyframes: {
         'accordion-down': {

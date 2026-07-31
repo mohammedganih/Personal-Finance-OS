@@ -1,10 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, TrendingUp, Pencil, Trash2, List, Sparkles, Wallet, IndianRupee, Repeat } from 'lucide-react';
+import { Plus, TrendingUp, Pencil, Trash2, Wallet, IndianRupee, Repeat } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { StatCard } from '@/components/ui/StatCard';
 import { PageShell } from '@/components/ui/PageShell';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -17,7 +16,9 @@ import { InvestmentForm } from '@/components/investments/InvestmentForm';
 import { InvestmentDetailDialog } from '@/components/investments/InvestmentDetailDialog';
 import { PortfolioTrendChart } from '@/components/investments/PortfolioTrendChart';
 import { AnnualizedReturns } from '@/components/investments/AnnualizedReturns';
-import { DiversificationCard } from '@/components/investments/DiversificationCard';
+import { AllocationDonut } from '@/components/investments/AllocationDonut';
+import { HealthScoreCard } from '@/components/investments/HealthScoreCard';
+import { AIInsightStack } from '@/components/investments/AIInsightStack';
 import { MaturityRadar } from '@/components/investments/MaturityRadar';
 import { InvestmentCalendar } from '@/components/investments/InvestmentCalendar';
 import { Investment, InvestmentWithPnl, AssetType } from '@/types';
@@ -128,6 +129,7 @@ export default function InvestmentsPage() {
   const [editingInvestment, setEditingInvestment] = useState<Investment | null>(null);
   const [viewingInvestment, setViewingInvestment] = useState<InvestmentWithPnl | null>(null);
   const [payingId, setPayingId] = useState<string | null>(null);
+  const [highlightedType, setHighlightedType] = useState<string | null>(null);
   const { data: summary, isLoading } = usePortfolioSummary();
   const { data: returns } = useAnnualizedReturns();
   const { mutate: deleteInvestment } = useDeleteInvestment();
@@ -138,6 +140,18 @@ export default function InvestmentsPage() {
   const openAdd  = () => { setEditingInvestment(null); setShowForm(true); };
   const openEdit = (inv: Investment) => { setEditingInvestment(inv); setShowForm(true); };
   const closeForm = () => { setShowForm(false); setEditingInvestment(null); };
+
+  // The allocation donut and the AI advisor's "review allocation" link both
+  // jump here -- the donut to the matching type group, the advisor to the
+  // section in general -- so the chart is a navigation aid, not decoration.
+  const scrollToHoldingType = (type: string) => {
+    setHighlightedType(type);
+    document.getElementById(`holdings-${type}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    window.setTimeout(() => setHighlightedType((cur) => (cur === type ? null : cur)), 1600);
+  };
+  const scrollToHoldings = () => {
+    document.getElementById('investment-holdings')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   // Group by type
   const grouped = portfolio.reduce<Record<string, InvestmentWithPnl[]>>((acc, inv) => {
@@ -156,6 +170,11 @@ export default function InvestmentsPage() {
           </Button>
         }
       />
+
+      {/* Growth first: "how is my wealth growing" is the question this page
+          answers, and the chart + XIRR-carrying stat below confirm it before
+          anything about individual holdings. */}
+      <PortfolioTrendChart />
 
       {/* Summary strip -- Current Value carries the real annualized return
           (XIRR) as its trend, not a blended flat P&L% that can mislead when
@@ -198,23 +217,20 @@ export default function InvestmentsPage() {
         <EmptyState
           icon={TrendingUp}
           title="No investments tracked"
-          description="Add stocks, SIPs, FDs, gold, or any other holding"
+          description="Once you add a holding, this is where you'll watch it grow"
           action={{ label: 'Add Holding', onClick: openAdd }}
         />
       ) : (
-        <Tabs defaultValue="holdings">
-          <TabsList>
-            <TabsTrigger value="holdings">
-              <List className="w-3.5 h-3.5" />
-              Holdings
-            </TabsTrigger>
-            <TabsTrigger value="insights">
-              <Sparkles className="w-3.5 h-3.5" />
-              Insights
-            </TabsTrigger>
-          </TabsList>
+        <>
+          {/* Allocation + health/risk, side by side -- "is it shaped right"
+              right after the growth story confirms "am I growing". */}
+          <div className="grid lg:grid-cols-2 gap-4">
+            <AllocationDonut onSelectType={scrollToHoldingType} />
+            <HealthScoreCard />
+          </div>
 
-          <TabsContent value="holdings">
+          <AIInsightStack onReviewAllocation={scrollToHoldings} />
+
           {/* Holdings grouped by type */}
           {isLoading ? (
             <div className="space-y-3">
@@ -223,7 +239,7 @@ export default function InvestmentsPage() {
               ))}
             </div>
           ) : (
-            <div className="space-y-6">
+            <div id="investment-holdings" className="space-y-6">
               {Object.entries(grouped).map(([type, holdings]) => (
                 <div key={type}>
                   {/* Group header */}
@@ -238,7 +254,13 @@ export default function InvestmentsPage() {
                   </div>
 
                   {/* Holdings table */}
-                  <div className="glass-card rounded-2xl overflow-hidden">
+                  <div
+                    id={`holdings-${type}`}
+                    className={cn(
+                      'glass-card rounded-2xl overflow-hidden transition-shadow duration-300',
+                      highlightedType === type && 'ring-2 ring-accent-violet/60'
+                    )}
+                  >
                     <div className="divide-y divide-border">
                       {holdings.map((inv) => {
                         const curVal = currentValueForType(inv);
@@ -351,18 +373,20 @@ export default function InvestmentsPage() {
               ))}
             </div>
           )}
-          </TabsContent>
 
-          <TabsContent value="insights">
+          {/* Performance analysis -- per-holding XIRR and the maturity
+              timeline, for comparing holdings against each other rather
+              than the "am I growing / is it shaped right" questions the
+              page opens with. */}
+          <div>
+            <p className="text-xs font-semibold text-text-muted uppercase tracking-wider px-1 mb-3">Performance Analysis</p>
             <div className="space-y-4">
-              <PortfolioTrendChart />
               <AnnualizedReturns />
-              <DiversificationCard />
-              <InvestmentCalendar />
               <MaturityRadar />
+              <InvestmentCalendar />
             </div>
-          </TabsContent>
-        </Tabs>
+          </div>
+        </>
       )}
 
       {showForm && (

@@ -182,12 +182,14 @@ export function BillCard({
               <>
                 <button
                   onClick={() => setConfirming('pay')}
+                  aria-label={`Pay ${bill.name}`}
                   className="px-2.5 py-1 rounded-lg bg-success/10 text-success text-xs font-medium hover:bg-success/20 transition-colors"
                 >
                   ✓ Pay
                 </button>
                 <button
                   onClick={() => setConfirming('skip')}
+                  aria-label={`Skip ${bill.name}`}
                   title="Skip this occurrence without deleting the bill"
                   className="p-1.5 rounded-lg text-text-muted hover:text-warning hover:bg-warning/10 transition-colors"
                 >

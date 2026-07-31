@@ -20,6 +20,10 @@ export function simulatePayoff<T extends SimulatedLoan>(order: T[], extraPayment
   let totalInterest = 0;
   let months = 0;
   const bal = order.map((l) => ({ ...l, balance: l.remainingBalance }));
+  // Total balance across all debts at the end of each month, starting with
+  // month 0 (today) -- lets a caller plot the payoff as a curve, not just
+  // read off its final totals.
+  const schedule: number[] = [bal.reduce((s, l) => s + l.balance, 0)];
 
   while (bal.some((l) => l.balance > 0.01) && months < 600) {
     months++;
@@ -35,9 +39,10 @@ export function simulatePayoff<T extends SimulatedLoan>(order: T[], extraPayment
       const pay = Math.min(surplus, loan.balance);
       loan.balance -= pay; surplus -= pay;
     }
+    schedule.push(bal.reduce((s, l) => s + l.balance, 0));
   }
 
-  return { totalInterest, months };
+  return { totalInterest, months, schedule };
 }
 
 export async function getFamilyMembers(userId: string) {

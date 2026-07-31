@@ -45,6 +45,24 @@ describe('simulatePayoff', () => {
     const withExtra = simulatePayoff(loans, 2000);
     expect(withExtra.months).toBeLessThanOrEqual(noExtra.months);
   });
+
+  it('returns a month-by-month balance schedule starting at the initial total and ending at zero', () => {
+    const loans = [
+      { remainingBalance: 20000, emi: 1000, interestRate: 24 },
+      { remainingBalance: 5000, emi: 200, interestRate: 6 },
+    ];
+    const result = simulatePayoff(loans, 0);
+    expect(result.schedule[0]).toBe(25000);
+    expect(result.schedule).toHaveLength(result.months + 1);
+    expect(result.schedule[result.schedule.length - 1]).toBeLessThanOrEqual(0.01);
+  });
+
+  it('a schedule with extra payment reaches zero in fewer entries than one without', () => {
+    const loans = [{ remainingBalance: 20000, emi: 1000, interestRate: 24 }];
+    const noExtra = simulatePayoff(loans, 0);
+    const withExtra = simulatePayoff(loans, 2000);
+    expect(withExtra.schedule.length).toBeLessThanOrEqual(noExtra.schedule.length);
+  });
 });
 
 describe('getMemberAnalytics (split-overlay regression)', () => {

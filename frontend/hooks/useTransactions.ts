@@ -1,6 +1,6 @@
 'use client';
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { PaginatedTransactions, TransactionFilters, ApiResponse } from '@/types';
 import { useToast } from '@/components/ui/use-toast';
@@ -17,6 +17,31 @@ export function useTransactions(filters: TransactionFilters = {}) {
       const res = await api.get<ApiResponse<PaginatedTransactions>>(`/transactions?${params}`);
       return res.data.data;
     },
+  });
+}
+
+type InfiniteFilters = Omit<TransactionFilters, 'page' | 'limit'>;
+
+/**
+ * Fetches transactions page-by-page and accumulates them, so a day-grouped
+ * list can keep "Load more" growing an in-memory list instead of the old
+ * page-replaces-page pagination, which could split a day's transactions
+ * across two disconnected fetches.
+ */
+export function useInfiniteTransactions(filters: InfiniteFilters = {}, limit = 25) {
+  return useInfiniteQuery({
+    queryKey: ['transactions', 'infinite', filters, limit],
+    initialPageParam: 1,
+    queryFn: async ({ pageParam }) => {
+      const params = new URLSearchParams();
+      Object.entries({ ...filters, page: pageParam, limit }).forEach(([key, val]) => {
+        if (val !== undefined && val !== '') params.set(key, String(val));
+      });
+      const res = await api.get<ApiResponse<PaginatedTransactions>>(`/transactions?${params}`);
+      return res.data.data;
+    },
+    getNextPageParam: (lastPage) =>
+      lastPage.pagination.page < lastPage.pagination.pages ? lastPage.pagination.page + 1 : undefined,
   });
 }
 

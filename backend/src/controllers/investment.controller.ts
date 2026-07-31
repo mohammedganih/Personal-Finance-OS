@@ -46,6 +46,11 @@ export async function getMaturityRadar(req: AuthRequest, res: Response) {
   res.json({ success: true, data: result });
 }
 
+export async function getInvestmentHealth(req: AuthRequest, res: Response) {
+  const result = await investmentIntelligenceService.getInvestmentHealth(req.user!.userId);
+  res.json({ success: true, data: result });
+}
+
 export async function createInvestment(req: AuthRequest, res: Response) {
   const investment = await investmentService.createInvestment(req.user!.userId, req.body);
   res.status(201).json({ success: true, data: investment });

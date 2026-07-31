@@ -1,17 +1,15 @@
 'use client';
 
 import { useState } from 'react';
-import { useSearchParams } from 'next/navigation';
-import { Plus, CreditCard as CreditCardIcon, Pencil, Trash2, Users, Landmark, Archive, Sparkles } from 'lucide-react';
+import { Plus, CreditCard as CreditCardIcon, Pencil, Trash2, Users, Landmark, Archive } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { PageShell } from '@/components/ui/PageShell';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { StatCard } from '@/components/ui/StatCard';
 import { useLoans, useDeleteLoan } from '@/hooks/useLoans';
-import { useCreditCards, useDeleteCreditCard, usePayCreditCardBill } from '@/hooks/useCreditCards';
+import { useCreditCards, useDeleteCreditCard } from '@/hooks/useCreditCards';
 import { useP2PLoans, useUpdateP2PLoan, useDeleteP2PLoan } from '@/hooks/useP2P';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { formatCurrency, formatDate, getDaysUntil } from '@/lib/format';
@@ -28,13 +26,16 @@ import { cn } from '@/lib/utils';
 import { differenceInMonths, parseISO, format, addMonths } from 'date-fns';
 import { DebtHealthScore } from '@/components/loans/DebtHealthScore';
 import { PayoffStrategyComparison } from '@/components/loans/PayoffStrategyComparison';
-import { TotalInterestSaved } from '@/components/loans/TotalInterestSaved';
 import { RecommendationCards } from '@/components/loans/RecommendationCards';
 import { PrepaymentCalculator } from '@/components/loans/PrepaymentCalculator';
 import { EMICalendar } from '@/components/loans/EMICalendar';
 import { FundingSources } from '@/components/loans/FundingSources';
 import { AssetLoanEquityCard, HomeEquityBanner } from '@/components/loans/AssetLoanEquityCard';
 import { useHomeEquitySummary, useAssetLoanInsights } from '@/hooks/useLoans';
+import { useDebtStrategy } from '@/hooks/useDebtIntelligence';
+import { DebtFreedomHero } from '@/components/loans/DebtFreedomHero';
+import { RepaymentTimelineChart } from '@/components/loans/RepaymentTimelineChart';
+import { LoansAIInsightStack } from '@/components/loans/LoansAIInsightStack';
 
 const LOAN_ICONS: Record<string, string> = {
   HOME: '🏠', CAR: '🚗', PERSONAL: '💼', EDUCATION: '🎓', BUSINESS: '🏢', OTHER: '💳',
@@ -99,15 +100,27 @@ function computeLoanStats(loan: Loan) {
   };
 }
 
-// ─── Loans Tab ────────────────────────────────────────────────────────────────
-function LoansTab() {
+// ─── Group header -- same icon/label/count/action pattern as Investments' ─────
+function GroupHeader({ icon, label, count, action }: { icon: string; label: string; count: number; action?: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-2 mb-3">
+      <span className="text-lg">{icon}</span>
+      <h3 className="text-sm font-semibold text-text-secondary">{label}</h3>
+      <span className="text-xs text-text-muted">({count})</span>
+      <div className="flex-1 h-px bg-border" />
+      {action}
+    </div>
+  );
+}
+
+// ─── Loans Group ────────────────────────────────────────────────────────────
+function LoansGroup() {
   const [showForm, setShowForm] = useState(false);
   const [editingLoan, setEditingLoan] = useState<Loan | null>(null);
   const [payingLoanId, setPayingLoanId] = useState<string | null>(null);
   const { data: loans, isLoading } = useLoans();
   const { mutate: deleteLoan } = useDeleteLoan();
   const { mutate: payEMI, isPending: isPaying } = usePayLoanEMI();
-  const { data: homeEquity } = useHomeEquitySummary();
 
   const active = (loans ?? []).filter((l) => l.isActive);
   const totalEMI = active.reduce((s, l) => s + l.emi, 0);
@@ -116,20 +129,18 @@ function LoansTab() {
   const overallPct = totalPrincipal > 0 ? ((totalPrincipal - totalDebt) / totalPrincipal) * 100 : 0;
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-text-secondary">{active.length} active loan{active.length !== 1 ? 's' : ''}</p>
-        <Button size="sm" onClick={() => { setEditingLoan(null); setShowForm(true); }}>
-          <Plus className="w-4 h-4 mr-1.5" /> Add Loan
-        </Button>
-      </div>
-
-      {homeEquity && homeEquity.assets.length > 0 && (
-        <HomeEquityBanner totalEquity={homeEquity.totalEquity} weightedLTV={homeEquity.weightedLTV} count={homeEquity.assets.length} />
-      )}
+    <div>
+      <GroupHeader
+        icon="🏠" label="Loans" count={active.length}
+        action={
+          <Button size="sm" onClick={() => { setEditingLoan(null); setShowForm(true); }}>
+            <Plus className="w-4 h-4 mr-1.5" /> Add Loan
+          </Button>
+        }
+      />
 
       {active.length > 0 && (
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-4 gap-3 mb-3">
           <StatCard compact title="Outstanding" value={totalDebt} forceColor="danger" />
           <StatCard compact title="Monthly EMI" value={totalEMI} forceColor="warning" />
           <StatCard compact title="Repaid" value={totalPrincipal - totalDebt} forceColor="success" />
@@ -259,61 +270,37 @@ function LoansTab() {
   );
 }
 
-// ─── Credit Cards Tab ─────────────────────────────────────────────────────────
-function CreditCardsTab() {
-  const [subTab, setSubTab] = useState<'cards' | 'emis'>('cards');
+// ─── Credit Cards Group ───────────────────────────────────────────────────────
+function CreditCardsGroup() {
   const [showCardForm, setShowCardForm] = useState(false);
   const [editingCard, setEditingCard] = useState<CreditCard | null>(null);
-  const [showEMIForm, setShowEMIForm] = useState(false);
-  const [editingEMI, setEditingEMI] = useState<CardEMI | null>(null);
-  const [showArchived, setShowArchived] = useState(false);
-
   const { data: cards, isLoading: cardsLoading } = useCreditCards();
   const { mutate: deleteCard } = useDeleteCreditCard();
-  const { data: emis, isLoading: emisLoading } = useCardEMIs(showArchived);
+  const { data: emis } = useCardEMIs(false);
   const { data: emisSummary } = useCardEMISummary();
-  const { mutate: updateEMI } = useUpdateCardEMI();
-  const { mutate: deleteEMI } = useDeleteCardEMI();
-  const { mutate: payCardEMI, isPending: isPayingEMI } = usePayCardEMI();
 
-  const [payingCardId, setPayingCardId]   = useState<string | null>(null);
-  const [payingEMIId, setPayingEMIId]     = useState<string | null>(null);
+  const [payingCardId, setPayingCardId] = useState<string | null>(null);
   const payingCard = (cards ?? []).find((c) => c.id === payingCardId) ?? null;
 
-  // Total outstanding = revolving + EMI outstanding
   const revolvingOutstanding = (cards ?? []).reduce((s, c) => s + c.outstanding, 0);
   const emiOutstanding = emisSummary?.totalOutstanding ?? 0;
   const totalOutstanding = revolvingOutstanding + emiOutstanding;
   const totalLimit = (cards ?? []).reduce((s, c) => s + c.creditLimit, 0);
   const utilization = totalLimit > 0 ? (totalOutstanding / totalLimit) * 100 : 0;
 
-  const activeEMIs = (emis ?? []).filter((e) => !e.isArchived);
-  const archivedEMIs = (emis ?? []).filter((e) => e.isArchived);
-
   return (
-    <div className="space-y-4">
-      {/* Sub-tab switcher */}
-      <div className="flex items-center justify-between">
-        <Tabs value={subTab} onValueChange={(v) => setSubTab(v as 'cards' | 'emis')}>
-          <TabsList>
-            <TabsTrigger value="cards">💳 Cards</TabsTrigger>
-            <TabsTrigger value="emis">📆 EMIs{activeEMIs.length > 0 ? ` (${activeEMIs.length})` : ''}</TabsTrigger>
-          </TabsList>
-        </Tabs>
-        {subTab === 'cards' ? (
+    <div>
+      <GroupHeader
+        icon="💳" label="Credit Cards" count={(cards ?? []).length}
+        action={
           <Button size="sm" onClick={() => { setEditingCard(null); setShowCardForm(true); }}>
             <Plus className="w-4 h-4 mr-1.5" /> Add Card
           </Button>
-        ) : (
-          <Button size="sm" onClick={() => { setEditingEMI(null); setShowEMIForm(true); }}>
-            <Plus className="w-4 h-4 mr-1.5" /> Add EMI
-          </Button>
-        )}
-      </div>
+        }
+      />
 
-      {/* Summary strip — always visible */}
       {(cards ?? []).length > 0 && (
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-4 gap-3 mb-3">
           <StatCard compact title="Revolving" value={revolvingOutstanding} forceColor="danger" />
           <StatCard compact title="EMI Blocked" value={emiOutstanding} forceColor="warning" />
           <StatCard compact title="Total Outstanding" value={totalOutstanding} forceColor="danger" />
@@ -321,221 +308,244 @@ function CreditCardsTab() {
         </div>
       )}
 
-      {/* ── CARDS sub-tab ── */}
-      {subTab === 'cards' && (
-        <div className="space-y-3">
-          {cardsLoading ? Array.from({ length: 2 }).map((_, i) => <div key={i} className="glass-card rounded-2xl h-36 shimmer" />) :
-            (cards ?? []).length === 0 ? (
-              <EmptyState icon={CreditCardIcon} title="No credit cards" description="Track your credit card bills and utilization" action={{ label: 'Add Card', onClick: () => setShowCardForm(true) }} />
-            ) : (cards ?? []).map((card) => {
-              const cardEmisForCard = (emis ?? []).filter((e) => e.creditCardId === card.id && !e.isArchived);
-              const cardEMIOut = cardEmisForCard.reduce((s, e) => s + e.outstanding, 0);
-              const cardEMIMonthly = cardEmisForCard.reduce((s, e) => s + e.emiAmount, 0);
-              const effectiveOutstanding = card.outstanding + cardEMIOut;
-              const cardUtil = card.creditLimit > 0 ? (effectiveOutstanding / card.creditLimit) * 100 : 0;
-              const daysUntilDue = getDaysUntil(card.dueDate);
-              const available = card.creditLimit - effectiveOutstanding;
+      <div className="space-y-3">
+        {cardsLoading ? Array.from({ length: 2 }).map((_, i) => <div key={i} className="glass-card rounded-2xl h-36 shimmer" />) :
+          (cards ?? []).length === 0 ? (
+            <EmptyState icon={CreditCardIcon} title="No credit cards" description="Track your credit card bills and utilization" action={{ label: 'Add Card', onClick: () => setShowCardForm(true) }} />
+          ) : (cards ?? []).map((card) => {
+            const cardEmisForCard = (emis ?? []).filter((e) => e.creditCardId === card.id && !e.isArchived);
+            const cardEMIOut = cardEmisForCard.reduce((s, e) => s + e.outstanding, 0);
+            const cardEMIMonthly = cardEmisForCard.reduce((s, e) => s + e.emiAmount, 0);
+            const effectiveOutstanding = card.outstanding + cardEMIOut;
+            const cardUtil = card.creditLimit > 0 ? (effectiveOutstanding / card.creditLimit) * 100 : 0;
+            const daysUntilDue = getDaysUntil(card.dueDate);
+            const available = card.creditLimit - effectiveOutstanding;
 
-              return (
-                <div key={card.id} className="glass-card-hover rounded-2xl p-5">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl" style={{ background: card.color ? `${card.color}20` : 'rgba(99,102,241,0.15)' }}>💳</div>
-                      <div>
-                        <p className="text-sm font-semibold text-text-primary">
-                          {card.cardName}
-                          {card.lastFourDigits && <span className="text-text-muted font-normal ml-1">···· {card.lastFourDigits}</span>}
-                        </p>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          {card.bank && <span className="text-xs text-text-muted">{card.bank}</span>}
-                          {card.interestRate && <Badge variant="secondary" className="text-xs">{card.interestRate}% p.a.</Badge>}
-                          <span className={cn('text-xs font-medium', daysUntilDue <= 3 ? 'text-danger font-semibold' : daysUntilDue <= 7 ? 'text-warning' : 'text-text-muted')}>
-                            {daysUntilDue <= 0 ? '⚠ Due TODAY' : `Due in ${daysUntilDue}d`}
-                          </span>
-                        </div>
+            return (
+              <div key={card.id} className="glass-card-hover rounded-2xl p-5">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl" style={{ background: card.color ? `${card.color}20` : 'rgba(99,102,241,0.15)' }}>💳</div>
+                    <div>
+                      <p className="text-sm font-semibold text-text-primary">
+                        {card.cardName}
+                        {card.lastFourDigits && <span className="text-text-muted font-normal ml-1">···· {card.lastFourDigits}</span>}
+                      </p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        {card.bank && <span className="text-xs text-text-muted">{card.bank}</span>}
+                        {card.interestRate && <Badge variant="secondary" className="text-xs">{card.interestRate}% p.a.</Badge>}
+                        <span className={cn('text-xs font-medium', daysUntilDue <= 3 ? 'text-danger font-semibold' : daysUntilDue <= 7 ? 'text-warning' : 'text-text-muted')}>
+                          {daysUntilDue <= 0 ? '⚠ Due TODAY' : `Due in ${daysUntilDue}d`}
+                        </span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-1">
-                      {card.outstanding > 0 && (
-                        <button
-                          onClick={() => setPayingCardId(card.id)}
-                          className="px-2.5 py-1.5 rounded-lg bg-success/10 text-success text-xs font-medium hover:bg-success/20 transition-colors mr-1"
-                        >
-                          ✓ Pay Bill
-                        </button>
-                      )}
-                      <button aria-label={`Edit ${card.cardName}`} onClick={() => { setEditingCard(card); setShowCardForm(true); }} className="p-1.5 rounded-lg text-text-muted hover:text-accent-violet-light hover:bg-accent-violet/10 transition-colors"><Pencil className="w-3.5 h-3.5" /></button>
-                      <button aria-label={`Delete ${card.cardName}`} onClick={() => deleteCard(card.id)} className="p-1.5 rounded-lg text-text-muted hover:text-danger hover:bg-danger/10 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
-                    </div>
                   </div>
-
-                  <div className="grid grid-cols-4 gap-2 mb-4">
-                    <div className="bg-bg-elevated rounded-xl p-2.5">
-                      <p className="text-xs text-text-muted">Revolving</p>
-                      <p className="text-sm font-bold font-mono text-danger">{formatCurrency(card.outstanding, 'INR', true)}</p>
-                    </div>
-                    <div className="bg-bg-elevated rounded-xl p-2.5">
-                      <p className="text-xs text-text-muted">EMI Blocked</p>
-                      <p className="text-sm font-bold font-mono text-warning">{formatCurrency(cardEMIOut, 'INR', true)}</p>
-                    </div>
-                    <div className="bg-bg-elevated rounded-xl p-2.5">
-                      <p className="text-xs text-text-muted">Available</p>
-                      <p className="text-sm font-bold font-mono text-success">{formatCurrency(Math.max(0, available), 'INR', true)}</p>
-                    </div>
-                    <div className="bg-bg-elevated rounded-xl p-2.5">
-                      <p className="text-xs text-text-muted">{card.minimumPayment ? 'Min Pay' : 'Limit'}</p>
-                      <p className="text-sm font-bold font-mono text-text-primary">{formatCurrency(card.minimumPayment ?? card.creditLimit, 'INR', true)}</p>
-                    </div>
-                  </div>
-
-                  {/* EMI summary on card */}
-                  {cardEmisForCard.length > 0 && (
-                    <div className="mb-3 flex items-center justify-between rounded-xl bg-warning/5 border border-warning/15 px-3 py-2">
-                      <span className="text-xs text-warning">
-                        {cardEmisForCard.length} active EMI{cardEmisForCard.length > 1 ? 's' : ''} · {formatCurrency(cardEMIMonthly, 'INR', true)}/mo deducted
-                      </span>
+                  <div className="flex items-center gap-1">
+                    {card.outstanding > 0 && (
                       <button
-                        onClick={() => setSubTab('emis')}
-                        className="text-xs text-accent-violet-light hover:underline"
+                        onClick={() => setPayingCardId(card.id)}
+                        className="px-2.5 py-1.5 rounded-lg bg-success/10 text-success text-xs font-medium hover:bg-success/20 transition-colors mr-1"
                       >
-                        View EMIs →
+                        ✓ Pay Bill
                       </button>
-                    </div>
-                  )}
-
-                  <div className="space-y-1.5">
-                    <div className="flex justify-between text-xs">
-                      <span className="text-text-muted">Total Utilization (incl. EMIs)</span>
-                      <span className={cn('font-semibold', cardUtil > 50 ? 'text-danger' : cardUtil > 30 ? 'text-warning' : 'text-success')}>{cardUtil.toFixed(1)}%</span>
-                    </div>
-                    <Progress value={cardUtil} className="h-2" indicatorClassName={cardUtil > 50 ? 'bg-gradient-danger' : cardUtil > 30 ? 'bg-gradient-warning' : 'bg-gradient-success'} />
-                    <p className="text-xs text-text-muted">Due {formatDate(card.dueDate)}{card.statementDate && ` · Statement ${formatDate(card.statementDate)}`}</p>
+                    )}
+                    <button aria-label={`Edit ${card.cardName}`} onClick={() => { setEditingCard(card); setShowCardForm(true); }} className="p-1.5 rounded-lg text-text-muted hover:text-accent-violet-light hover:bg-accent-violet/10 transition-colors"><Pencil className="w-3.5 h-3.5" /></button>
+                    <button aria-label={`Delete ${card.cardName}`} onClick={() => deleteCard(card.id)} className="p-1.5 rounded-lg text-text-muted hover:text-danger hover:bg-danger/10 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
                   </div>
                 </div>
-              );
-            })}
-        </div>
-      )}
 
-      {/* ── EMIs sub-tab ── */}
-      {subTab === 'emis' && (
-        <div className="space-y-3">
-          {/* EMI summary */}
-          {activeEMIs.length > 0 && (
-            <div className="grid grid-cols-3 gap-3">
-              <StatCard compact title="Monthly EMI Deduction" value={emisSummary?.monthlyBurden ?? 0} forceColor="warning" />
-              <StatCard compact title="Total EMI Outstanding" value={emisSummary?.totalOutstanding ?? 0} forceColor="danger" />
-              <StatCard compact title="Active EMIs" value={activeEMIs.length} isCurrency={false} />
-            </div>
-          )}
-
-          {emisLoading ? Array.from({ length: 3 }).map((_, i) => <div key={i} className="glass-card rounded-2xl h-24 shimmer" />) :
-            activeEMIs.length === 0 ? (
-              <EmptyState
-                icon={CreditCardIcon}
-                title="No active Card EMIs"
-                description="Add EMIs for purchases converted to monthly payments on your credit card"
-                action={{ label: 'Add EMI', onClick: () => setShowEMIForm(true) }}
-              />
-            ) : activeEMIs.map((emi) => (
-              <div key={emi.id} className="glass-card-hover rounded-2xl p-4">
-                <div className="flex items-start gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-warning/10 flex items-center justify-center text-lg shrink-0">📦</div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <p className="text-sm font-semibold text-text-primary">{emi.itemName}</p>
-                        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                          {emi.creditCard && (
-                            <span className="text-xs text-text-muted">
-                              {emi.creditCard.cardName}{emi.creditCard.lastFourDigits ? ` ···· ${emi.creditCard.lastFourDigits}` : ''}
-                            </span>
-                          )}
-                          <Badge variant={emi.isNoCost ? 'success' : 'warning'} className="text-xs">
-                            {emi.isNoCost ? '0% No-Cost' : `${emi.interestRate}% p.a.`}
-                          </Badge>
-                          <span className="text-xs text-text-muted">
-                            {emi.emisPaid}/{emi.tenureMonths} paid · {emi.emisRemaining} left
-                          </span>
-                        </div>
-                      </div>
-                      <div className="flex flex-col items-end gap-1 shrink-0 ml-3">
-                        <p className="text-sm font-bold font-mono text-warning">{formatCurrency(emi.emiAmount, 'INR', true)}/mo</p>
-                        <p className="text-xs text-text-muted font-mono">{formatCurrency(emi.outstanding, 'INR', true)} left</p>
-
-                        {/* Pay this month / confirm inline */}
-                        {payingEMIId === emi.id ? (
-                          <div className="flex items-center gap-1">
-                            <button
-                              onClick={() => { payCardEMI({ id: emi.id }); setPayingEMIId(null); }}
-                              disabled={isPayingEMI}
-                              className="px-2 py-1 rounded bg-success/15 text-success text-xs font-medium hover:bg-success/25 transition-colors"
-                            >
-                              {isPayingEMI ? '...' : 'Confirm'}
-                            </button>
-                            <button onClick={() => setPayingEMIId(null)} className="px-1.5 py-1 rounded bg-bg-elevated text-text-muted text-xs">✕</button>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => setPayingEMIId(emi.id)}
-                            className="px-2 py-1 rounded bg-success/10 text-success text-xs font-medium hover:bg-success/20 transition-colors"
-                          >
-                            ✓ Pay
-                          </button>
-                        )}
-
-                        <div className="flex gap-1">
-                          <button aria-label={`Edit ${emi.itemName}`} onClick={() => { setEditingEMI(emi); setShowEMIForm(true); }} className="p-1 rounded text-text-muted hover:text-accent-violet-light transition-colors"><Pencil className="w-3 h-3" /></button>
-                          <button aria-label={`Archive ${emi.itemName}`} onClick={() => updateEMI({ id: emi.id, data: { isArchived: true } })} className="p-1 rounded text-text-muted hover:text-success transition-colors" title="Archive"><Archive className="w-3 h-3" /></button>
-                          <button aria-label={`Delete ${emi.itemName}`} onClick={() => deleteEMI(emi.id)} className="p-1 rounded text-text-muted hover:text-danger transition-colors"><Trash2 className="w-3 h-3" /></button>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="mt-2.5 space-y-1">
-                      <Progress value={emi.progressPct} className="h-1.5" indicatorClassName="bg-gradient-success" />
-                      <div className="flex justify-between text-xs text-text-muted">
-                        <span>{formatCurrency(emi.totalAmount, 'INR', true)} total</span>
-                        <span>{emi.progressPct.toFixed(0)}% complete</span>
-                        <span>Started {formatDate(emi.startDate, 'MMM yyyy')}</span>
-                      </div>
-                    </div>
+                <div className="grid grid-cols-4 gap-2 mb-4">
+                  <div className="bg-bg-elevated rounded-xl p-2.5">
+                    <p className="text-xs text-text-muted">Revolving</p>
+                    <p className="text-sm font-bold font-mono text-danger">{formatCurrency(card.outstanding, 'INR', true)}</p>
                   </div>
+                  <div className="bg-bg-elevated rounded-xl p-2.5">
+                    <p className="text-xs text-text-muted">EMI Blocked</p>
+                    <p className="text-sm font-bold font-mono text-warning">{formatCurrency(cardEMIOut, 'INR', true)}</p>
+                  </div>
+                  <div className="bg-bg-elevated rounded-xl p-2.5">
+                    <p className="text-xs text-text-muted">Available</p>
+                    <p className="text-sm font-bold font-mono text-success">{formatCurrency(Math.max(0, available), 'INR', true)}</p>
+                  </div>
+                  <div className="bg-bg-elevated rounded-xl p-2.5">
+                    <p className="text-xs text-text-muted">{card.minimumPayment ? 'Min Pay' : 'Limit'}</p>
+                    <p className="text-sm font-bold font-mono text-text-primary">{formatCurrency(card.minimumPayment ?? card.creditLimit, 'INR', true)}</p>
+                  </div>
+                </div>
+
+                {/* EMI summary on card */}
+                {cardEmisForCard.length > 0 && (
+                  <div className="mb-3 flex items-center justify-between rounded-xl bg-warning/5 border border-warning/15 px-3 py-2">
+                    <span className="text-xs text-warning">
+                      {cardEmisForCard.length} active EMI{cardEmisForCard.length > 1 ? 's' : ''} · {formatCurrency(cardEMIMonthly, 'INR', true)}/mo deducted
+                    </span>
+                    <button
+                      onClick={() => document.getElementById('card-emis')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                      className="text-xs text-accent-violet-light hover:underline"
+                    >
+                      View EMIs →
+                    </button>
+                  </div>
+                )}
+
+                <div className="space-y-1.5">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-text-muted">Total Utilization (incl. EMIs)</span>
+                    <span className={cn('font-semibold', cardUtil > 50 ? 'text-danger' : cardUtil > 30 ? 'text-warning' : 'text-success')}>{cardUtil.toFixed(1)}%</span>
+                  </div>
+                  <Progress value={cardUtil} className="h-2" indicatorClassName={cardUtil > 50 ? 'bg-gradient-danger' : cardUtil > 30 ? 'bg-gradient-warning' : 'bg-gradient-success'} />
+                  <p className="text-xs text-text-muted">Due {formatDate(card.dueDate)}{card.statementDate && ` · Statement ${formatDate(card.statementDate)}`}</p>
                 </div>
               </div>
-            ))}
-
-          {/* Archived toggle */}
-          {archivedEMIs.length > 0 && (
-            <button
-              onClick={() => setShowArchived(!showArchived)}
-              className="text-xs text-text-muted hover:text-text-secondary transition-colors flex items-center gap-1.5"
-            >
-              <Archive className="w-3.5 h-3.5" />
-              {showArchived ? 'Hide' : 'Show'} {archivedEMIs.length} archived EMI{archivedEMIs.length !== 1 ? 's' : ''}
-            </button>
-          )}
-
-          {showArchived && archivedEMIs.map((emi) => (
-            <div key={emi.id} className="glass-card rounded-2xl px-4 py-3 flex items-center gap-3 opacity-50">
-              <span className="text-base">✅</span>
-              <p className="text-sm text-text-secondary flex-1">{emi.itemName}</p>
-              <p className="text-xs font-mono text-text-muted">{formatCurrency(emi.totalAmount, 'INR', true)}</p>
-              <Badge variant="secondary" className="text-xs">Completed</Badge>
-              <button aria-label={`Delete ${emi.itemName}`} onClick={() => deleteEMI(emi.id)} className="text-text-muted hover:text-danger"><Trash2 className="w-3 h-3" /></button>
-            </div>
-          ))}
-        </div>
-      )}
+            );
+          })}
+      </div>
 
       {showCardForm && <CreditCardForm onClose={() => { setShowCardForm(false); setEditingCard(null); }} card={editingCard ?? undefined} />}
-      {showEMIForm && <CardEMIForm onClose={() => { setShowEMIForm(false); setEditingEMI(null); }} emi={editingEMI ?? undefined} />}
       {payingCard && <PayBillDialog card={payingCard} onClose={() => setPayingCardId(null)} />}
     </div>
   );
 }
 
-// ─── P2P Tab ──────────────────────────────────────────────────────────────────
-function P2PTab() {
+// ─── Card EMIs Group ──────────────────────────────────────────────────────────
+function CardEMIsGroup() {
+  const [showEMIForm, setShowEMIForm] = useState(false);
+  const [editingEMI, setEditingEMI] = useState<CardEMI | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
+  const { data: emis, isLoading: emisLoading } = useCardEMIs(showArchived);
+  const { data: emisSummary } = useCardEMISummary();
+  const { mutate: updateEMI } = useUpdateCardEMI();
+  const { mutate: deleteEMI } = useDeleteCardEMI();
+  const { mutate: payCardEMI, isPending: isPayingEMI } = usePayCardEMI();
+  const [payingEMIId, setPayingEMIId] = useState<string | null>(null);
+
+  const activeEMIs = (emis ?? []).filter((e) => !e.isArchived);
+  const archivedEMIs = (emis ?? []).filter((e) => e.isArchived);
+
+  return (
+    <div id="card-emis">
+      <GroupHeader
+        icon="📦" label="Card EMIs" count={activeEMIs.length}
+        action={
+          <Button size="sm" onClick={() => { setEditingEMI(null); setShowEMIForm(true); }}>
+            <Plus className="w-4 h-4 mr-1.5" /> Add EMI
+          </Button>
+        }
+      />
+
+      {activeEMIs.length > 0 && (
+        <div className="grid grid-cols-3 gap-3 mb-3">
+          <StatCard compact title="Monthly EMI Deduction" value={emisSummary?.monthlyBurden ?? 0} forceColor="warning" />
+          <StatCard compact title="Total EMI Outstanding" value={emisSummary?.totalOutstanding ?? 0} forceColor="danger" />
+          <StatCard compact title="Active EMIs" value={activeEMIs.length} isCurrency={false} />
+        </div>
+      )}
+
+      <div className="space-y-3">
+        {emisLoading ? Array.from({ length: 3 }).map((_, i) => <div key={i} className="glass-card rounded-2xl h-24 shimmer" />) :
+          activeEMIs.length === 0 ? (
+            <EmptyState
+              icon={CreditCardIcon}
+              title="No active Card EMIs"
+              description="Add EMIs for purchases converted to monthly payments on your credit card"
+              action={{ label: 'Add EMI', onClick: () => setShowEMIForm(true) }}
+            />
+          ) : activeEMIs.map((emi) => (
+            <div key={emi.id} className="glass-card-hover rounded-2xl p-4">
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-xl bg-warning/10 flex items-center justify-center text-lg shrink-0">📦</div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-text-primary">{emi.itemName}</p>
+                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                        {emi.creditCard && (
+                          <span className="text-xs text-text-muted">
+                            {emi.creditCard.cardName}{emi.creditCard.lastFourDigits ? ` ···· ${emi.creditCard.lastFourDigits}` : ''}
+                          </span>
+                        )}
+                        <Badge variant={emi.isNoCost ? 'success' : 'warning'} className="text-xs">
+                          {emi.isNoCost ? '0% No-Cost' : `${emi.interestRate}% p.a.`}
+                        </Badge>
+                        <span className="text-xs text-text-muted">
+                          {emi.emisPaid}/{emi.tenureMonths} paid · {emi.emisRemaining} left
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-end gap-1 shrink-0 ml-3">
+                      <p className="text-sm font-bold font-mono text-warning">{formatCurrency(emi.emiAmount, 'INR', true)}/mo</p>
+                      <p className="text-xs text-text-muted font-mono">{formatCurrency(emi.outstanding, 'INR', true)} left</p>
+
+                      {/* Pay this month / confirm inline */}
+                      {payingEMIId === emi.id ? (
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => { payCardEMI({ id: emi.id }); setPayingEMIId(null); }}
+                            disabled={isPayingEMI}
+                            className="px-2 py-1 rounded bg-success/15 text-success text-xs font-medium hover:bg-success/25 transition-colors"
+                          >
+                            {isPayingEMI ? '...' : 'Confirm'}
+                          </button>
+                          <button onClick={() => setPayingEMIId(null)} className="px-1.5 py-1 rounded bg-bg-elevated text-text-muted text-xs">✕</button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setPayingEMIId(emi.id)}
+                          className="px-2 py-1 rounded bg-success/10 text-success text-xs font-medium hover:bg-success/20 transition-colors"
+                        >
+                          ✓ Pay
+                        </button>
+                      )}
+
+                      <div className="flex gap-1">
+                        <button aria-label={`Edit ${emi.itemName}`} onClick={() => { setEditingEMI(emi); setShowEMIForm(true); }} className="p-1 rounded text-text-muted hover:text-accent-violet-light transition-colors"><Pencil className="w-3 h-3" /></button>
+                        <button aria-label={`Archive ${emi.itemName}`} onClick={() => updateEMI({ id: emi.id, data: { isArchived: true } })} className="p-1 rounded text-text-muted hover:text-success transition-colors" title="Archive"><Archive className="w-3 h-3" /></button>
+                        <button aria-label={`Delete ${emi.itemName}`} onClick={() => deleteEMI(emi.id)} className="p-1 rounded text-text-muted hover:text-danger transition-colors"><Trash2 className="w-3 h-3" /></button>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-2.5 space-y-1">
+                    <Progress value={emi.progressPct} className="h-1.5" indicatorClassName="bg-gradient-success" />
+                    <div className="flex justify-between text-xs text-text-muted">
+                      <span>{formatCurrency(emi.totalAmount, 'INR', true)} total</span>
+                      <span>{emi.progressPct.toFixed(0)}% complete</span>
+                      <span>Started {formatDate(emi.startDate, 'MMM yyyy')}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+
+        {/* Archived toggle */}
+        {archivedEMIs.length > 0 && (
+          <button
+            onClick={() => setShowArchived(!showArchived)}
+            className="text-xs text-text-muted hover:text-text-secondary transition-colors flex items-center gap-1.5"
+          >
+            <Archive className="w-3.5 h-3.5" />
+            {showArchived ? 'Hide' : 'Show'} {archivedEMIs.length} archived EMI{archivedEMIs.length !== 1 ? 's' : ''}
+          </button>
+        )}
+
+        {showArchived && archivedEMIs.map((emi) => (
+          <div key={emi.id} className="glass-card rounded-2xl px-4 py-3 flex items-center gap-3 opacity-50">
+            <span className="text-base">✅</span>
+            <p className="text-sm text-text-secondary flex-1">{emi.itemName}</p>
+            <p className="text-xs font-mono text-text-muted">{formatCurrency(emi.totalAmount, 'INR', true)}</p>
+            <Badge variant="secondary" className="text-xs">Completed</Badge>
+            <button aria-label={`Delete ${emi.itemName}`} onClick={() => deleteEMI(emi.id)} className="text-text-muted hover:text-danger"><Trash2 className="w-3 h-3" /></button>
+          </div>
+        ))}
+      </div>
+
+      {showEMIForm && <CardEMIForm onClose={() => { setShowEMIForm(false); setEditingEMI(null); }} emi={editingEMI ?? undefined} />}
+    </div>
+  );
+}
+
+// ─── P2P Group ────────────────────────────────────────────────────────────────
+function P2PGroup() {
   const [showForm, setShowForm] = useState(false);
   const [editingLoan, setEditingLoan] = useState<P2PLoan | null>(null);
   const { data: loans, isLoading } = useP2PLoans();
@@ -548,16 +558,18 @@ function P2PTab() {
   const borrowed = active.filter((l) => l.type === 'BORROWED').reduce((s, l) => s + l.remainingAmount, 0);
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-text-secondary">{active.length} active entries</p>
-        <Button size="sm" onClick={() => { setEditingLoan(null); setShowForm(true); }}>
-          <Plus className="w-4 h-4 mr-1.5" /> Add Entry
-        </Button>
-      </div>
+    <div>
+      <GroupHeader
+        icon="🤝" label="P2P" count={active.length}
+        action={
+          <Button size="sm" onClick={() => { setEditingLoan(null); setShowForm(true); }}>
+            <Plus className="w-4 h-4 mr-1.5" /> Add Entry
+          </Button>
+        }
+      />
 
       {active.length > 0 && (
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-3 gap-3 mb-3">
           <StatCard compact title="Lent (they owe me)" value={lent} forceColor="success" />
           <StatCard compact title="Borrowed (I owe)" value={borrowed} forceColor="danger" />
           <StatCard
@@ -670,63 +682,68 @@ function AssetLoanInsightsCard() {
   );
 }
 
-// ─── Debt Insights Tab ────────────────────────────────────────────────────────
-function DebtInsightsTab() {
-  return (
-    <div className="space-y-4">
-      <TotalInterestSaved />
-      <DebtHealthScore />
-      <AssetLoanInsightsCard />
-      <RecommendationCards />
-      <FundingSources />
-      <PayoffStrategyComparison />
-      <PrepaymentCalculator />
-      <EMICalendar />
-    </div>
-  );
-}
-
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function LoansPage() {
-  const { data: loans } = useLoans();
-  const { data: cards } = useCreditCards();
-  const { data: p2p } = useP2PLoans();
-  const searchParams = useSearchParams();
-  const initialTab = searchParams.get('tab') === 'insights' ? 'insights' : 'loans';
+  const [extraPayment, setExtraPayment] = useState(5000);
+  const { data: homeEquity } = useHomeEquitySummary();
+  const { data: strategy } = useDebtStrategy(extraPayment);
 
-  const loanCount = (loans ?? []).filter((l) => l.isActive).length;
-  const cardCount = (cards ?? []).length;
-  const p2pCount  = (p2p ?? []).filter((l) => !l.isSettled).length;
+  const hasActiveDebt = (strategy?.debts.length ?? 0) > 0;
+  const totalOutstanding = strategy?.debts.reduce((s, d) => s + d.remainingBalance, 0) ?? 0;
+  const totalMonthlyPayments = strategy?.debts.reduce((s, d) => s + d.emi, 0) ?? 0;
 
   return (
     <PageShell>
       <PageHeader title="Loans & Liabilities" subtitle="Loans · Credit Cards · Peer-to-Peer" />
 
-      <Tabs defaultValue={initialTab}>
-        <TabsList>
-          <TabsTrigger value="loans">
-            <Landmark className="w-3.5 h-3.5" />
-            Loans {loanCount > 0 && <span className="ml-1 text-xs bg-bg-overlay px-1.5 py-0.5 rounded-full">{loanCount}</span>}
-          </TabsTrigger>
-          <TabsTrigger value="credit-cards">
-            <CreditCardIcon className="w-3.5 h-3.5" />
-            Credit Cards {cardCount > 0 && <span className="ml-1 text-xs bg-bg-overlay px-1.5 py-0.5 rounded-full">{cardCount}</span>}
-          </TabsTrigger>
-          <TabsTrigger value="p2p">
-            <Users className="w-3.5 h-3.5" />
-            P2P {p2pCount > 0 && <span className="ml-1 text-xs bg-bg-overlay px-1.5 py-0.5 rounded-full">{p2pCount}</span>}
-          </TabsTrigger>
-          <TabsTrigger value="insights">
-            <Sparkles className="w-3.5 h-3.5" />
-            Debt Insights
-          </TabsTrigger>
-        </TabsList>
+      {homeEquity && homeEquity.assets.length > 0 && (
+        <HomeEquityBanner totalEquity={homeEquity.totalEquity} weightedLTV={homeEquity.weightedLTV} count={homeEquity.assets.length} />
+      )}
 
-        <TabsContent value="loans"><LoansTab /></TabsContent>
-        <TabsContent value="credit-cards"><CreditCardsTab /></TabsContent>
-        <TabsContent value="p2p"><P2PTab /></TabsContent>
-        <TabsContent value="insights"><DebtInsightsTab /></TabsContent>
-      </Tabs>
+      {/* Tier 1: the freedom date and health score answer "am I winning" --
+          a distinct win-state renders inside the hero itself when debt-free. */}
+      <DebtFreedomHero extraPayment={extraPayment} />
+
+      {hasActiveDebt && (
+        <>
+          {/* Tier 2: the timeline shows why, the tiles ground it in real numbers. */}
+          <RepaymentTimelineChart extraPayment={extraPayment} />
+
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <StatCard compact title="Total Outstanding" value={totalOutstanding} forceColor="danger" />
+            <StatCard compact title="Monthly Payments" value={totalMonthlyPayments} forceColor="warning" />
+            <StatCard compact title="Interest Saved If You Commit" value={strategy?.totalInterestSaved ?? 0} forceColor="success" />
+            <StatCard compact title="Home Equity" value={homeEquity?.totalEquity ?? 0} forceColor="success" />
+          </div>
+
+          {/* Tier 3: why the number is what it is, and the one action worth taking today. */}
+          <div className="grid lg:grid-cols-2 gap-4">
+            <DebtHealthScore />
+            <LoansAIInsightStack extraPayment={extraPayment} />
+          </div>
+          <RecommendationCards />
+        </>
+      )}
+
+      {/* Tier 4: the actual debts, grouped -- no tabs, one scroll. */}
+      <div className="space-y-6">
+        <LoansGroup />
+        <AssetLoanInsightsCard />
+        <CreditCardsGroup />
+        <CardEMIsGroup />
+        <P2PGroup />
+      </div>
+
+      {/* Tier 5: tools for anyone who wants to change the plan. */}
+      <div>
+        <p className="text-xs font-semibold text-text-muted uppercase tracking-wider px-1 mb-3">Payoff Tools</p>
+        <div className="space-y-4">
+          <PayoffStrategyComparison extraPayment={extraPayment} onExtraPaymentChange={setExtraPayment} />
+          <FundingSources />
+          <PrepaymentCalculator />
+          <EMICalendar />
+        </div>
+      </div>
     </PageShell>
   );
 }

@@ -271,6 +271,13 @@ describe('debtIntelligence.service integration', () => {
     expect(result.interestSavedAvalanche).toBeGreaterThanOrEqual(0);
     expect(result.interestSavedSnowball).toBeGreaterThanOrEqual(0);
     expect(result.totalInterestSaved).toBe(Math.max(result.interestSavedAvalanche, result.interestSavedSnowball));
+
+    // Repayment timeline chart data: contracted (no extra) vs accelerated
+    // (best strategy + extra payment) balance-over-time schedules.
+    expect(result.contractedSchedule[0]).toBe(415000); // 15000 + 400000
+    expect(result.contractedSchedule[result.contractedSchedule.length - 1]).toBeLessThanOrEqual(0.01);
+    expect(result.acceleratedSchedule[result.acceleratedSchedule.length - 1]).toBeLessThanOrEqual(0.01);
+    expect(result.acceleratedSchedule.length).toBeLessThanOrEqual(result.contractedSchedule.length);
   });
 
   it('getPrepayment simulates a lump sum against a real loan by its unified id', async () => {

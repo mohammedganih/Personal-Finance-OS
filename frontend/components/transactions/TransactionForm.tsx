@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useCreateTransaction, useUpdateTransaction } from '@/hooks/useTransactions';
 import { useAccounts } from '@/hooks/useAccounts';
@@ -52,6 +53,7 @@ export function TransactionForm({ onClose, transaction }: TransactionFormProps) 
           type:        transaction.type,
           amount:      transaction.amount,
           description: transaction.description ?? '',
+          notes:       transaction.notes ?? '',
           date:        format(new Date(transaction.date), 'yyyy-MM-dd'),
           categoryId:  transaction.category?.id,
           accountId:   transaction.account?.id,
@@ -74,6 +76,7 @@ export function TransactionForm({ onClose, transaction }: TransactionFormProps) 
       ...data,
       categoryId:    data.categoryId    || undefined,
       accountId:     data.accountId     || undefined,
+      notes:         data.notes         || undefined,
       memberId:      memberId            || undefined,
       splitMemberId: splitMemberId       || undefined,
       splitRatio:    splitMemberId ? splitRatio : undefined,
@@ -123,6 +126,11 @@ export function TransactionForm({ onClose, transaction }: TransactionFormProps) 
           <div className="space-y-1.5">
             <Label>Description</Label>
             <Input placeholder="e.g. Groceries, Electricity bill" {...register('description')} />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Notes <span className="text-text-muted font-normal">(optional)</span></Label>
+            <Textarea rows={2} placeholder="Any extra detail worth remembering about this one" {...register('notes')} />
           </div>
 
           {/* Split-aware member selector */}

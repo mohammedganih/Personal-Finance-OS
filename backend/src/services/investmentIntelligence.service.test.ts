@@ -6,6 +6,7 @@ import {
   analyzeDiversification, getUpcomingMaturities, buildInvestmentCalendar,
   getAnnualizedReturns, recordDailySnapshot, getPortfolioTrend,
   getInvestmentCalendar, getDiversification, getMaturityRadar,
+  computeRiskProfile, computeHealthScore,
 } from './investmentIntelligence.service';
 import { Investment } from '@prisma/client';
 
@@ -168,6 +169,67 @@ describe('analyzeDiversification (pure)', () => {
     ]);
     const equity = result.classBreakdown.find((c) => c.assetClass === 'Equity');
     expect(equity?.value).toBe(20000);
+  });
+});
+
+describe('computeRiskProfile (pure)', () => {
+  it('defaults to a neutral Balanced position for an empty portfolio', () => {
+    const result = computeRiskProfile([]);
+    expect(result.label).toBe('Balanced');
+    expect(result.position).toBe(50);
+  });
+
+  it('labels an all-equity portfolio Aggressive', () => {
+    const result = computeRiskProfile([{ assetClass: 'Equity', percentage: 100 }]);
+    expect(result.label).toBe('Aggressive');
+    expect(result.position).toBe(90);
+  });
+
+  it('labels an all-debt portfolio Conservative', () => {
+    const result = computeRiskProfile([{ assetClass: 'Debt', percentage: 100 }]);
+    expect(result.label).toBe('Conservative');
+    expect(result.position).toBe(5);
+  });
+
+  it('mentions the dominant class and a gold/debt ballast in the caption', () => {
+    const result = computeRiskProfile([
+      { assetClass: 'Equity', percentage: 70 },
+      { assetClass: 'Gold', percentage: 30 },
+    ]);
+    expect(result.caption).toContain('70%');
+    expect(result.caption).toContain('gold');
+  });
+});
+
+describe('computeHealthScore (pure)', () => {
+  it('scores an empty portfolio as Needs attention with a 0 score', () => {
+    const result = computeHealthScore([], [], null);
+    expect(result.score).toBe(0);
+    expect(result.label).toBe('Needs attention');
+  });
+
+  it('scores a diversified portfolio with strong returns higher than a concentrated one with the same return', () => {
+    const diversified = computeHealthScore([{ assetClass: 'Equity', percentage: 50 }, { assetClass: 'Debt', percentage: 50 }], [], 0.15);
+    const concentrated = computeHealthScore(
+      [{ assetClass: 'Equity', percentage: 90 }, { assetClass: 'Debt', percentage: 10 }],
+      [{ severity: 'warning', message: 'Equity makes up 90% of your portfolio' }],
+      0.15,
+    );
+    expect(diversified.score).toBeGreaterThan(concentrated.score);
+  });
+
+  it('scores a negative annualized return lower than a positive one, all else equal', () => {
+    const breakdown = [{ assetClass: 'Equity' as const, percentage: 100 }];
+    const losing = computeHealthScore(breakdown, [], -0.1);
+    const winning = computeHealthScore(breakdown, [], 0.1);
+    expect(losing.score).toBeLessThan(winning.score);
+  });
+
+  it('caps the return bonus so an extreme XIRR cannot inflate the score past the ceiling', () => {
+    const modest = computeHealthScore([{ assetClass: 'Debt', percentage: 100 }], [], 0.25);
+    const extreme = computeHealthScore([{ assetClass: 'Debt', percentage: 100 }], [], 0.9);
+    expect(extreme.score).toBe(modest.score);
+    expect(extreme.label).toBe('Excellent');
   });
 });
 

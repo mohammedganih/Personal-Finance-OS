@@ -7,18 +7,29 @@ import { PageShell } from '@/components/ui/PageShell';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { FinancialFreedomPlan } from '@/components/dashboard/FinancialFreedomPlan';
 import { useGoals } from '@/hooks/useGoals';
-import { EmptyState } from '@/components/shared/EmptyState';
 import { formatCurrency } from '@/lib/format';
 import { GOAL_TYPE_ICONS } from '@/lib/constants';
 import { GoalForm } from '@/components/goals/GoalForm';
 import { GoalCard } from '@/components/goals/GoalCard';
-import { GoalPriority } from '@/types';
+import { GoalPriority, GoalType } from '@/types';
 
 const PRIORITY_ORDER: Record<GoalPriority, number> = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
 
+// A few common starting points instead of a blank form -- all real,
+// already-supported goal types, not an illustrative type invented for the mock.
+const STARTER_TEMPLATES: { goalType: GoalType; name: string }[] = [
+  { goalType: 'EMERGENCY_FUND', name: 'Emergency Fund' },
+  { goalType: 'TRAVEL', name: 'Vacation' },
+  { goalType: 'CAR_PURCHASE', name: 'Car Purchase' },
+];
+
 export default function GoalsPage() {
   const [showForm, setShowForm] = useState(false);
+  const [template, setTemplate] = useState<{ goalType: GoalType; name: string } | undefined>(undefined);
   const { data: goals, isLoading } = useGoals();
+
+  const openForm = (t?: { goalType: GoalType; name: string }) => { setTemplate(t); setShowForm(true); };
+  const closeForm = () => { setShowForm(false); setTemplate(undefined); };
 
   const active = (goals ?? [])
     .filter((g) => !g.isCompleted)
@@ -35,7 +46,7 @@ export default function GoalsPage() {
         title="Goals"
         subtitle={`${active.length} active · ${completed.length} completed`}
         action={
-          <Button onClick={() => setShowForm(true)} size="sm">
+          <Button onClick={() => openForm()} size="sm">
             <Plus className="w-4 h-4 mr-1.5" /> New Goal
           </Button>
         }
@@ -46,7 +57,28 @@ export default function GoalsPage() {
       {isLoading ? (
         <div className="grid grid-cols-2 gap-4">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="glass-card rounded-2xl h-52 shimmer" />)}</div>
       ) : active.length === 0 && completed.length === 0 ? (
-        <EmptyState icon={Target} title="No goals yet" description="Set a savings goal and track your progress" action={{ label: 'Create Goal', onClick: () => setShowForm(true) }} />
+        <div className="glass-card rounded-2xl p-8 text-center space-y-5">
+          <Target className="w-10 h-10 text-text-muted mx-auto" />
+          <div>
+            <p className="text-base font-semibold text-text-primary">What are you saving toward?</p>
+            <p className="text-sm text-text-secondary mt-1">Pick a starting point, or create a custom goal from scratch.</p>
+          </div>
+          <div className="flex items-center justify-center gap-3 flex-wrap">
+            {STARTER_TEMPLATES.map((t) => (
+              <button
+                key={t.goalType}
+                onClick={() => openForm(t)}
+                className="flex flex-col items-center gap-1.5 px-5 py-4 rounded-xl bg-bg-elevated border border-border hover:border-accent-violet/40 hover:bg-accent-violet/5 transition-colors"
+              >
+                <span className="text-2xl">{GOAL_TYPE_ICONS[t.goalType]}</span>
+                <span className="text-xs font-medium text-text-secondary">{t.name}</span>
+              </button>
+            ))}
+          </div>
+          <button onClick={() => openForm()} className="text-xs text-text-muted hover:text-text-secondary transition-colors">
+            or create a custom goal →
+          </button>
+        </div>
       ) : (
         <>
           {active.length > 0 && (
@@ -74,7 +106,7 @@ export default function GoalsPage() {
         </>
       )}
 
-      {showForm && <GoalForm onClose={() => setShowForm(false)} />}
+      {showForm && <GoalForm onClose={closeForm} template={template} />}
     </PageShell>
   );
 }

@@ -1,105 +1,18 @@
 'use client';
 
 import { Bell, CalendarClock, Sparkles, Zap } from 'lucide-react';
-import { Progress } from '@/components/ui/progress';
-import { StatCard } from '@/components/ui/StatCard';
 import { useBillReminders, useBillsInsights, useBillsSummary, usePayBillOccurrence, useSkipBillOccurrence } from '@/hooks/useBills';
 import { formatCurrency, formatDate } from '@/lib/format';
 import { BILL_FREQUENCY_LABELS, billCategoryMeta } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 
-export function BillsOverviewTab() {
-  const { data: summary, isLoading } = useBillsSummary();
-
-  if (isLoading || !summary) {
-    return (
-      <div className="space-y-4">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {Array.from({ length: 4 }).map((_, i) => <div key={i} className="glass-card rounded-2xl h-24 shimmer" />)}
-        </div>
-        <div className="glass-card rounded-2xl h-48 shimmer" />
-      </div>
-    );
-  }
-
-  const m = summary.thisMonth;
-  const paidPct = m.total > 0 ? (m.paid / m.total) * 100 : 0;
-
-  return (
-    <div className="space-y-4">
-      {/* Hero cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard
-          compact
-          title="Due Today"
-          value={m.dueToday}
-          displayValue={m.dueTodayCount > 0 ? undefined : '—'}
-          forceColor={m.dueTodayCount > 0 ? 'danger' : undefined}
-          footer={m.dueTodayCount > 0 ? `${m.dueTodayCount} payment${m.dueTodayCount > 1 ? 's' : ''}` : 'Nothing due today'}
-        />
-
-        <StatCard
-          compact
-          title="This Month"
-          value={m.total}
-          footer={
-            <div className="space-y-1">
-              <Progress value={paidPct} className="h-1.5" indicatorClassName="bg-gradient-success" />
-              <p className="text-xs text-text-muted">
-                {formatCurrency(m.paid, 'INR', true)} paid · {formatCurrency(m.remaining, 'INR', true)} left
-              </p>
-            </div>
-          }
-        />
-
-        <StatCard
-          compact
-          title="Monthly Commitment"
-          value={summary.monthlyCommitment}
-          footer={`${formatCurrency(summary.annualCommitment, 'INR', true)}/year · ${summary.activeCount} active`}
-        />
-
-        <StatCard
-          compact
-          title="Next Month"
-          value={summary.nextMonth.total}
-          footer={`${summary.nextMonth.count} payment${summary.nextMonth.count !== 1 ? 's' : ''} scheduled`}
-        />
-      </div>
-
-      {/* Overdue banner */}
-      {m.overdueCount > 0 && (
-        <div className="rounded-xl border border-danger/25 bg-danger/8 px-4 py-2.5 text-xs text-danger flex items-center gap-2">
-          ⚠ {m.overdueCount} bill{m.overdueCount > 1 ? 's' : ''} overdue this month totalling {formatCurrency(m.overdue, 'INR', true)} — pay or skip below.
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <PaymentRadar />
-        <div className="space-y-4">
-          <CommitmentOutlook summary={summary} />
-          {summary.autoDebitMonthly > 0 && (
-            <div className="glass-card rounded-2xl p-4 flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-accent-violet/10 flex items-center justify-center shrink-0">
-                <Zap className="w-4 h-4 text-accent-violet-light" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-text-primary">{formatCurrency(summary.autoDebitMonthly, 'INR', true)}/mo on auto-debit</p>
-                <p className="text-xs text-text-muted">Leaves your account without asking — keep the balance ready.</p>
-              </div>
-            </div>
-          )}
-          <FrequencyMix summary={summary} />
-        </div>
-      </div>
-
-      <InsightsPanel />
-    </div>
-  );
-}
-
-/** Upcoming payments within each bill's reminder window, plus anything overdue. */
-function PaymentRadar() {
+/**
+ * Upcoming payments within each bill's reminder window, plus anything
+ * overdue -- already the best-built list in the app. Kept exactly as
+ * shipped, just promoted out from behind the four StatCards it used to
+ * share the page with (now folded into BillsHero).
+ */
+export function PaymentRadar() {
   const { data: reminders, isLoading } = useBillReminders();
   const { mutate: payBill } = usePayBillOccurrence();
   const { mutate: skipBill } = useSkipBillOccurrence();
@@ -144,12 +57,14 @@ function PaymentRadar() {
               <div className="flex gap-1 shrink-0">
                 <button
                   onClick={() => payBill({ id: r.billId, dueDate: r.dueDate })}
+                  aria-label={`Pay ${r.name}`}
                   className="px-2 py-1 rounded-lg bg-success/10 text-success text-xs font-medium hover:bg-success/20 transition-colors"
                 >
                   Pay
                 </button>
                 <button
                   onClick={() => skipBill({ id: r.billId, dueDate: r.dueDate })}
+                  aria-label={`Skip ${r.name}`}
                   title="Skip this occurrence"
                   className="px-2 py-1 rounded-lg bg-bg-overlay text-text-muted text-xs hover:text-warning transition-colors"
                 >
@@ -164,7 +79,7 @@ function PaymentRadar() {
   );
 }
 
-function CommitmentOutlook({ summary }: { summary: NonNullable<ReturnType<typeof useBillsSummary>['data']> }) {
+export function CommitmentOutlook({ summary }: { summary: NonNullable<ReturnType<typeof useBillsSummary>['data']> }) {
   const horizons = [
     { label: 'This Month', totals: summary.thisMonth },
     { label: 'Next Month', totals: summary.nextMonth },
@@ -188,11 +103,22 @@ function CommitmentOutlook({ summary }: { summary: NonNullable<ReturnType<typeof
           </div>
         ))}
       </div>
+
+      {summary.autoDebitMonthly > 0 && (
+        <div className="flex items-center gap-3 pt-3 border-t border-border">
+          <div className="w-8 h-8 rounded-xl bg-accent-violet/10 flex items-center justify-center shrink-0">
+            <Zap className="w-4 h-4 text-accent-violet-light" />
+          </div>
+          <p className="text-xs text-text-secondary">
+            <span className="font-semibold text-text-primary">{formatCurrency(summary.autoDebitMonthly, 'INR', true)}/mo</span> leaves your account without asking — keep the balance ready.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
 
-function FrequencyMix({ summary }: { summary: NonNullable<ReturnType<typeof useBillsSummary>['data']> }) {
+export function FrequencyMix({ summary }: { summary: NonNullable<ReturnType<typeof useBillsSummary>['data']> }) {
   if (summary.byFrequency.length === 0) return null;
   return (
     <div className="glass-card rounded-2xl p-5 space-y-2.5">
@@ -213,7 +139,7 @@ function FrequencyMix({ summary }: { summary: NonNullable<ReturnType<typeof useB
   );
 }
 
-function InsightsPanel() {
+export function InsightsPanel() {
   const { data: insights } = useBillsInsights();
   if (!insights?.length) return null;
 
@@ -230,7 +156,7 @@ function InsightsPanel() {
         <Sparkles className="w-4 h-4 text-accent-violet-light" />
         <h3 className="text-sm font-semibold text-text-primary">Smart Insights</h3>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 gap-2">
         {insights.map((insight, i) => (
           <div key={i} className={cn('rounded-xl border px-3 py-2.5 text-xs flex items-start gap-2', severityStyle[insight.severity])}>
             <span className="shrink-0">{insight.icon}</span>
