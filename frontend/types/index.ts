@@ -174,12 +174,20 @@ export interface TrendPoint {
   totalPnl: number;
 }
 
+export interface NetWorthTrendPoint {
+  date: string;
+  netWorth: number;
+  totalAssets: number;
+  totalLiabilities: number;
+}
+
 export interface InvestmentCalendarEntry {
   date: string;
   investmentId: string;
   assetName: string;
   assetType: AssetType;
   amount: number;
+  accountName: string | null;
 }
 
 export type AssetClass = 'Equity' | 'Debt' | 'Gold' | 'Real Estate' | 'Crypto' | 'Other';
@@ -460,7 +468,7 @@ export interface RecurringBill {
   tags: string[];
   member: Pick<FamilyMember, 'id' | 'name' | 'color' | 'emoji'> | null;
   account: Pick<Account, 'id' | 'name' | 'type'> | null;
-  creditCard: { id: string; cardName: string; lastFourDigits: string | null } | null;
+  creditCard: { id: string; cardName: string; lastFourDigits: string | null; bank: string | null } | null;
   createdAt: string;
   updatedAt: string;
   // computed by backend
@@ -856,8 +864,20 @@ export interface DebtStrategy {
   interestSavedSnowball: number;
   bestStrategy: 'avalanche' | 'snowball';
   totalInterestSaved: number;
+  totalInterestRemaining: number;
   contractedSchedule: number[];
   acceleratedSchedule: number[];
+}
+
+export interface DebtOverview {
+  totalOutstanding: number;
+  totalMonthlyEMI: number;
+  activeLoanCount: number;
+}
+
+export interface DebtTrendPoint {
+  date: string;
+  totalOutstanding: number;
 }
 
 export interface PrepaymentResult {

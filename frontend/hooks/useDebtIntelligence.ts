@@ -2,7 +2,27 @@
 
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import { HealthScoreResult, DebtStrategy, PrepaymentResult, CalendarEntry, Recommendation, FundingOpportunity, ApiResponse } from '@/types';
+import { HealthScoreResult, DebtStrategy, PrepaymentResult, CalendarEntry, Recommendation, FundingOpportunity, DebtOverview, DebtTrendPoint, ApiResponse } from '@/types';
+
+export function useDebtOverview() {
+  return useQuery({
+    queryKey: ['debt', 'overview'],
+    queryFn: async () => {
+      const res = await api.get<ApiResponse<DebtOverview>>('/debt/overview');
+      return res.data.data;
+    },
+  });
+}
+
+export function useDebtTrend(days = 180) {
+  return useQuery({
+    queryKey: ['debt', 'debt-trend', days],
+    queryFn: async () => {
+      const res = await api.get<ApiResponse<DebtTrendPoint[]>>('/debt/debt-trend', { params: { days } });
+      return res.data.data;
+    },
+  });
+}
 
 export function useHealthScore() {
   return useQuery({

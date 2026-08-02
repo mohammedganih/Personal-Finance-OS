@@ -174,6 +174,7 @@ export interface InvestmentCalendarEntry {
   assetName: string;
   assetType: string;
   amount: number;
+  accountName: string | null;
 }
 
 /**
@@ -182,7 +183,7 @@ export interface InvestmentCalendarEntry {
  * from purchaseDate since there's no separate due-day field.
  */
 export function buildInvestmentCalendar(
-  investments: { id: string; assetName: string; assetType: string; purchaseDate: Date; monthlyAmount: number | null }[],
+  investments: { id: string; assetName: string; assetType: string; purchaseDate: Date; monthlyAmount: number | null; accountName: string | null }[],
   monthsAhead: number,
   now: Date,
 ): InvestmentCalendarEntry[] {
@@ -196,7 +197,7 @@ export function buildInvestmentCalendar(
     if (cursor < now) cursor = addMonthsClamped(cursor, 1, anchorDay);
     let count = 0;
     while (cursor <= horizonEnd && count < monthsAhead) {
-      entries.push({ date: new Date(cursor), investmentId: inv.id, assetName: inv.assetName, assetType: inv.assetType, amount: inv.monthlyAmount });
+      entries.push({ date: new Date(cursor), investmentId: inv.id, assetName: inv.assetName, assetType: inv.assetType, amount: inv.monthlyAmount, accountName: inv.accountName });
       cursor = addMonthsClamped(cursor, 1, anchorDay);
       count++;
     }
@@ -209,10 +210,10 @@ export function buildInvestmentCalendar(
 export async function getInvestmentCalendar(userId: string, monthsAhead = 3): Promise<InvestmentCalendarEntry[]> {
   const investments = await prisma.investment.findMany({
     where: { userId },
-    select: { id: true, assetName: true, assetType: true, purchaseDate: true, monthlyAmount: true },
+    select: { id: true, assetName: true, assetType: true, purchaseDate: true, monthlyAmount: true, bankAccount: { select: { name: true } } },
   });
   return buildInvestmentCalendar(
-    investments.map((i) => ({ ...i, monthlyAmount: i.monthlyAmount ? Number(i.monthlyAmount) : null })),
+    investments.map((i) => ({ ...i, monthlyAmount: i.monthlyAmount ? Number(i.monthlyAmount) : null, accountName: i.bankAccount?.name ?? null })),
     monthsAhead,
     new Date(),
   );

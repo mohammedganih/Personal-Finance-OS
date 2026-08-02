@@ -1,12 +1,26 @@
 import { Response } from 'express';
 import { AuthRequest } from '../types';
 import * as dashboardService from '../services/dashboard.service';
+import * as netWorthService from '../services/netWorth.service';
 import { parsePeriod } from '../lib/period';
 
 export async function getOverview(req: AuthRequest, res: Response) {
   const { month, year } = parsePeriod(req);
   const overview = await dashboardService.getDashboardOverview(req.user!.userId, month, year);
+  // Record-on-read, same idempotent pattern as investment snapshots: net
+  // worth here reflects real account/investment/debt balances as of right
+  // now (not month-filtered), so it's safe to record under today's date
+  // regardless of which period the dashboard's selector is showing.
+  await netWorthService.recordNetWorthSnapshot(req.user!.userId, {
+    netWorth: overview.netWorth, totalAssets: overview.totalAssets, totalLiabilities: overview.totalLiabilities,
+  });
   res.json({ success: true, data: overview });
+}
+
+export async function getNetWorthTrend(req: AuthRequest, res: Response) {
+  const days = parseInt((req.query.days as string) || '180');
+  const data = await netWorthService.getNetWorthTrend(req.user!.userId, days);
+  res.json({ success: true, data });
 }
 
 export async function getCashflow(req: AuthRequest, res: Response) {

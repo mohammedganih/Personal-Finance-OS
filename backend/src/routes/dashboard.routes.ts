@@ -7,6 +7,7 @@ const router = Router();
 router.use(authenticate);
 
 router.get('/overview', dashboardController.getOverview);
+router.get('/net-worth-trend', dashboardController.getNetWorthTrend);
 router.get('/cashflow', dashboardController.getCashflow);
 router.get('/expense-breakdown', dashboardController.getExpenseBreakdown);
 router.get('/insights', dashboardController.getInsights);

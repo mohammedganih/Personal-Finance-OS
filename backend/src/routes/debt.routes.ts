@@ -6,6 +6,8 @@ const router = Router();
 
 router.use(authenticate);
 
+router.get('/overview', debtController.getOverview);
+router.get('/debt-trend', debtController.getDebtTrend);
 router.get('/health-score', debtController.getHealthScore);
 router.get('/strategy', debtController.getStrategy);
 router.get('/prepayment', debtController.getPrepayment);

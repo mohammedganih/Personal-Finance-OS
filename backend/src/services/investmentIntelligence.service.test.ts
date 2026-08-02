@@ -262,7 +262,7 @@ describe('buildInvestmentCalendar (pure)', () => {
 
   it('projects SIP debits on their purchaseDate day-of-month', () => {
     const entries = buildInvestmentCalendar(
-      [{ id: 'a', assetName: 'SIP A', assetType: 'SIP', purchaseDate: new Date(2024, 0, 5), monthlyAmount: 5000 }],
+      [{ id: 'a', assetName: 'SIP A', assetType: 'SIP', purchaseDate: new Date(2024, 0, 5), monthlyAmount: 5000, accountName: null }],
       3, now,
     );
     expect(entries.length).toBeGreaterThan(0);
@@ -272,7 +272,7 @@ describe('buildInvestmentCalendar (pure)', () => {
 
   it('skips lump-sum types entirely', () => {
     const entries = buildInvestmentCalendar(
-      [{ id: 'a', assetName: 'Stock A', assetType: 'STOCK', purchaseDate: new Date(2024, 0, 5), monthlyAmount: null }],
+      [{ id: 'a', assetName: 'Stock A', assetType: 'STOCK', purchaseDate: new Date(2024, 0, 5), monthlyAmount: null, accountName: null }],
       3, now,
     );
     expect(entries).toHaveLength(0);
@@ -280,7 +280,7 @@ describe('buildInvestmentCalendar (pure)', () => {
 
   it('skips installment types with no monthlyAmount configured', () => {
     const entries = buildInvestmentCalendar(
-      [{ id: 'a', assetName: 'SIP A', assetType: 'SIP', purchaseDate: new Date(2024, 0, 5), monthlyAmount: null }],
+      [{ id: 'a', assetName: 'SIP A', assetType: 'SIP', purchaseDate: new Date(2024, 0, 5), monthlyAmount: null, accountName: null }],
       3, now,
     );
     expect(entries).toHaveLength(0);

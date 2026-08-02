@@ -131,6 +131,30 @@
     background-size: 200% 100%;
     animation: shimmer 2s infinite linear;
   }
+
+  /* Scoped light-theme card -- Dashboard route + nav chrome only, see the
+     `paper`/`ink`/`mono` tokens in tailwind.config.ts. Not a dark-mode
+     replacement for .glass-card; every other page keeps using that. */
+  .card-light {
+    @apply bg-paper-card border border-line rounded-2xl shadow-soft;
+  }
+
+  .card-light-hover {
+    @apply card-light transition-all duration-200;
+  }
+
+  .card-light-hover:hover {
+    @apply shadow-soft-hover;
+    transform: translateY(-1px);
+  }
+
+  .badge-up-light {
+    @apply inline-flex items-center gap-1 text-xs font-medium text-updown-up bg-updown-up-muted px-2 py-0.5 rounded-full;
+  }
+
+  .badge-down-light {
+    @apply inline-flex items-center gap-1 text-xs font-medium text-updown-down bg-updown-down-muted px-2 py-0.5 rounded-full;
+  }
 }
 
 @layer utilities {

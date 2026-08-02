@@ -28,7 +28,7 @@ import {
 const BILL_INCLUDE = {
   member: { select: { id: true, name: true, color: true, emoji: true } },
   account: { select: { id: true, name: true, type: true } },
-  creditCard: { select: { id: true, cardName: true, lastFourDigits: true } },
+  creditCard: { select: { id: true, cardName: true, lastFourDigits: true, bank: true } },
 } satisfies Prisma.RecurringBillInclude;
 
 type BillWithRelations = Prisma.RecurringBillGetPayload<{ include: typeof BILL_INCLUDE }>;

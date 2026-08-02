@@ -3,6 +3,7 @@ import { calcEMIOutstanding } from './card-emi.service';
 import { simulatePayoff } from './family.service';
 import { createError } from '../middleware/error.middleware';
 import { addMonthsClamped } from '../lib/dateMath';
+import { recordDebtSnapshot } from './debtSnapshot.service';
 
 export type DebtSourceType = 'LOAN' | 'CREDIT_CARD' | 'CARD_EMI';
 
@@ -142,6 +143,47 @@ export function computeDebtStats(debt: UnifiedDebt): DebtWithStats {
 export async function getUnifiedDebtsWithStats(userId: string): Promise<DebtWithStats[]> {
   const debts = await getUnifiedDebts(userId);
   return debts.map(computeDebtStats);
+}
+
+export interface DebtOverview {
+  totalOutstanding: number;
+  totalMonthlyEMI: number;
+  activeLoanCount: number;
+}
+
+/**
+ * The plain "how much do I owe in total" figure -- unconditional loan +
+ * credit card (revolving + EMI-blocked) outstanding, unlike
+ * getUnifiedDebts's simulation-ready total which deliberately excludes a
+ * card missing minimumPayment/interestRate. A headline total shouldn't
+ * silently drop a real debt just because it can't be simulated. Records a
+ * daily snapshot as a side effect, same record-on-read pattern as
+ * netWorth.service's recordNetWorthSnapshot.
+ */
+export async function getDebtOverview(userId: string): Promise<DebtOverview> {
+  const [loans, cards, cardEmis] = await Promise.all([
+    prisma.loan.findMany({ where: { userId, isActive: true } }),
+    prisma.creditCard.findMany({ where: { userId, isActive: true } }),
+    prisma.cardEMI.findMany({ where: { userId, isArchived: false } }),
+  ]);
+
+  const loanOutstanding = loans.reduce((s, l) => s + Number(l.remainingBalance), 0);
+  const cardOutstanding = cards.reduce((s, c) => s + Number(c.outstanding), 0);
+  const cardEmiOutstanding = cardEmis.reduce((s, e) => s + calcEMIOutstanding(e), 0);
+  const totalOutstanding = loanOutstanding + cardOutstanding + cardEmiOutstanding;
+
+  // A card's minimumPayment is only a *separate* monthly obligation when
+  // there's a real revolving balance behind it (same gating rule
+  // getUnifiedDebts already uses below) -- when outstanding is 0, whatever
+  // was entered there is describing the same cycle's total due that the
+  // card's own EMIs already cover, so adding it again would double-count.
+  const totalMonthlyEMI = loans.reduce((s, l) => s + Number(l.emi), 0)
+    + cards.reduce((s, c) => s + (Number(c.outstanding) > 0 ? Number(c.minimumPayment ?? 0) : 0), 0)
+    + cardEmis.reduce((s, e) => s + Number(e.emiAmount), 0);
+
+  await recordDebtSnapshot(userId, totalOutstanding);
+
+  return { totalOutstanding, totalMonthlyEMI, activeLoanCount: loans.length };
 }
 
 // ── Health Score ────────────────────────────────────────────────────────────
@@ -304,6 +346,10 @@ export async function getDebtStrategy(userId: string, extraPayment = 5000) {
     interestSavedSnowball,
     bestStrategy,
     totalInterestSaved,
+    // The contracted (zero-extra) simulation's total interest across the
+    // whole remaining debt picture -- already computed above to derive the
+    // "saved" figures, just not previously exposed on its own.
+    totalInterestRemaining: base.totalInterest,
     // Month-by-month total balance for the repayment timeline chart -- the
     // "contracted" pace (today's actual EMIs/minimums, no extra payment) vs
     // the "accelerated" pace (the recommended order + the extra payment).

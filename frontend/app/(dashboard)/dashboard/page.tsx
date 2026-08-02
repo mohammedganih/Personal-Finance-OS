@@ -1,68 +1,42 @@
 'use client';
 
-import Link from 'next/link';
-import { LineChart, ArrowRight } from 'lucide-react';
-import { PageShell } from '@/components/ui/PageShell';
-import { PageHeader } from '@/components/ui/PageHeader';
-import { FinancialHero } from '@/components/dashboard/FinancialHero';
-import { SnapshotBar } from '@/components/dashboard/SnapshotBar';
-import { BudgetOverview } from '@/components/dashboard/BudgetOverview';
-import { InvestmentAllocation } from '@/components/dashboard/InvestmentAllocation';
-import { GoalProgressCard } from '@/components/dashboard/GoalProgressCard';
-import { UpcomingEMIs } from '@/components/dashboard/UpcomingEMIs';
-import { HomeEquityCard } from '@/components/dashboard/HomeEquityCard';
-import { RecentTransactions } from '@/components/dashboard/RecentTransactions';
-import { QuickInsights } from '@/components/dashboard/QuickInsights';
+import { StatsRow } from '@/components/dashboard/light/StatsRow';
+import { CashFlowSankey } from '@/components/dashboard/light/CashFlowSankey';
+import { FinancialHealthGauge } from '@/components/dashboard/light/FinancialHealthGauge';
+import { UpcomingList } from '@/components/dashboard/light/UpcomingList';
+import { GoalProgressLight } from '@/components/dashboard/light/GoalProgressLight';
+import { InvestmentsOverviewDonut } from '@/components/dashboard/light/InvestmentsOverviewDonut';
+import { AiInsightsLight } from '@/components/dashboard/light/AiInsightsLight';
+import { QuickActionsRow } from '@/components/dashboard/light/QuickActionsRow';
 
+// Light-theme Dashboard -- scoped to this route only, see
+// app/(dashboard)/layout.tsx. No PageShell/PageHeader here: those are the
+// dark design system's chrome, and HeaderLight already carries the
+// greeting for this page.
+//
+// A 4-unit grid per row, but the ratio flips between the two rows: row 1 is
+// Cash Flow (wide) / Financial Health / Upcoming (2:1:1), row 2 is Goal
+// Progress (narrow) / Investments Overview (wide) / AI Insights (1:2:1) --
+// Investments Overview needs the extra width for its Total Value/P&L/All
+// Time Return stats alongside the donut, not just the ring.
 export default function DashboardPage() {
   return (
-    <PageShell width="wide">
-      <PageHeader title="Dashboard" />
+    <div className="space-y-4 mx-auto max-w-7xl">
+      <StatsRow />
 
-      {/* The hero carries the greeting, the "how am I doing" narrative, and
-          the one number that matters most -- net worth. Everything below is
-          context, not competition. See the redesign dossier, pass 01. */}
-      <FinancialHero />
-      <SnapshotBar />
-
-      {/* Retirement planning (Freedom Plan) and the full Safe-to-Save
-          breakdown live on Goals and Budgets respectively -- this page
-          stays a glance, not a planning tool. */}
-      <Link
-        href="/analytics"
-        className="glass-card-hover rounded-2xl p-4 flex items-center justify-between group"
-      >
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-accent-violet/10 flex items-center justify-center shrink-0">
-            <LineChart className="w-4 h-4 text-accent-violet-light" />
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-text-primary">View full analytics</p>
-            <p className="text-xs text-text-secondary mt-0.5">Cashflow trends, expense breakdown, and per-person split</p>
-          </div>
-        </div>
-        <ArrowRight className="w-4 h-4 text-text-muted group-hover:text-accent-violet-light group-hover:translate-x-0.5 transition-all" />
-      </Link>
-
-      <BudgetOverview />
-
-      {/* Middle Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <InvestmentAllocation />
-        <GoalProgressCard />
-        <UpcomingEMIs />
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 items-start">
+        <div className="lg:col-span-2"><CashFlowSankey /></div>
+        <FinancialHealthGauge />
+        <UpcomingList />
       </div>
 
-      {/* Home Equity -- only renders once a loan is linked to an asset */}
-      <HomeEquityCard />
-
-      {/* Bottom Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2">
-          <RecentTransactions />
-        </div>
-        <QuickInsights />
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 items-start">
+        <GoalProgressLight />
+        <div className="lg:col-span-2"><InvestmentsOverviewDonut /></div>
+        <AiInsightsLight />
       </div>
-    </PageShell>
+
+      <QuickActionsRow />
+    </div>
   );
 }

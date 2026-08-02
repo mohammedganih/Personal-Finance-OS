@@ -1,5 +1,5 @@
 import {
-  LayoutDashboard,
+  Home,
   ArrowLeftRight,
   TrendingUp,
   Target,
@@ -8,17 +8,21 @@ import {
   BarChart3,
   Settings,
   PiggyBank,
+  Wallet,
+  FileText,
 } from 'lucide-react';
 
 export const NAV_ITEMS = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/dashboard', label: 'Dashboard', icon: Home },
   { href: '/transactions', label: 'Transactions', icon: ArrowLeftRight },
+  { href: '/accounts', label: 'Accounts', icon: Wallet },
   { href: '/budgets', label: 'Budgets', icon: PiggyBank },
   { href: '/investments', label: 'Investments', icon: TrendingUp },
-  { href: '/goals', label: 'Goals', icon: Target },
   { href: '/loans', label: 'Loans', icon: CreditCard },
+  { href: '/goals', label: 'Goals', icon: Target },
   { href: '/bills', label: 'Bills', icon: Receipt },
   { href: '/analytics', label: 'Analytics', icon: BarChart3 },
+  { href: '/reports', label: 'Reports', icon: FileText },
   { href: '/settings', label: 'Settings', icon: Settings },
 ] as const;
 

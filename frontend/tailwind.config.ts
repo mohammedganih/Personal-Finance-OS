@@ -57,6 +57,41 @@ const config: Config = {
           DEFAULT: '#3B82F6',
           muted: 'rgba(59, 130, 246, 0.15)',
         },
+        // Scoped light palette -- Dashboard route + nav chrome only, see
+        // frontend/components/layout/*Light.tsx. Every other page keeps
+        // using the dark tokens above; do not reuse these elsewhere yet.
+        paper: {
+          DEFAULT: '#F9F9F7',
+          card: '#FFFFFF',
+          subtle: '#F3F3F1',
+        },
+        ink: {
+          primary: '#0B0B0B',
+          secondary: '#52514E',
+          muted: '#898781',
+        },
+        line: {
+          DEFAULT: 'rgba(11, 11, 11, 0.08)',
+          strong: 'rgba(11, 11, 11, 0.14)',
+        },
+        mono: {
+          DEFAULT: '#0B0B0B',
+          hover: '#262626',
+          muted: 'rgba(11, 11, 11, 0.06)',
+        },
+        updown: {
+          up: '#006300',
+          'up-muted': 'rgba(0, 99, 0, 0.10)',
+          down: '#D03B3B',
+          'down-muted': 'rgba(208, 59, 59, 0.10)',
+        },
+        gauge: {
+          excellent: '#0CA30C',
+          good: '#0CA30C',
+          fair: '#FAB219',
+          poor: '#EC835A',
+          critical: '#D03B3B',
+        },
         // shadcn/ui CSS variable bridge
         background: 'hsl(var(--background))',
         foreground: 'hsl(var(--foreground))',
@@ -105,6 +140,9 @@ const config: Config = {
         // (raised, standalone modules) and level 3 (floating, modals/sheets).
         raised: '0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.35)',
         floating: '0 4px 16px rgba(0, 0, 0, 0.4), 0 24px 56px rgba(0, 0, 0, 0.5)',
+        // Scoped light palette shadows -- see the `paper`/`ink`/`mono` tokens above.
+        soft: '0 1px 2px rgba(11, 11, 11, 0.04), 0 4px 16px rgba(11, 11, 11, 0.06)',
+        'soft-hover': '0 2px 6px rgba(11, 11, 11, 0.06), 0 16px 32px rgba(11, 11, 11, 0.10)',
       },
       transitionDuration: {
         micro: '120ms',

@@ -2,7 +2,19 @@ import { Response } from 'express';
 import { AuthRequest } from '../types';
 import * as debtService from '../services/debtIntelligence.service';
 import * as fundingIntelligenceService from '../services/fundingIntelligence.service';
+import * as debtSnapshotService from '../services/debtSnapshot.service';
 import { createError } from '../middleware/error.middleware';
+
+export async function getOverview(req: AuthRequest, res: Response) {
+  const result = await debtService.getDebtOverview(req.user!.userId);
+  res.json({ success: true, data: result });
+}
+
+export async function getDebtTrend(req: AuthRequest, res: Response) {
+  const days = req.query.days ? parseInt(req.query.days as string, 10) : 180;
+  const result = await debtSnapshotService.getDebtTrend(req.user!.userId, Math.min(Math.max(days, 1), 730));
+  res.json({ success: true, data: result });
+}
 
 export async function getHealthScore(req: AuthRequest, res: Response) {
   const result = await debtService.getHealthScore(req.user!.userId);
