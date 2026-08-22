@@ -9,6 +9,10 @@ import { TransactionForm } from "@/components/transactions/TransactionForm";
 import { InvestmentForm } from "@/components/investments/InvestmentForm";
 import { LoanForm } from "@/components/loans/LoanForm";
 import { BillForm } from "@/components/bills/BillForm";
+import { GoalForm } from "@/components/goals/GoalForm";
+import { BudgetForm } from "@/components/budgets/BudgetForm";
+import { useBudgets } from "@/hooks/useBudgets";
+import { AccountForm } from "@/components/settings/AccountSetup";
 
 function greeting(hour: number): string {
   if (hour < 12) return "Good morning";
@@ -33,6 +37,19 @@ export function HeaderLight() {
   const isInvestments = pathname === "/investments" || pathname.startsWith("/investments/");
   const isLoans = pathname === "/loans" || pathname.startsWith("/loans/");
   const isBills = pathname === "/bills" || pathname.startsWith("/bills/");
+  // Exact match only -- /goals/[id] (the goal detail page) isn't a light
+  // route, see app/(dashboard)/layout.tsx.
+  const isGoals = pathname === "/goals";
+  const isTransactions = pathname === "/transactions" || pathname.startsWith("/transactions/");
+  const isBudgets = pathname === "/budgets" || pathname.startsWith("/budgets/");
+  const isAccounts = pathname === "/accounts" || pathname.startsWith("/accounts/");
+
+  // Only Budgets' Add flow needs this (BudgetForm excludes already-budgeted
+  // categories from its picker) -- disabled everywhere else so this fetch
+  // doesn't fire on every other light route too. React Query dedupes
+  // against the same ['budgets', month, year] query the page's own cards
+  // already run.
+  const { data: budgets } = useBudgets(isBudgets);
 
   return (
     <>
@@ -52,6 +69,26 @@ export function HeaderLight() {
             <h1 className="text-base font-semibold text-ink-primary">Bills &amp; Subscriptions</h1>
             <p className="text-xs text-ink-muted">Track and manage all your recurring bills and subscriptions.</p>
           </div>
+        ) : isGoals ? (
+          <div>
+            <h1 className="text-base font-semibold text-ink-primary">Goals</h1>
+            <p className="text-xs text-ink-muted">Plan your future and achieve your dreams.</p>
+          </div>
+        ) : isTransactions ? (
+          <div>
+            <h1 className="text-base font-semibold text-ink-primary">Transactions</h1>
+            <p className="text-xs text-ink-muted">Track, analyze and manage your money flow in detail.</p>
+          </div>
+        ) : isBudgets ? (
+          <div>
+            <h1 className="text-base font-semibold text-ink-primary">Budgets</h1>
+            <p className="text-xs text-ink-muted">Plan your spending and stay in control of your money.</p>
+          </div>
+        ) : isAccounts ? (
+          <div>
+            <h1 className="text-base font-semibold text-ink-primary">Accounts</h1>
+            <p className="text-xs text-ink-muted">All your accounts in one place.</p>
+          </div>
         ) : (
           <div>
             <h1 className="text-base font-semibold text-ink-primary">
@@ -64,10 +101,11 @@ export function HeaderLight() {
         )}
 
         <div className="flex items-center gap-3">
-          {/* Bills is genuinely month-scoped, so it keeps the period
-              selector -- unlike Investments/Loans where nothing on the
-              page depends on it. */}
-          {!isInvestments && !isLoans && <PeriodSelectorLight />}
+          {/* Bills, Transactions and Budgets are genuinely month-scoped, so
+              they keep the period selector -- unlike Investments/Loans/
+              Goals/Accounts, where every figure shown is "as of now"
+              (balances, net worth), not scoped to a selected month. */}
+          {!isInvestments && !isLoans && !isGoals && !isAccounts && <PeriodSelectorLight />}
           <button
             aria-label="Search"
             className="w-9 h-9 flex items-center justify-center rounded-full bg-paper-card border border-line text-ink-secondary hover:text-ink-primary hover:border-line-strong transition-colors"
@@ -85,7 +123,7 @@ export function HeaderLight() {
             className="h-9 flex items-center gap-1.5 rounded-full bg-mono hover:bg-mono-hover text-white text-sm font-medium px-4 transition-colors"
           >
             <Plus className="w-4 h-4" />
-            {isInvestments ? "Add Investment" : isLoans ? "Add Loan" : isBills ? "Add New" : "Add"}
+            {isInvestments ? "Add Investment" : isLoans ? "Add Loan" : isBills ? "Add New" : isGoals ? "Add Goal" : isTransactions ? "Add Transaction" : isBudgets ? "Create Budget" : isAccounts ? "Add Account" : "Add"}
           </button>
         </div>
       </header>
@@ -96,6 +134,12 @@ export function HeaderLight() {
         ? <LoanForm onClose={() => setShowForm(false)} />
         : isBills
         ? <BillForm onClose={() => setShowForm(false)} />
+        : isGoals
+        ? <GoalForm onClose={() => setShowForm(false)} />
+        : isBudgets
+        ? <BudgetForm existingBudgets={budgets ?? []} onClose={() => setShowForm(false)} />
+        : isAccounts
+        ? <AccountForm onClose={() => setShowForm(false)} />
         : <TransactionForm onClose={() => setShowForm(false)} />
       )}
     </>

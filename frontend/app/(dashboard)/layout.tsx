@@ -18,8 +18,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // existing dark Sidebar/Header untouched -- see the design plan for why
   // this isn't a global theme toggle (no CSS-variable theme system exists in
   // this app; the dark tokens are hardcoded literal values).
-  const LIGHT_ROUTES = ['/dashboard', '/investments', '/loans', '/bills'];
-  const isLightRoute = LIGHT_ROUTES.some((r) => pathname === r || pathname.startsWith(r + '/'));
+  const LIGHT_ROUTES = ['/dashboard', '/investments', '/loans', '/bills', '/transactions', '/budgets', '/accounts'];
+  // Exact-only, not prefix-matched like the routes above: /goals/[id] is a
+  // real sub-route (the goal detail page) that hasn't been redesigned, so it
+  // must keep the dark Sidebar/Header rather than inherit a light chrome
+  // around still-dark page content.
+  const isLightRoute = LIGHT_ROUTES.some((r) => pathname === r || pathname.startsWith(r + '/')) || pathname === '/goals';
 
   useEffect(() => {
     // Auth state resolves asynchronously now (GET /auth/me, via AuthInitializer)

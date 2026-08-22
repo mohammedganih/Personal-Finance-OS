@@ -29,7 +29,10 @@ const schema = z.object({
 });
 type FormData = z.infer<typeof schema>;
 
-function AccountForm({ account, onClose }: { account?: Account; onClose: () => void }) {
+// Exported for reuse by the Accounts page's light-theme Add/Edit Account
+// flow -- same dialog, reused as-is rather than forked, matching how the
+// other light pages reuse GoalForm/LoanForm/BillForm unchanged.
+export function AccountForm({ account, onClose }: { account?: Account; onClose: () => void }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const isEdit = !!account;

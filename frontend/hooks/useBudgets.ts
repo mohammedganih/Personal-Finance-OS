@@ -6,9 +6,18 @@ import { Budget, ApiResponse } from '@/types';
 import { useToast } from '@/components/ui/use-toast';
 import { usePeriodStore } from '@/stores/period.store';
 
-export function useBudgets() {
+// enabled defaults to true; HeaderLight passes false on every route but
+// Budgets so its Add-flow fetch (needed to exclude already-budgeted
+// categories from the picker) doesn't fire on every other light route too.
+export function useBudgets(enabled = true) {
   const { month, year } = usePeriodStore();
+  return useBudgetsForPeriod(month, year, enabled);
+}
 
+// Explicit month/year rather than reading the period store -- lets the
+// Monthly Comparison card fetch the prior month's budgets regardless of
+// whatever period the header selector is currently showing.
+export function useBudgetsForPeriod(month: number, year: number, enabled = true) {
   return useQuery({
     // ['budgets'] as a prefix (below) still invalidates every month's cached
     // query on create/update/delete -- React Query matches by key prefix.
@@ -17,6 +26,7 @@ export function useBudgets() {
       const res = await api.get<ApiResponse<Budget[]>>('/budgets', { params: { month, year } });
       return res.data.data;
     },
+    enabled,
   });
 }
 
