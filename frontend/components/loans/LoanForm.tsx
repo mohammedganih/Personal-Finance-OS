@@ -18,6 +18,7 @@ import { LOAN_TYPE_LABELS, ASSET_TYPE_ICONS } from '@/lib/constants';
 import { Loan, Account } from '@/types';
 
 const schema = z.object({
+  paymentDay: z.preprocess(v => v === '' || v == null ? null : Number(v), z.number().int().min(1).max(31).nullable()).optional(),
   name:             z.string().min(1, 'Name required'),
   loanType:         z.enum(['HOME', 'CAR', 'PERSONAL', 'EDUCATION', 'BUSINESS', 'OTHER']),
   principal:        z.coerce.number().positive('Required'),
@@ -59,6 +60,7 @@ export function LoanForm({ onClose, loan }: LoanFormProps) {
           emi: loan.emi,
           remainingBalance: loan.remainingBalance,
           tenureMonths: loan.tenureMonths,
+          paymentDay: loan.paymentDay ?? null,
           startDate:     format(new Date(loan.startDate), 'yyyy-MM-dd'),
           lender:        loan.lender ?? '',
           memberId:      loan.memberId ?? undefined,
@@ -79,7 +81,7 @@ export function LoanForm({ onClose, loan }: LoanFormProps) {
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent>
+      <DialogContent className="max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEdit ? 'Edit Loan' : 'Add Loan'}</DialogTitle>
         </DialogHeader>
@@ -200,6 +202,12 @@ export function LoanForm({ onClose, loan }: LoanFormProps) {
             </Select>
           </div>
 
+          <div className="space-y-1.5">
+            <Label htmlFor="payment-day">Monthly payment day (optional)</Label>
+            <Input id="payment-day" type="number" min="1" max="31" {...register('paymentDay')} />
+            <p className="text-xs text-text-muted">Day 1-31. Defaults to the original start/purchase day. Shorter months use the last day.</p>
+            {errors.paymentDay && <p className="text-xs text-danger">Choose a day from 1 to 31.</p>}
+          </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
             <Button type="submit" disabled={isPending}>

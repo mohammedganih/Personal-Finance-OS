@@ -1,5 +1,7 @@
 'use client';
 
+import { MonthlyPayments } from '@/components/shared/MonthlyPayments';
+
 import { useState } from 'react';
 import { useDeleteInvestment } from '@/hooks/useInvestments';
 import { InvestmentForm } from '@/components/investments/InvestmentForm';
@@ -32,6 +34,7 @@ export default function InvestmentsPage() {
   return (
     <div className="space-y-4 mx-auto max-w-7xl">
       <StatsRowInvestments />
+      <MonthlyPayments type="INVESTMENT" />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
         <div className="lg:col-span-2"><PortfolioPerformanceChart /></div>

@@ -179,8 +179,9 @@ export function CardEMIForm({ onClose, emi, defaultCardId }: CardEMIFormProps) {
               <Input type="number" step="1" placeholder="0" {...register('emisPaid')} />
             </div>
             <div className="space-y-1.5">
-              <Label>Start Date</Label>
+              <Label>Purchase / Start Date</Label>
               <Input type="date" {...register('startDate')} />
+              <p className="text-xs text-text-muted">Payments follow the statement and due days of the selected card. Purchases after the statement day are billed in the next cycle.</p>
             </div>
           </div>
 

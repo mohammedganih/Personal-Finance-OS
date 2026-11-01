@@ -680,6 +680,10 @@ export async function getBillsCalendar(userId: string, startInput?: string, endI
     .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime())
     .map((occ) => ({
       billId: occ.bill.id,
+      effectiveBillStatus: effectiveStatus(occ.bill, today),
+      accountId: occ.bill.accountId,
+      creditCardId: occ.bill.creditCardId,
+      currency: occ.bill.currency,
       name: occ.bill.name,
       vendor: occ.bill.vendor,
       category: occ.bill.category,

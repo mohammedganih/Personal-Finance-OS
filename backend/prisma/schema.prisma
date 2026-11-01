@@ -120,6 +120,7 @@ enum SplitEntityType {
 // ─── Models ──────────────────────────────────────────────────────────────────
 
 model User {
+  monthlyPayments MonthlyPayment[]
   id           String   @id @default(cuid())
   email        String   @unique
   name         String
@@ -186,6 +187,9 @@ model Account {
   name      String
   type      AccountType
   balance   Decimal     @default(0) @db.Decimal(14, 2)
+  bankName  String?
+  preferredMinimum Decimal @default(0) @db.Decimal(14, 2)
+  isActive  Boolean @default(true)
   currency  String      @default("INR")
   color     String?
   icon      String?
@@ -199,6 +203,7 @@ model Account {
   loans          Loan[]          @relation("LoanBankAccount")
   goalsFunded    Goal[]          @relation("GoalFundingAccount")
   recurringBills RecurringBill[] @relation("BillAccount")
+  paymentCards CreditCard[] @relation("CardPaymentAccount")
 
   @@index([userId])
   @@index([memberId])
@@ -256,6 +261,8 @@ model Transaction {
 }
 
 model Investment {
+  paymentDay Int? // optional recurring contribution day
+  recurringActive Boolean @default(true) // stop future contributions without deleting the holding
   id           String    @id @default(cuid())
   userId       String
   assetName    String
@@ -373,6 +380,7 @@ model GoalContribution {
 }
 
 model Loan {
+  paymentDay Int? // optional monthly debit day; defaults to start-date day
   id               String   @id @default(cuid())
   userId           String
   memberId         String?  // who is the borrower
@@ -489,6 +497,8 @@ model BillOccurrence {
 }
 
 model CreditCard {
+  bankAccountId String?
+  bankAccount Account? @relation("CardPaymentAccount", fields: [bankAccountId], references: [id], onDelete: SetNull)
   id             String   @id @default(cuid())
   userId         String
   memberId       String?
@@ -665,4 +675,21 @@ model OwnershipSplit {
   @@unique([entityType, entityId])
   @@index([userId])
   @@map("ownership_splits")
+}
+
+// One monthly decision; unique key prevents duplicate ledger payments.
+model MonthlyPayment {
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id String @id @default(cuid())
+  userId String
+  entityType String
+  entityId String
+  month String
+  status BillOccurrenceStatus
+  amount Decimal @db.Decimal(14, 2)
+  transactionIds String[] @default([])
+  createdAt DateTime @default(now())
+  @@unique([userId, entityType, entityId, month])
+  @@index([userId, month])
+  @@map("monthly_payments")
 }

@@ -45,6 +45,7 @@ export function useCreateCardEMI() {
       qc.invalidateQueries({ queryKey: ['card-emis'] });
       qc.invalidateQueries({ queryKey: ['credit-cards'] });
       qc.invalidateQueries({ queryKey: ['dashboard'] });
+      qc.invalidateQueries({ queryKey: ['debt'] });
       toast({ title: 'Card EMI added' });
     },
     onError: () => toast({ title: 'Failed to add Card EMI', variant: 'destructive' }),
@@ -60,6 +61,7 @@ export function useUpdateCardEMI() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['card-emis'] });
       qc.invalidateQueries({ queryKey: ['dashboard'] });
+      qc.invalidateQueries({ queryKey: ['debt'] });
       toast({ title: 'Card EMI updated' });
     },
     onError: () => toast({ title: 'Failed to update', variant: 'destructive' }),
@@ -74,6 +76,7 @@ export function useDeleteCardEMI() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['card-emis'] });
       qc.invalidateQueries({ queryKey: ['dashboard'] });
+      qc.invalidateQueries({ queryKey: ['debt'] });
       toast({ title: 'Card EMI deleted' });
     },
     onError: () => toast({ title: 'Failed to delete', variant: 'destructive' }),
@@ -89,10 +92,15 @@ export function usePayCardEMI() {
     onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: ['card-emis'] });
       qc.invalidateQueries({ queryKey: ['transactions'] });
+      qc.invalidateQueries({ queryKey: ['accounts'] });
       qc.invalidateQueries({ queryKey: ['dashboard'] });
+      qc.invalidateQueries({ queryKey: ['debt'] });
       const { isComplete } = res.data.data;
       toast({ title: isComplete ? '🎉 EMI fully paid off!' : 'EMI instalment recorded' });
     },
-    onError: () => toast({ title: 'Failed to record payment', variant: 'destructive' }),
+    onError: (error: unknown) => {
+      const e = error as { response?: { data?: { message?: string } } };
+      toast({ title: e.response?.data?.message || 'Failed to record payment', variant: 'destructive' });
+    },
   });
 }

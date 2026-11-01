@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { differenceInMonths } from 'date-fns';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { MoreVertical, Plus, ChevronDown, CreditCard as CreditCardIcon } from 'lucide-react';
+import { useMonthlyPlan } from '@/hooks/useMonthlyPlan';
 import { useLoans, useDeleteLoan, usePayLoanEMI } from '@/hooks/useLoans';
 import { useCreditCards, useDeleteCreditCard } from '@/hooks/useCreditCards';
 import { useCardEMIs } from '@/hooks/useCardEMIs';
@@ -60,6 +61,7 @@ function MenuItem({ onSelect, danger, children }: { onSelect: () => void; danger
 }
 
 export function YourLoansTable() {
+  const { data: monthlyPlan } = useMonthlyPlan();
   const { data: loans, isLoading: loansLoading } = useLoans();
   const { data: cards, isLoading: cardsLoading } = useCreditCards();
   const { data: cardEmis } = useCardEMIs(false);
@@ -87,7 +89,7 @@ export function YourLoansTable() {
   const now = new Date();
 
   return (
-    <div className="card-light rounded-2xl p-5">
+    <div id="your-loans" className="card-light rounded-2xl p-5">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-semibold text-ink-primary">Your Loans</h3>
         <button
@@ -186,19 +188,9 @@ export function YourLoansTable() {
                 const emiOutstanding = cardEmisActive.reduce((s, e) => s + e.outstanding, 0);
                 const effectiveOutstanding = card.outstanding + emiOutstanding;
                 const utilization = card.creditLimit > 0 ? (effectiveOutstanding / card.creditLimit) * 100 : 0;
-                const cardEmiMonthly = cardEmisActive.reduce((s, e) => s + e.emiAmount, 0);
-                // Same rule as debtIntelligence.service's getDebtOverview: a
-                // minimumPayment only adds on top of the EMIs when there's a
-                // real revolving balance behind it -- with no revolving debt,
-                // whatever was entered there is already describing the same
-                // cycle's total due that the EMIs themselves cover.
-                const revolvingMinDue = card.outstanding > 0 ? (card.minimumPayment ?? 0) : 0;
-                const combinedMonthly = revolvingMinDue + cardEmiMonthly;
-                const monthlyLabel = revolvingMinDue > 0 && cardEmiMonthly > 0
-                  ? 'Min Due + EMIs'
-                  : cardEmiMonthly > 0
-                  ? 'EMI Payments'
-                  : 'Minimum Due';
+                const dueRows = monthlyPlan?.current.rows.filter(r => (r.type === 'CREDIT_CARD' && r.id === card.id) || (r.type === 'CARD_EMI' && r.creditCardId === card.id)) ?? [];
+                const combinedMonthly = dueRows.filter(r => r.status === 'PENDING').reduce((sum, row) => sum + row.amount, 0);
+                const monthlyLabel = monthlyPlan ? `Still due in ${monthlyPlan.current.month}` : 'Loading due amount';
 
                 return (
                   <tr key={card.id}>
@@ -225,7 +217,7 @@ export function YourLoansTable() {
                     </td>
                     <td className="px-1 py-3.5 whitespace-nowrap">
                       <p className="text-sm text-ink-primary tabular-nums">
-                        {combinedMonthly > 0 ? `${formatCurrency(combinedMonthly, 'INR', true)} / month` : '—'}
+                        {monthlyPlan ? formatCurrency(combinedMonthly, 'INR', true) : '...'}
                       </p>
                       <p className="text-xs text-ink-muted">{monthlyLabel}</p>
                     </td>

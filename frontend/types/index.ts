@@ -19,6 +19,9 @@ export interface AuthResponse {
 export type AccountType = 'SAVINGS' | 'CHECKING' | 'CREDIT_CARD' | 'INVESTMENT' | 'CASH' | 'OTHER';
 
 export interface Account {
+  bankName?: string | null;
+  preferredMinimum?: number;
+  isActive?: boolean;
   id: string;
   userId: string;
   name: string;
@@ -103,6 +106,8 @@ export type AssetType =
   | 'OTHER';
 
 export interface Investment {
+  paymentDay?: number | null;
+  recurringActive?: boolean;
   id: string;
   assetName: string;
   assetType: AssetType;
@@ -342,6 +347,7 @@ export interface GoalInsight {
 export type LoanType = 'HOME' | 'CAR' | 'PERSONAL' | 'EDUCATION' | 'BUSINESS' | 'OTHER';
 
 export interface Loan {
+  paymentDay?: number | null;
   id: string;
   name: string;
   loanType: LoanType;
@@ -715,6 +721,7 @@ export interface CardEMISummary {
 // ─── Credit Card ──────────────────────────────────────────────────────────────
 
 export interface CreditCard {
+  bankAccountId?: string | null;
   id: string;
   cardName: string;
   bank: string | null;

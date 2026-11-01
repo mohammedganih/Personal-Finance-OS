@@ -23,8 +23,11 @@ import { useToast } from '@/components/ui/use-toast';
 const schema = z.object({
   name:     z.string().min(1, 'Name required'),
   type:     z.enum(['SAVINGS', 'CHECKING', 'CREDIT_CARD', 'INVESTMENT', 'CASH', 'OTHER']),
-  balance:  z.coerce.number().default(0),
-  memberId: z.string().optional(),
+  balance:  z.coerce.number().finite().default(0),
+  bankName: z.string().optional(),
+  preferredMinimum: z.coerce.number().finite().min(0).default(0),
+  isActive: z.boolean().default(true),
+  memberId: z.string().optional().nullable(),
   color:    z.string().optional(),
 });
 type FormData = z.infer<typeof schema>;
@@ -39,12 +42,12 @@ export function AccountForm({ account, onClose }: { account?: Account; onClose: 
 
   const createMut = useMutation({
     mutationFn: (data: Record<string, unknown>) => api.post('/accounts', data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['accounts'] }); toast({ title: 'Account added' }); onClose(); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['accounts'] }); qc.invalidateQueries({ queryKey: ['dashboard'] }); toast({ title: 'Account added' }); onClose(); },
     onError: () => toast({ title: 'Failed', variant: 'destructive' }),
   });
   const updateMut = useMutation({
     mutationFn: (data: Record<string, unknown>) => api.put(`/accounts/${account!.id}`, data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['accounts'] }); toast({ title: 'Account updated' }); onClose(); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['accounts'] }); qc.invalidateQueries({ queryKey: ['dashboard'] }); toast({ title: 'Account updated' }); onClose(); },
     onError: () => toast({ title: 'Failed', variant: 'destructive' }),
   });
   const isPending = createMut.isPending || updateMut.isPending;
@@ -52,8 +55,8 @@ export function AccountForm({ account, onClose }: { account?: Account; onClose: 
   const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: account
-      ? { name: account.name, type: account.type, balance: account.balance, memberId: account.memberId ?? undefined }
-      : { type: 'SAVINGS', balance: 0 },
+      ? { name: account.name, type: account.type, balance: account.balance, bankName: account.bankName ?? '', preferredMinimum: account.preferredMinimum ?? 0, isActive: account.isActive ?? true, memberId: account.memberId }
+      : { type: 'SAVINGS', balance: 0, preferredMinimum: 0, isActive: true },
   });
 
   const onSubmit = (data: FormData) => {
@@ -63,7 +66,7 @@ export function AccountForm({ account, onClose }: { account?: Account; onClose: 
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-sm">
+      <DialogContent className="max-w-sm max-h-[90dvh] overflow-y-auto">
         <DialogHeader><DialogTitle>{isEdit ? 'Edit Account' : 'Add Bank Account'}</DialogTitle></DialogHeader>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-1.5">
@@ -75,7 +78,7 @@ export function AccountForm({ account, onClose }: { account?: Account; onClose: 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Type</Label>
-              <Select defaultValue={account?.type} onValueChange={(v) => setValue('type', v as FormData['type'])}>
+              <Select value={watch('type')} onValueChange={(v) => setValue('type', v as FormData['type'])}>
                 <SelectTrigger><SelectValue placeholder="Type" /></SelectTrigger>
                 <SelectContent>
                   {Object.entries(ACCOUNT_TYPE_LABELS).map(([k, v]) => (
@@ -90,10 +93,21 @@ export function AccountForm({ account, onClose }: { account?: Account; onClose: 
             </div>
           </div>
 
+          <div className="space-y-1.5">
+            <Label htmlFor="account-bank-name">Bank name (optional)</Label>
+            <Input id="account-bank-name" {...register('bankName')} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="account-minimum">Preferred minimum / safety balance (₹)</Label>
+            <Input id="account-minimum" type="number" min="0" step="0.01" {...register('preferredMinimum')} aria-describedby="minimum-help" />
+            <p id="minimum-help" className="text-xs text-text-muted">Optional safety amount you prefer to keep in this account. The dashboard uses whichever is higher: this amount or upcoming scheduled payments.</p>
+            {errors.preferredMinimum && <p className="text-xs text-danger">Enter a valid amount of 0 or more.</p>}
+          </div>
+          <label className="flex items-center gap-2 text-sm text-text-secondary"><input type="checkbox" {...register('isActive')} /> Active account</label>
           <MemberSelector
             label="Whose account?"
             value={watch('memberId')}
-            onChange={(id) => setValue('memberId', id ?? undefined)}
+            onChange={(id) => setValue('memberId', id)}
             allowJoint={true}
           />
 
@@ -118,7 +132,7 @@ export function AccountSetup() {
 
   const deleteMut = useMutation({
     mutationFn: (id: string) => api.delete(`/accounts/${id}`),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['accounts'] }); toast({ title: 'Account removed' }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['accounts'] }); qc.invalidateQueries({ queryKey: ['dashboard'] }); toast({ title: 'Account removed' }); },
     onError: () => toast({ title: 'Failed', variant: 'destructive' }),
   });
 
@@ -162,12 +176,12 @@ export function AccountSetup() {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-text-primary">{acc.name}</p>
-                <p className="text-xs text-text-muted">{ACCOUNT_TYPE_LABELS[acc.type]}</p>
+                <p className="text-xs text-text-muted">{ACCOUNT_TYPE_LABELS[acc.type]}{acc.isActive === false ? ' · Inactive' : ''} · Safety {formatCurrency(acc.preferredMinimum ?? 0)}</p>
               </div>
               <p className="text-sm font-semibold font-mono text-text-primary shrink-0">
                 {formatCurrency(acc.balance, 'INR', true)}
               </p>
-              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                 <button aria-label={`Edit ${acc.name}`} onClick={() => { setEditingAccount(acc); setShowForm(true); }} className="p-1.5 rounded text-text-muted hover:text-accent-violet-light transition-colors">
                   <Pencil className="w-3.5 h-3.5" />
                 </button>

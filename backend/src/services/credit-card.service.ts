@@ -14,9 +14,11 @@ export async function getCreditCards(userId: string) {
 }
 
 export async function createCreditCard(userId: string, input: CreateCreditCardInput) {
+  await validatePaymentAccount(userId, input.bankAccountId);
   const card = await prisma.creditCard.create({
     data: {
       userId,
+      bankAccountId: input.bankAccountId,
       cardName:       input.cardName,
       bank:           input.bank,
       lastFourDigits: input.lastFourDigits,
@@ -37,9 +39,11 @@ export async function updateCreditCard(userId: string, id: string, input: Update
   const existing = await prisma.creditCard.findFirst({ where: { id, userId } });
   if (!existing) throw createError('Credit card not found', 404);
 
+  await validatePaymentAccount(userId, input.bankAccountId);
   const card = await prisma.creditCard.update({
     where: { id },
     data: {
+      ...(input.bankAccountId !== undefined && { bankAccountId: input.bankAccountId }),
       ...(input.cardName       !== undefined && { cardName: input.cardName }),
       ...(input.bank           !== undefined && { bank: input.bank }),
       ...(input.lastFourDigits !== undefined && { lastFourDigits: input.lastFourDigits }),
@@ -118,4 +122,8 @@ function serialize(card: CreditCard) {
     minimumPayment: card.minimumPayment ? Number(card.minimumPayment) : null,
     interestRate:   card.interestRate   ? Number(card.interestRate)   : null,
   };
+}
+
+async function validatePaymentAccount(userId: string, id?: string | null) {
+  if (id && !await prisma.account.findFirst({ where: { id, userId, isActive: true, type: { in: ['SAVINGS', 'CHECKING'] } } })) throw createError('Active bank account not found', 404);
 }

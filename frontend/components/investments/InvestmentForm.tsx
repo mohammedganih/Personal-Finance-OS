@@ -113,6 +113,8 @@ const FIELD_CONFIG: Record<AssetType, FieldSet> = {
 
 // ── Zod schema ────────────────────────────────────────────────────────────────
 const schema = z.object({
+  paymentDay: z.preprocess(v => v === '' || v == null ? null : Number(v), z.number().int().min(1).max(31).nullable()).optional(),
+  recurringActive: z.boolean().default(true),
   assetName:     z.string().min(1, 'Name required'),
   assetType:     z.enum(Object.keys(ASSET_TYPE_LABELS) as [AssetType, ...AssetType[]]),
   purchaseDate:  z.string().min(1, 'Date required'),
@@ -165,6 +167,8 @@ export function InvestmentForm({ onClose, investment }: InvestmentFormProps) {
           assetType:     investment.assetType,
           ticker:        investment.ticker ?? '',
           exchange:      investment.exchange ?? '',
+          paymentDay: investment.paymentDay ?? null,
+          recurringActive: investment.recurringActive ?? true,
           purchaseDate:  format(new Date(investment.purchaseDate), 'yyyy-MM-dd'),
           quantity:      investment.quantity,
           buyPrice:      investment.buyPrice,
@@ -185,6 +189,7 @@ export function InvestmentForm({ onClose, investment }: InvestmentFormProps) {
         }
       : {
           assetType:    defaultType,
+          recurringActive: true,
           purchaseDate: format(new Date(), 'yyyy-MM-dd'),
         },
   });
@@ -481,6 +486,15 @@ export function InvestmentForm({ onClose, investment }: InvestmentFormProps) {
             </div>
           </div>
 
+          {cfg.monthlyAmount && <>
+            <div className="space-y-1.5">
+              <Label htmlFor="payment-day">Monthly payment day (optional)</Label>
+              <Input id="payment-day" type="number" min="1" max="31" {...register('paymentDay')} />
+              <p className="text-xs text-text-muted">Day 1-31. Defaults to the purchase day. Shorter months use the last day.</p>
+              {errors.paymentDay && <p className="text-xs text-danger">Choose a day from 1 to 31.</p>}
+            </div>
+            <label className="flex items-center gap-2 text-sm text-text-secondary"><input type="checkbox" {...register('recurringActive')} /> Active recurring contributions</label>
+          </>}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
             <Button type="submit" disabled={isPending}>

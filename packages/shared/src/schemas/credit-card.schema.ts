@@ -3,6 +3,7 @@ import { z } from 'zod';
 const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
 
 export const createCreditCardSchema = z.object({
+  bankAccountId: z.string().cuid().optional().nullable(),
   cardName:       z.string().min(1).max(255),
   bank:           z.string().max(100).optional(),
   lastFourDigits: z.string().length(4).regex(/^\d{4}$/).optional(),

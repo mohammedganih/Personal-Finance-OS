@@ -30,7 +30,8 @@ export function useCreateInvestment() {
   const { toast } = useToast();
   return useMutation({
     mutationFn: (data: Record<string, unknown>) => api.post('/investments', data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['investments'] }); qc.invalidateQueries({ queryKey: ['dashboard'] }); toast({ title: 'Investment added' }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['investments'] }); qc.invalidateQueries({ queryKey: ['dashboard'] }); qc.invalidateQueries({ queryKey: ['dashboard', 'monthly-plan'] });
+      toast({ title: 'Investment added' }); },
     onError: () => toast({ title: 'Failed to add investment', variant: 'destructive' }),
   });
 }
@@ -40,7 +41,8 @@ export function useUpdateInvestment() {
   const { toast } = useToast();
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) => api.put(`/investments/${id}`, data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['investments'] }); toast({ title: 'Investment updated' }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['investments'] }); qc.invalidateQueries({ queryKey: ['dashboard', 'monthly-plan'] });
+      toast({ title: 'Investment updated' }); },
     onError: () => toast({ title: 'Failed to update investment', variant: 'destructive' }),
   });
 }
@@ -50,7 +52,8 @@ export function useDeleteInvestment() {
   const { toast } = useToast();
   return useMutation({
     mutationFn: (id: string) => api.delete(`/investments/${id}`),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['investments'] }); qc.invalidateQueries({ queryKey: ['dashboard'] }); toast({ title: 'Investment deleted' }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['investments'] }); qc.invalidateQueries({ queryKey: ['dashboard'] }); qc.invalidateQueries({ queryKey: ['dashboard', 'monthly-plan'] });
+      toast({ title: 'Investment deleted' }); },
     onError: () => toast({ title: 'Failed to delete investment', variant: 'destructive' }),
   });
 }

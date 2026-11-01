@@ -27,6 +27,7 @@ export function useDeleteAccount() {
     mutationFn: (id: string) => api.delete(`/accounts/${id}`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['accounts'] });
+      qc.invalidateQueries({ queryKey: ['dashboard'] });
       toast({ title: 'Account removed' });
     },
     onError: () => toast({ title: 'Failed to remove account', variant: 'destructive' }),

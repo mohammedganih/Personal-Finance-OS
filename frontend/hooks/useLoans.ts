@@ -20,7 +20,8 @@ export function useCreateLoan() {
   const { toast } = useToast();
   return useMutation({
     mutationFn: (data: Record<string, unknown>) => api.post('/loans', data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['loans'] }); qc.invalidateQueries({ queryKey: ['dashboard'] }); toast({ title: 'Loan added' }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['loans'] }); qc.invalidateQueries({ queryKey: ['dashboard'] }); qc.invalidateQueries({ queryKey: ['dashboard', 'monthly-plan'] });
+      toast({ title: 'Loan added' }); },
     onError: () => toast({ title: 'Failed to add loan', variant: 'destructive' }),
   });
 }
@@ -30,7 +31,8 @@ export function useUpdateLoan() {
   const { toast } = useToast();
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) => api.put(`/loans/${id}`, data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['loans'] }); toast({ title: 'Loan updated' }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['loans'] }); qc.invalidateQueries({ queryKey: ['dashboard', 'monthly-plan'] });
+      toast({ title: 'Loan updated' }); },
     onError: () => toast({ title: 'Failed to update loan', variant: 'destructive' }),
   });
 }
@@ -40,7 +42,8 @@ export function useDeleteLoan() {
   const { toast } = useToast();
   return useMutation({
     mutationFn: (id: string) => api.delete(`/loans/${id}`),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['loans'] }); toast({ title: 'Loan deleted' }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['loans'] }); qc.invalidateQueries({ queryKey: ['dashboard', 'monthly-plan'] });
+      toast({ title: 'Loan deleted' }); },
     onError: () => toast({ title: 'Failed to delete loan', variant: 'destructive' }),
   });
 }
@@ -56,6 +59,7 @@ export function usePayLoanEMI() {
       qc.invalidateQueries({ queryKey: ['transactions'] });
       qc.invalidateQueries({ queryKey: ['dashboard'] });
       const { isPaidOff } = res.data.data;
+      qc.invalidateQueries({ queryKey: ['dashboard', 'monthly-plan'] });
       toast({ title: isPaidOff ? '🎉 Loan fully paid off!' : 'EMI payment recorded' });
     },
     onError: () => toast({ title: 'Failed to record payment', variant: 'destructive' }),
@@ -72,6 +76,7 @@ export function useLinkLoanAsset() {
       qc.invalidateQueries({ queryKey: ['loans'] });
       qc.invalidateQueries({ queryKey: ['investments'] });
       qc.invalidateQueries({ queryKey: ['asset-loans'] });
+      qc.invalidateQueries({ queryKey: ['dashboard', 'monthly-plan'] });
       toast({ title: 'Asset link updated' });
     },
     onError: () => toast({ title: 'Failed to update asset link', variant: 'destructive' }),

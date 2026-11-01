@@ -1,5 +1,8 @@
 'use client';
 
+import { AccountFundingPlan } from '@/components/dashboard/AccountFundingPlan';
+import { MonthlyPayments } from '@/components/shared/MonthlyPayments';
+
 import { StatsRow } from '@/components/dashboard/light/StatsRow';
 import { CashFlowSankey } from '@/components/dashboard/light/CashFlowSankey';
 import { FinancialHealthGauge } from '@/components/dashboard/light/FinancialHealthGauge';
@@ -14,8 +17,9 @@ import { QuickActionsRow } from '@/components/dashboard/light/QuickActionsRow';
 // dark design system's chrome, and HeaderLight already carries the
 // greeting for this page.
 //
-// A 4-unit grid per row, but the ratio flips between the two rows: row 1 is
-// Cash Flow (wide) / Financial Health / Upcoming (2:1:1), row 2 is Goal
+// Actionable funding and upcoming payments precede the analytics rows.
+// A 4-unit analytics grid: row 1 is
+// Cash Flow (wide) / Financial Health (3:1), row 2 is Goal
 // Progress (narrow) / Investments Overview (wide) / AI Insights (1:2:1) --
 // Investments Overview needs the extra width for its Total Value/P&L/All
 // Time Return stats alongside the donut, not just the ring.
@@ -23,11 +27,15 @@ export default function DashboardPage() {
   return (
     <div className="space-y-4 mx-auto max-w-7xl">
       <StatsRow />
+      <AccountFundingPlan />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-stretch">
+        <div className="lg:col-span-2 h-full"><MonthlyPayments /></div>
+        <UpcomingList />
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 items-start">
-        <div className="lg:col-span-2"><CashFlowSankey /></div>
+        <div className="lg:col-span-3"><CashFlowSankey /></div>
         <FinancialHealthGauge />
-        <UpcomingList />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 items-start">

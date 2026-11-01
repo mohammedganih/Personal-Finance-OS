@@ -1,3 +1,4 @@
+import { decideMonthlyPayment } from '../services/monthlyPayments.service';
 import { Response } from 'express';
 import { AuthRequest } from '../types';
 import * as loanService from '../services/loan.service';
@@ -29,7 +30,7 @@ export async function deleteLoan(req: AuthRequest, res: Response) {
 
 export async function payLoanEMI(req: AuthRequest, res: Response) {
   const { accountId } = req.body as { accountId?: string };
-  const result = await loanService.payLoanEMI(req.user!.userId, req.params.id, accountId);
+  const result = await decideMonthlyPayment(req.user!.userId, 'LOAN', req.params.id, 'PAID', accountId);
   res.json({ success: true, data: result });
 }
 

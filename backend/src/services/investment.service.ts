@@ -1,3 +1,4 @@
+import { decideMonthlyPayment } from './monthlyPayments.service';
 import { Investment, InvestmentCollateral, FamilyMember, Account, Loan } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { createError } from '../middleware/error.middleware';
@@ -60,6 +61,8 @@ export async function createInvestment(userId: string, input: CreateInvestmentIn
         platform:      input.platform,
         memberId:      input.memberId,
         bankAccountId: input.bankAccountId,
+        paymentDay: input.paymentDay,
+        recurringActive: input.recurringActive,
       },
       include: INVESTMENT_INCLUDE,
     });
@@ -99,6 +102,8 @@ export async function updateInvestment(userId: string, id: string, input: Update
         ...(input.interestRate !== undefined && { interestRate: input.interestRate }),
         ...(input.platform      !== undefined && { platform:      input.platform }),
         ...(input.memberId      !== undefined && { memberId:      input.memberId ?? null }),
+        ...(input.paymentDay !== undefined && { paymentDay: input.paymentDay }),
+        ...(input.recurringActive !== undefined && { recurringActive: input.recurringActive }),
         ...(input.bankAccountId !== undefined && { bankAccountId: input.bankAccountId ?? null }),
       },
       include: INVESTMENT_INCLUDE,
@@ -133,6 +138,7 @@ export async function payInvestment(userId: string, id: string, accountId?: stri
   if (!inv) throw createError('Investment not found', 404);
 
   const isInstallment = INSTALLMENT_TYPES.has(inv.assetType);
+  if (isInstallment) return { ...await decideMonthlyPayment(userId, 'INVESTMENT', id, 'PAID', accountId), isInstallment: true };
 
   // ── Resolve the payment amount ─────────────────────────────────────────
   let amount: number;

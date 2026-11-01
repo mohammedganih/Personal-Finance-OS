@@ -10,9 +10,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useCreateCreditCard, useUpdateCreditCard } from '@/hooks/useCreditCards';
 import { Loader2 } from 'lucide-react';
+import { useAccounts } from '@/hooks/useAccounts';
 import { CreditCard } from '@/types';
 
 const schema = z.object({
+  bankAccountId: z.string().optional().nullable(),
   cardName:       z.string().min(1, 'Card name required'),
   bank:           z.string().optional(),
   lastFourDigits: z.string().length(4).regex(/^\d{4}$/, 'Must be 4 digits').optional().or(z.literal('')),
@@ -29,6 +31,7 @@ type FormData = z.infer<typeof schema>;
 
 export function CreditCardForm({ onClose, card }: { onClose: () => void; card?: CreditCard }) {
   const isEdit = !!card;
+  const { data: accounts } = useAccounts();
   const { mutate: create, isPending: isCreating } = useCreateCreditCard();
   const { mutate: update, isPending: isUpdating } = useUpdateCreditCard();
   const isPending = isCreating || isUpdating;
@@ -37,7 +40,8 @@ export function CreditCardForm({ onClose, card }: { onClose: () => void; card?: 
     resolver: zodResolver(schema),
     defaultValues: card
       ? {
-          cardName:       card.cardName,
+          bankAccountId: card.bankAccountId ?? '',
+          cardName: card.cardName,
           bank:           card.bank ?? '',
           lastFourDigits: card.lastFourDigits ?? '',
           creditLimit:    card.creditLimit,
@@ -55,7 +59,7 @@ export function CreditCardForm({ onClose, card }: { onClose: () => void; card?: 
   });
 
   const onSubmit = (data: FormData) => {
-    const payload = { ...data, lastFourDigits: data.lastFourDigits || undefined };
+    const payload = { ...data, bankAccountId: data.bankAccountId || null, lastFourDigits: data.lastFourDigits || undefined };
     if (isEdit) {
       update({ id: card.id, data: payload as Record<string, unknown> }, { onSuccess: onClose });
     } else {
@@ -65,7 +69,7 @@ export function CreditCardForm({ onClose, card }: { onClose: () => void; card?: 
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent>
+      <DialogContent className="max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEdit ? 'Edit Credit Card' : 'Add Credit Card'}</DialogTitle>
         </DialogHeader>
@@ -96,19 +100,19 @@ export function CreditCardForm({ onClose, card }: { onClose: () => void; card?: 
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label>Credit Limit (₹)</Label>
+              <Label>Credit Limit (â‚¹)</Label>
               <Input type="number" step="1" placeholder="500000" {...register('creditLimit')} />
               {errors.creditLimit && <p className="text-xs text-danger">{errors.creditLimit.message}</p>}
             </div>
             <div className="space-y-1.5">
-              <Label>Current Outstanding (₹)</Label>
+              <Label>Current Outstanding (â‚¹)</Label>
               <Input type="number" step="1" placeholder="0" {...register('outstanding')} />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label>Minimum Payment (₹)</Label>
+              <Label>Minimum Payment (â‚¹)</Label>
               <Input type="number" step="1" placeholder="Auto-calculated" {...register('minimumPayment')} />
             </div>
             <div className="space-y-1.5">
@@ -128,6 +132,14 @@ export function CreditCardForm({ onClose, card }: { onClose: () => void; card?: 
             <Input placeholder="Any details..." {...register('notes')} />
           </div>
 
+          <div className="space-y-1.5">
+            <Label htmlFor="card-payment-account">Payment bank account</Label>
+            <select id="card-payment-account" {...register('bankAccountId')} className="w-full rounded-lg border border-border bg-bg-elevated p-2 text-sm text-text-primary">
+              <option value="">Select an account</option>
+              {accounts?.filter(a => (a.isActive !== false || a.id === card?.bankAccountId) && ['SAVINGS', 'CHECKING'].includes(a.type)).map(a => <option key={a.id} value={a.id}>{a.name}{a.isActive === false ? ' (inactive)' : ''}</option>)}
+            </select>
+            <p className="text-xs text-text-muted">Used by the funding plan for statement balances and card EMIs.</p>
+          </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
             <Button type="submit" disabled={isPending}>

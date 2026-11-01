@@ -3,6 +3,7 @@
 import { addMonths } from 'date-fns';
 import { Wallet, CalendarClock, Percent, CalendarCheck } from 'lucide-react';
 import { StatCardLight } from '@/components/dashboard/light/StatCardLight';
+import { useMonthlyPlan } from '@/hooks/useMonthlyPlan';
 import { useDebtOverview, useDebtTrend, useDebtStrategy } from '@/hooks/useDebtIntelligence';
 import { formatCurrency, formatDate } from '@/lib/format';
 
@@ -21,6 +22,7 @@ function yearsMonthsLeft(months: number): string {
 }
 
 export function StatsRowLoans() {
+  const { data: monthlyPlan } = useMonthlyPlan();
   const { data: overview, isLoading } = useDebtOverview();
   const { data: trend } = useDebtTrend(35);
   const { data: strategy } = useDebtStrategy(5000);
@@ -60,10 +62,10 @@ export function StatsRowLoans() {
         emptyHint={outstandingDelta === null ? 'Tracking starts today' : undefined}
       />
       <StatCardLight
-        label="Total Monthly EMI"
-        value={formatCurrency(overview.totalMonthlyEMI, 'INR', true)}
+        label="Still Needed This Month"
+        value={monthlyPlan ? formatCurrency(monthlyPlan.current.loans + monthlyPlan.current.creditCards, 'INR', true) : '...'}
         icon={CalendarClock}
-        emptyHint="Due across all loans"
+        emptyHint="Loan EMIs and credit card payments"
       />
       <StatCardLight
         label="Interest Payable (Remaining)"

@@ -49,6 +49,7 @@ export async function createLoan(userId: string, input: CreateLoanInput) {
       memberId:         input.memberId,
       payerMemberId:    input.payerMemberId,
       bankAccountId:    input.bankAccountId,
+      paymentDay: input.paymentDay,
       linkedInvestmentId: input.linkedInvestmentId,
     },
     include: LOAN_INCLUDE,
@@ -76,6 +77,7 @@ export async function updateLoan(userId: string, id: string, input: UpdateLoanIn
       ...(input.isActive       !== undefined && { isActive: input.isActive }),
       ...(input.memberId       !== undefined && { memberId: input.memberId }),
       ...(input.payerMemberId  !== undefined && { payerMemberId: input.payerMemberId }),
+      ...(input.paymentDay !== undefined && { paymentDay: input.paymentDay }),
       ...(input.bankAccountId  !== undefined && { bankAccountId: input.bankAccountId }),
       ...(input.linkedInvestmentId !== undefined && { linkedInvestmentId: input.linkedInvestmentId }),
     },
@@ -125,7 +127,7 @@ export function calculateEMISplit(remainingBalance: number, emi: number, annualI
   const r = annualInterestRatePercent / 100 / 12; // monthly rate
 
   const interestPortion  = r > 0 ? remainingBalance * r : 0;
-  const principalPortion = Math.max(0, emi - interestPortion);
+  const principalPortion = Math.min(remainingBalance, Math.max(0, emi - interestPortion));
   const actualPayment    = Math.min(emi, remainingBalance + interestPortion); // can't overpay
   const newBalance       = Math.max(0, remainingBalance - principalPortion);
   const isPaidOff        = newBalance < 1; // treat < ₹1 as fully paid
