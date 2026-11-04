@@ -28,18 +28,21 @@ export interface MonthlyPlanRow {
   remaining?: number;
   /** OwnershipSplit: the other person and the % of this row they pay. */
   split?: { memberId: string; pct: number };
+  /** Card statements only: set when the row comes from a saved monthly statement. */
+  statementId?: string;
 }
 // Plan row type → OwnershipSplit entity type, for every type the split model covers.
 export const SPLIT_ENTITY: Record<string, 'INVESTMENT' | 'LOAN' | 'BILL' | 'CARD_EMI'> = { INVESTMENT: 'INVESTMENT', LOAN: 'LOAN', BILL: 'BILL', CARD_EMI: 'CARD_EMI' };
 export async function getMonthlyPlan(userId: string, month = currentMonth()) {
   const window = monthWindow(month);
-  const [loans, investments, events, bills, cards, cardEmis] = await Promise.all([
+  const [loans, investments, events, bills, cards, cardEmis, statements] = await Promise.all([
     prisma.loan.findMany({ where: { userId } }),
     prisma.investment.findMany({ where: { userId, assetType: { in: ['SIP', 'RECURRING_DEPOSIT', 'GOLD_SCHEME'] } } }),
     prisma.monthlyPayment.findMany({ where: { userId, month: { in: [month, currentMonth()] } } }),
     getBillsCalendar(userId, window.start, window.end),
     prisma.creditCard.findMany({ where: { userId, isActive: true } }),
     prisma.cardEMI.findMany({ where: { userId }, include: { creditCard: true } }),
+    prisma.cardStatement.findMany({ where: { userId }, select: { id: true, creditCardId: true, month: true, totalDue: true, dueDate: true } }),
   ]);
   const rows: MonthlyPlanRow[] = [];
   const cardMember = new Map(cards.map(c => [c.id, c.memberId]));
@@ -68,6 +71,19 @@ export async function getMonthlyPlan(userId: string, month = currentMonth()) {
     rows.push({ id: inv.id, type: 'INVESTMENT', name: inv.assetName, amount: event ? Number(event.amount) : instalment.amount, status: event?.status ?? 'PENDING', accountId: inv.bankAccountId, memberId: inv.memberId, dueDate: dateInMonth(month, inv.paymentDay ?? Number(indiaDateKey(inv.purchaseDate).slice(8))) });
   }
   for (const card of cards) {
+    // A saved statement for this month is the real figure.
+    const saved = statements.find(st => st.creditCardId === card.id && st.month === month);
+    if (saved) {
+      const event = events.find(e => e.month === month && e.entityType === 'CREDIT_CARD' && e.entityId === card.id && e.status === 'PAID');
+      const paid = event ? Number(event.amount) : 0;
+      const total = Number(saved.totalDue);
+      if (total <= 0 && !paid) continue;
+      const remaining = Math.max(0, Math.round((total - paid) * 100) / 100);
+      rows.push({ id: card.id, type: 'CREDIT_CARD', name: `${card.cardName} - statement balance`, amount: total, paidAmount: paid, remaining, status: remaining <= 0 ? 'PAID' : 'PENDING', dueDate: indiaDateKey(saved.dueDate), accountId: card.bankAccountId, creditCardId: card.id, memberId: card.memberId, statementId: saved.id });
+      continue;
+    }
+    // The card's own fields mirror a saved statement, which shows in its own month.
+    if (statements.some(st => st.creditCardId === card.id && st.month === indiaDateKey(card.dueDate).slice(0, 7))) continue;
     const dueDate = indiaDateKey(card.dueDate);
     // Full saved statement balance is due once; unknown future spending isn't repeated.
     const dueMonth = dueDate.slice(0, 7) < currentMonth() ? currentMonth() : dueDate.slice(0, 7);

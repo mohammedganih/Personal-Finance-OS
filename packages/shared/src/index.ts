@@ -11,3 +11,4 @@ export * from './schemas/card-emi.schema';
 export * from './schemas/p2p.schema';
 export * from './schemas/family.schema';
 export * from './schemas/budget.schema';
+export * from './schemas/card-statement.schema';

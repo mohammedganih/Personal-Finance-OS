@@ -1,6 +1,7 @@
 import { prisma } from '../lib/prisma';
 import { createError } from '../middleware/error.middleware';
 import { currentMonth, getMonthlyPlan, monthWindow, MonthlyPlanRow, SPLIT_ENTITY } from './monthlyPayments.service';
+import { CardSpend, getCardSpendForMonth } from './cardStatement.service';
 
 // The home page "month sheet": per person, salary − loans − investments − bills
 // = left for the month; minus last month's card spending = free to spend.
@@ -20,9 +21,17 @@ export interface CardSplit {
   statement: number;
   /** Card EMIs and card-charged bills already counted in other buckets. */
   deducted: number;
-  /** max(0, statement − deducted): plain spending on the card. */
+  /** Plain spending on the card (see cardSplits). */
   spending: number;
   needsStatementUpdate: boolean;
+  /**
+   * Where `spending` comes from: STATEMENT = a saved monthly statement;
+   * EXPENSES = one-off card purchases entered (no statement saved yet);
+   * CARD = the balance typed on the card itself (older entry).
+   */
+  source: 'STATEMENT' | 'EXPENSES' | 'CARD';
+  /** One-off purchases on this statement, purchases already counted elsewhere, and purchases paid off this month. */
+  oneOff: number; linked: number; paidOff: number;
 }
 export interface Totals {
   salary: number; loans: Bucket; investments: Bucket; bills: Bucket;
@@ -43,6 +52,8 @@ export interface SummaryExtras {
   splits?: SplitRecord[];
   /** Bank account id → owning member id. */
   accountOwners?: Map<string, string | null>;
+  /** One-off card purchases per card for this month's statement (cardStatement.service). */
+  cardSpend?: CardSpend[];
 }
 type SheetRow = MonthlyPlanRow & { fullAmount?: number | null; sharePct?: number | null; debitedFromMemberId?: string | null };
 
@@ -92,29 +103,50 @@ function bucket(rows: SheetRow[]): Bucket {
 }
 
 /**
- * Card split for each card whose statement row is in `ownRows`. Deductions are
- * EMIs and bills charged to that card this month, whoever pays them.
+ * Card split for each card whose statement row is in `ownRows`, plus cards with
+ * only card purchases this month. Deductions are EMIs and bills charged to that
+ * card this month (whoever pays them) and card purchases already counted in
+ * another bucket.
+ * - Saved statement: spending = max(0, statement − deducted).
+ * - No saved statement but card purchases entered: spending = those purchases.
+ * - Neither: the balance typed on the card, as before.
+ * Purchases paid off straight away this month are always added.
  */
-export function cardSplits(ownRows: MonthlyPlanRow[], allRows: MonthlyPlanRow[]): CardSplit[] {
-  return ownRows.filter(r => r.type === 'CREDIT_CARD').map(st => {
+export function cardSplits(ownRows: MonthlyPlanRow[], allRows: MonthlyPlanRow[], spend: CardSpend[] = []): CardSplit[] {
+  const byCard = new Map(spend.map(s => [s.creditCardId, s]));
+  const out: CardSplit[] = ownRows.filter(r => r.type === 'CREDIT_CARD').map(st => {
     const cardId = st.creditCardId ?? st.id;
+    const s = byCard.get(cardId);
+    byCard.delete(cardId);
     const deducted = round(allRows
       .filter(r => (r.type === 'CARD_EMI' || r.type === 'BILL') && r.creditCardId === cardId && counts(r))
-      .reduce((s, r) => s + r.amount, 0));
+      .reduce((sum, r) => sum + r.amount, 0) + (s?.linked ?? 0));
     const statement = round(st.amount);
+    const source: CardSplit['source'] = st.statementId ? 'STATEMENT' : s && (s.oneOff || s.linked) ? 'EXPENSES' : 'CARD';
+    const base = source === 'EXPENSES' && s ? s.oneOff : Math.max(0, statement - deducted);
     return {
       creditCardId: cardId, name: st.name.replace(/ - statement balance$/, ''), memberId: st.memberId ?? null,
       dueDate: st.dueDate ?? null, status: st.status,
-      statement, deducted, spending: round(Math.max(0, statement - deducted)), needsStatementUpdate: deducted > statement,
+      statement, deducted, spending: round(base + (s?.paidOff ?? 0)), needsStatementUpdate: source !== 'EXPENSES' && deducted > statement,
+      source, oneOff: s?.oneOff ?? 0, linked: s?.linked ?? 0, paidOff: s?.paidOff ?? 0,
     };
   });
+  for (const s of byCard.values()) {
+    if (!s.oneOff && !s.paidOff) continue;
+    out.push({
+      creditCardId: s.creditCardId, name: s.name, memberId: s.memberId, dueDate: null, status: 'PENDING',
+      statement: 0, deducted: s.linked, spending: round(s.oneOff + s.paidOff), needsStatementUpdate: false,
+      source: 'EXPENSES', oneOff: s.oneOff, linked: s.linked, paidOff: s.paidOff,
+    });
+  }
+  return out;
 }
 
-function totals(rows: SheetRow[], allRows: MonthlyPlanRow[], salary: number): Totals {
+function totals(rows: SheetRow[], allRows: MonthlyPlanRow[], salary: number, spend: CardSpend[] = []): Totals {
   const loans = bucket(rows.filter(r => r.type === 'LOAN' || r.type === 'CARD_EMI'));
   const investments = bucket(rows.filter(r => r.type === 'INVESTMENT'));
   const bills = bucket(rows.filter(r => r.type === 'BILL'));
-  const cards = cardSplits(rows, allRows);
+  const cards = cardSplits(rows, allRows, spend);
   const cardSpending = round(cards.reduce((s, c) => s + c.spending, 0));
   const left = round(salary - loans.total - investments.total - bills.total);
   return { salary, loans, investments, bills, cards, cardSpending, left, free: round(left - cardSpending) };
@@ -132,10 +164,10 @@ export function buildMonthSummary(month: string, planRows: MonthlyPlanRow[], mem
   const shares = shareRows(planRows, extras.splits).map(withDebit);
   const memberSummaries = members.map(m => {
     const { salary, salaryIsEstimate } = pickSalary(salaries, m.id, month);
-    return { memberId: m.id, name: m.name, color: m.color, emoji: m.emoji, salaryIsEstimate, ...totals(shares.filter(r => r.memberId === m.id), rows, salary) };
+    return { memberId: m.id, name: m.name, color: m.color, emoji: m.emoji, salaryIsEstimate, ...totals(shares.filter(r => r.memberId === m.id), rows, salary, (extras.cardSpend ?? []).filter(c => c.memberId === m.id)) };
   });
   // Combined is the whole household, so rows with no person still count here.
-  const combined = totals(rows, rows, round(memberSummaries.reduce((s, m) => s + m.salary, 0)));
+  const combined = totals(rows, rows, round(memberSummaries.reduce((s, m) => s + m.salary, 0)), extras.cardSpend);
   const unassigned = rows
     .filter(r => !r.memberId || !known.has(r.memberId))
     .map(r => ({ id: r.id, type: r.type, name: r.name, amount: round(r.amount) }));
@@ -144,16 +176,18 @@ export function buildMonthSummary(month: string, planRows: MonthlyPlanRow[], mem
 
 export async function getMonthSummary(userId: string, month = currentMonth()): Promise<MonthSummary> {
   monthWindow(month); // validates the format
-  const [plan, members, salaries, splits, accounts] = await Promise.all([
+  const [plan, members, salaries, splits, accounts, cardSpend] = await Promise.all([
     getMonthlyPlan(userId, month),
     prisma.familyMember.findMany({ where: { userId }, orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }] }),
     prisma.monthlySalary.findMany({ where: { userId, month: { lte: month } } }),
     prisma.ownershipSplit.findMany({ where: { userId, entityType: { in: Array.from(new Set(Object.values(SPLIT_ENTITY))) } } }),
     prisma.account.findMany({ where: { userId }, select: { id: true, memberId: true } }),
+    getCardSpendForMonth(userId, month),
   ]);
   return buildMonthSummary(month, plan.rows, members, salaries.map(s => ({ memberId: s.memberId, month: s.month, amount: Number(s.amount) })), {
     splits: splits.map(sp => ({ entityType: sp.entityType, entityId: sp.entityId, secondaryMemberId: sp.secondaryMemberId, ratio: Number(sp.ratio) })),
     accountOwners: new Map(accounts.map(a => [a.id, a.memberId])),
+    cardSpend,
   });
 }
 

@@ -4,6 +4,7 @@ import { createError } from '../middleware/error.middleware';
 import { currentMonth, monthWindow } from './monthlyPayments.service';
 import { undoOccurrence } from './bill.service';
 import { deleteTransactionSplits } from '../lib/ownershipSplit';
+import { syncCardFromStatements } from './cardStatement.service';
 
 export type UndoType = 'LOAN' | 'INVESTMENT' | 'CARD_EMI' | 'CREDIT_CARD' | 'BILL';
 export interface UndoInput { type: UndoType; id: string; month?: string; dueDate?: string }
@@ -38,7 +39,7 @@ export async function undoPayment(userId: string, input: UndoInput) {
       const txns = event.transactionIds.length
         ? await tx.transaction.findMany({ where: { id: { in: event.transactionIds }, userId } })
         : [];
-      await reverseEntity(tx, userId, input.type, input.id, txns, Number(event.amount));
+      await reverseEntity(tx, userId, input.type, input.id, txns, Number(event.amount), month);
       for (const t of txns) {
         if (t.accountId) await tx.account.update({ where: { id: t.accountId }, data: { balance: { increment: t.amount } } });
       }
@@ -46,13 +47,14 @@ export async function undoPayment(userId: string, input: UndoInput) {
       if (txns.length) await tx.transaction.deleteMany({ where: { id: { in: txns.map(t => t.id) }, userId } });
     }
     await tx.monthlyPayment.delete({ where: { id: event.id } });
+    if (input.type === 'CREDIT_CARD') await syncCardFromStatements(tx, userId, input.id);
     return { type: input.type, id: input.id, month, undone: true, previousStatus: event.status };
   });
 }
 
 type Txn = { id: string; amount: Prisma.Decimal; description: string | null };
 
-async function reverseEntity(tx: Prisma.TransactionClient, userId: string, type: UndoType, id: string, txns: Txn[], amount: number) {
+async function reverseEntity(tx: Prisma.TransactionClient, userId: string, type: UndoType, id: string, txns: Txn[], amount: number, month: string) {
   if (type === 'LOAN') {
     const loan = await tx.loan.findFirst({ where: { id, userId } });
     if (!loan) throw createError('Loan not found', 404);
@@ -69,8 +71,10 @@ async function reverseEntity(tx: Prisma.TransactionClient, userId: string, type:
   } else if (type === 'CREDIT_CARD') {
     const card = await tx.creditCard.findFirst({ where: { id, userId } });
     if (!card) throw createError('Credit card not found', 404);
-    // Every payment against this statement month is undone together.
-    await tx.creditCard.update({ where: { id }, data: { outstanding: { increment: amount } } });
+    // Every payment against this statement month is undone together. A saved
+    // statement is the source of truth; the card fields are re-synced from it.
+    const saved = await tx.cardStatement.findUnique({ where: { creditCardId_month: { creditCardId: id, month } } });
+    if (!saved) await tx.creditCard.update({ where: { id }, data: { outstanding: { increment: amount } } });
   } else if (type === 'CARD_EMI') {
     const emi = await tx.cardEMI.findFirst({ where: { id, userId } });
     if (!emi) throw createError('Card EMI not found', 404);

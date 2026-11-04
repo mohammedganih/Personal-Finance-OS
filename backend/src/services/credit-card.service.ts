@@ -5,6 +5,7 @@ import { createError } from '../middleware/error.middleware';
 import { CreateCreditCardInput, UpdateCreditCardInput } from '../validators/credit-card.validator';
 import { findCategory } from '../lib/paymentCategory';
 import { indiaDateKey } from '../lib/cardPaymentSchedule';
+import { syncCardFromStatements } from './cardStatement.service';
 
 export async function getCreditCards(userId: string) {
   const cards = await prisma.creditCard.findMany({
@@ -80,39 +81,48 @@ export function cardStatementMonth(dueDate: Date, now = new Date()) {
 }
 
 /**
- * Pays (all or part of) a card's saved statement. This is where card EMIs and
+ * Pays (all or part of) a card statement. This is where card EMIs and
  * card-charged bills turn into real money: one expense, one bank debit. Each
  * payment is kept on the statement month's MonthlyPayment record so it shows as
- * paid and can be undone.
+ * paid and can be undone. With a saved statement for that month, the payment is
+ * capped at what is still owed on it; otherwise at the card's saved outstanding.
  */
 export async function payCreditCardBill(
   userId: string,
   cardId: string,
   amount: number,
-  accountId?: string,
+  accountId?: string | null,
+  options: { month?: string; paidDate?: string } = {},
 ) {
   const card = await prisma.creditCard.findFirst({ where: { id: cardId, userId } });
   if (!card) throw createError('Credit card not found', 404);
 
-  const current  = Number(card.outstanding);
-  const payment  = Math.min(amount, current); // can't pay more than outstanding
-  if (payment <= 0) throw createError('Nothing is outstanding on this card', 400);
-  const newBal   = Math.max(0, current - payment);
+  const month = options.month ?? cardStatementMonth(card.dueDate);
+  const statement = await prisma.cardStatement.findUnique({ where: { creditCardId_month: { creditCardId: cardId, month } } });
+  if (!statement && month !== cardStatementMonth(card.dueDate)) throw createError('No statement saved for that month', 404);
+  const key = { userId, entityType: 'CREDIT_CARD', entityId: cardId, month };
+  const before = await prisma.monthlyPayment.findUnique({ where: { userId_entityType_entityId_month: key } });
+  const owed = statement
+    ? Number(statement.totalDue) - (before?.status === 'PAID' ? Number(before.amount) : 0)
+    : Number(card.outstanding);
+  const payment = Math.round(Math.min(amount, owed) * 100) / 100; // can't pay more than is owed
+  if (payment <= 0) throw createError(statement ? 'This statement is already paid' : 'Nothing is outstanding on this card', 400);
+  const paidOn = options.paidDate ? new Date(`${options.paidDate}T12:00:00+05:30`) : new Date();
+  if (Number.isNaN(paidOn.getTime()) || paidOn.getTime() > Date.now() + 86_400_000) throw createError('Paid date is not valid', 400);
   const sourceAccount = accountId || card.bankAccountId || undefined;
   if (sourceAccount && !await prisma.account.findFirst({ where: { id: sourceAccount, userId } })) throw createError('Account not found', 404);
 
   const categoryId = await findCategory(userId, 'Credit Card Bill');
-  const month = cardStatementMonth(card.dueDate);
 
   return prisma.$transaction(async tx => {
-    const updatedCard = await tx.creditCard.update({ where: { id: cardId }, data: { outstanding: newBal } });
+    if (!statement) await tx.creditCard.update({ where: { id: cardId }, data: { outstanding: Math.max(0, Number(card.outstanding) - payment) } });
     const transaction = await tx.transaction.create({
       data: {
         userId,
         type:        'EXPENSE',
         amount:      payment,
         description: `Bill: ${card.cardName}${card.lastFourDigits ? ` ···· ${card.lastFourDigits}` : ''}`,
-        date:        new Date(),
+        date:        paidOn,
         categoryId:  categoryId ?? undefined,
         accountId:   sourceAccount,
         memberId:    card.memberId ?? undefined,
@@ -122,13 +132,14 @@ export async function payCreditCardBill(
     // Paying a bill from a bank account draws down that account's balance too.
     if (sourceAccount) await tx.account.update({ where: { id: sourceAccount }, data: { balance: { decrement: payment } } });
 
-    const key = { userId, entityType: 'CREDIT_CARD', entityId: cardId, month };
     const existing = await tx.monthlyPayment.findUnique({ where: { userId_entityType_entityId_month: key } });
     if (existing) {
-      await tx.monthlyPayment.update({ where: { id: existing.id }, data: { amount: { increment: payment }, transactionIds: [...existing.transactionIds, transaction.id] } });
+      await tx.monthlyPayment.update({ where: { id: existing.id }, data: { status: 'PAID', amount: { increment: payment }, transactionIds: [...existing.transactionIds, transaction.id] } });
     } else {
       await tx.monthlyPayment.create({ data: { ...key, status: 'PAID', amount: payment, transactionIds: [transaction.id] } });
     }
+    if (statement) await syncCardFromStatements(tx, userId, cardId);
+    const updatedCard = await tx.creditCard.findUniqueOrThrow({ where: { id: cardId } });
     return {
       card:        serialize(updatedCard),
       transaction: { ...transaction, amount: Number(transaction.amount) },

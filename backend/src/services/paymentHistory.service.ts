@@ -56,7 +56,7 @@ export interface Reminder {
   key: string; kind: 'OVERDUE' | 'DUE_SOON' | 'MATURITY'; type: string; id: string; name: string;
   amount: number | null; dueDate: string; daysLeft: number; memberId: string | null; href: string;
 }
-const HREF: Record<string, string> = { LOAN: '/loans', CARD_EMI: '/loans', CREDIT_CARD: '/loans', INVESTMENT: '/investments', BILL: '/bills' };
+const HREF: Record<string, string> = { LOAN: '/loans', CARD_EMI: '/credit-cards', CREDIT_CARD: '/credit-cards', INVESTMENT: '/investments', BILL: '/bills' };
 const days = (from: string, to: string) => Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000);
 
 /**
