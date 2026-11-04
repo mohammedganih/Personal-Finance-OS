@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildMonthSummary, pickSalary } from './monthSummary.service';
+import { buildMonthSummary, pickSalary, shareRows } from './monthSummary.service';
 import type { MonthlyPlanRow } from './monthlyPayments.service';
 
 const members = [
@@ -100,5 +100,54 @@ describe('month summary buckets', () => {
     const m = buildMonthSummary('2026-11', rows, members, []).members[0];
     expect(m.loans.items.map(i => [i.id, i.shared])).toEqual([['joint', true], ['own', false]]);
     expect(m.investments.items[0].shared).toBe(false);
+  });
+});
+
+describe('ownership splits and debit account', () => {
+  const split = (entityId: string, ratio = 50) => ({ entityType: 'INVESTMENT', entityId, secondaryMemberId: 'm2', ratio });
+
+  it('splits an investment between both people and keeps combined whole', () => {
+    const rows = [
+      row({ id: 'rd', type: 'INVESTMENT', amount: 30000, memberId: 'm1', status: 'PAID' }),
+      row({ id: 'gold', type: 'INVESTMENT', amount: 10000, memberId: 'm1' }),
+      row({ id: 'sip', type: 'INVESTMENT', amount: 2500, memberId: 'm1' }),
+    ];
+    const s = buildMonthSummary('2026-11', rows, members, [], { splits: [split('rd'), split('gold')] });
+    const [a, b] = s.members;
+    expect(a.investments).toMatchObject({ total: 22500, paid: 15000 });
+    expect(b.investments).toMatchObject({ total: 20000, paid: 15000 });
+    expect(b.investments.items.find(i => i.id === 'rd')).toMatchObject({ amount: 15000, fullAmount: 30000, sharePct: 50, memberId: 'm2' });
+    expect(a.investments.items.find(i => i.id === 'sip')).toMatchObject({ amount: 2500, fullAmount: null, sharePct: null });
+    expect(s.combined.investments.total).toBe(42500);
+    expect(s.combined.investments.items).toHaveLength(3);
+  });
+
+  it('uses the stored ratio and keeps shares summing to the full amount', () => {
+    const out = shareRows([row({ id: 'x', type: 'INVESTMENT', amount: 1000.01, memberId: 'm1' })], [split('x', 70)]);
+    expect(out.map(r => [r.memberId, r.amount, r.sharePct])).toEqual([['m1', 700.01, 70], ['m2', 300, 30]]);
+  });
+
+  it('ignores splits on other entity types, unowned rows, or to the same person', () => {
+    const rows = [
+      row({ id: 'loan', type: 'LOAN', amount: 100, memberId: 'm1' }),
+      row({ id: 'orphan', type: 'INVESTMENT', amount: 100, memberId: null }),
+      row({ id: 'self', type: 'INVESTMENT', amount: 100, memberId: 'm2' }),
+    ];
+    expect(shareRows(rows, [split('loan'), split('orphan'), split('self')])).toHaveLength(3);
+  });
+
+  it('notes when a payment is debited from another person\'s account', () => {
+    const rows = [
+      row({ id: 'marriage', type: 'LOAN', amount: 19879, memberId: 'm2', accountId: 'icici', shared: true }),
+      row({ id: 'own', type: 'LOAN', amount: 500, memberId: 'm1', accountId: 'icici' }),
+    ];
+    const s = buildMonthSummary('2026-11', rows, members, [], { accountOwners: new Map([['icici', 'm1']]) });
+    expect(s.members[1].loans.items[0]).toMatchObject({ id: 'marriage', debitedFromMemberId: 'm1', shared: true });
+    expect(s.members[0].loans.items[0].debitedFromMemberId).toBeNull();
+    // Split rows: only the share whose person does not own the account gets the note.
+    const gold = buildMonthSummary('2026-11', [row({ id: 'gold', type: 'INVESTMENT', amount: 10000, memberId: 'm1', accountId: 'canara' })], members, [], {
+      splits: [split('gold')], accountOwners: new Map([['canara', 'm2']]),
+    });
+    expect(gold.members.map(m => m.investments.items[0].debitedFromMemberId)).toEqual(['m2', null]);
   });
 });

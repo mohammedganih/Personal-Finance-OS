@@ -57,3 +57,8 @@ On this machine, the patch was applied to the local dev DB (`shazah_finance`) an
 - **Still to pay** always shows the current calendar month, matching the funding plan. The month sheet follows the header period selector.
 - `CashFlowSankey`, `FinancialHealthGauge` and `AiInsightsLight` are no longer rendered anywhere, because `/analytics` is still a dark page. The spec says to move them there only if it is already light.
 - The "Loans left to repay" change compares the debt snapshots from the last 31 days.
+
+## Follow-up: who pays what (2026-11-04)
+- **Split payments:** the month sheet now respects `OwnershipSplit`. Every entity type the model supports is covered, which today means only investments. A split row is shared between the two people by the stored ratio. Each card shows the person's share with a "half of ₹X" tag, and Combined still counts the full amount. DBS Bank RD (₹30,000) and Malabar Gold Scheme (₹10,000) already had 50/50 splits saved, so no data change was needed for them.
+- **Debited-from note:** an item paid from a bank account owned by someone other than the payer shows "Debited from <name>'s account". For example, the Marriage Expense loan is paid by Fathimah but debited from Mohammed's ICICI account. That loan was already stored with borrower Mohammed Gani and payer Fathimah.
+- **Bills:** a one-off data update (no schema change) set `memberId` = Mohammed Gani on the 15 active recurring bills in the local dev DB. All 15 previously had `memberId` = NULL. To undo it, set `memberId` back to NULL for those bill ids.

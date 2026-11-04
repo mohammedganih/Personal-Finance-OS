@@ -69,7 +69,7 @@ function SalaryInput({ member, month }: { member: MemberSummary; month: string }
   );
 }
 
-function Line({ label, bucket, names }: { label: string; bucket: SummaryBucket; names?: Map<string, string> }) {
+function Line({ label, bucket, names, showWho }: { label: string; bucket: SummaryBucket; names: Map<string, string>; showWho?: boolean }) {
   const progress = bucket.total === 0 ? (bucket.items.length ? 'Skipped' : 'Nothing due') : bucket.paid >= bucket.total ? 'All paid' : `${money(bucket.paid)} of ${money(bucket.total)} paid`;
   return (
     <details className="group border-b border-line">
@@ -87,7 +87,8 @@ function Line({ label, bucket, names }: { label: string; bucket: SummaryBucket; 
           {bucket.items.map((item) => {
             const paid = item.status === 'PAID';
             const skipped = item.status === 'SKIPPED';
-            const who = names && item.memberId ? names.get(item.memberId) : undefined;
+            const who = showWho && item.memberId ? names.get(item.memberId) : undefined;
+            const debitedFrom = item.debitedFromMemberId ? names.get(item.debitedFromMemberId) : undefined;
             return (
               <li key={`${item.type}-${item.id}-${item.dueDate}`} className="flex justify-between gap-2 text-ink-secondary">
                 <span className={cn('min-w-0', skipped && 'line-through')}>
@@ -102,6 +103,8 @@ function Line({ label, bucket, names }: { label: string; bucket: SummaryBucket; 
                   {item.shared && <Tag>shared</Tag>}
                   {skipped && <Tag>skipped</Tag>}
                   {who && <Tag>{firstName(who)}</Tag>}
+                  {item.fullAmount !== null && item.sharePct !== null && <Tag>{item.sharePct === 50 ? 'half' : `${item.sharePct}%`} of {money(item.fullAmount)}</Tag>}
+                  {debitedFrom && <span className="mt-0.5 block pl-[21px] text-[11px] text-ink-muted">Debited from {firstName(debitedFrom)}&apos;s account</span>}
                 </span>
                 <span className="shrink-0 font-medium tabular-nums">{money(item.amount)}</span>
               </li>
@@ -117,7 +120,7 @@ function Tag({ children }: { children: React.ReactNode }) {
   return <span className="ml-1.5 rounded-full bg-paper-subtle px-1.5 py-px text-[10.5px] font-medium text-ink-secondary no-underline">{children}</span>;
 }
 
-function CardLine({ cards, total, names }: { cards: CardSplit[]; total: number; names?: Map<string, string> }) {
+function CardLine({ cards, total, names, showWho }: { cards: CardSplit[]; total: number; names: Map<string, string>; showWho?: boolean }) {
   return (
     <div className="rounded-xl bg-amber-50 px-2.5">
       <details className="group">
@@ -132,7 +135,7 @@ function CardLine({ cards, total, names }: { cards: CardSplit[]; total: number; 
         ) : (
           <ul className="mb-2.5 grid gap-1.5 pl-[22px] text-[13px] text-ink-secondary">
             {cards.map((card) => {
-              const who = names && card.memberId ? names.get(card.memberId) : undefined;
+              const who = showWho && card.memberId ? names.get(card.memberId) : undefined;
               return (
                 <li key={card.creditCardId} className="grid gap-1.5">
                   <span className="flex justify-between gap-2"><span>{card.name} statement{who && <Tag>{firstName(who)}</Tag>}</span><span className="font-medium tabular-nums">{money(card.statement)}</span></span>
@@ -154,7 +157,7 @@ function CardLine({ cards, total, names }: { cards: CardSplit[]; total: number; 
 
 function Sheet({ title, subtitle, avatar, salary, totals, names, combined }: {
   title: string; subtitle: string; avatar: React.ReactNode; salary: React.ReactNode;
-  totals: SummaryTotals; names?: Map<string, string>; combined?: boolean;
+  totals: SummaryTotals; names: Map<string, string>; combined?: boolean;
 }) {
   const base = Math.max(1, totals.salary);
   const w = (v: number) => `${(Math.max(0, v) / base) * 100}%`;
@@ -166,13 +169,13 @@ function Sheet({ title, subtitle, avatar, salary, totals, names, combined }: {
         <p className="text-sm font-semibold text-ink-primary">{title}<small className="block text-xs font-normal text-ink-muted">{subtitle}</small></p>
       </div>
       {salary}
-      <Line label="Loans & EMIs" bucket={totals.loans} names={names} />
-      <Line label="Investments" bucket={totals.investments} names={names} />
-      <Line label="Bills" bucket={totals.bills} names={names} />
+      <Line label="Loans & EMIs" bucket={totals.loans} names={names} showWho={combined} />
+      <Line label="Investments" bucket={totals.investments} names={names} showWho={combined} />
+      <Line label="Bills" bucket={totals.bills} names={names} showWho={combined} />
       <div className="flex justify-between px-0.5 py-3 text-sm font-semibold text-ink-primary">
         <span>Left for the month</span><span className="tabular-nums">{money(totals.left)}</span>
       </div>
-      <CardLine cards={totals.cards} total={totals.cardSpending} names={names} />
+      <CardLine cards={totals.cards} total={totals.cardSpending} names={names} showWho={combined} />
       <div className={cn('mt-3 flex items-center justify-between gap-2 rounded-xl p-3.5', negative ? 'bg-updown-down-muted text-updown-down' : 'bg-updown-up-muted text-updown-up')}>
         <span className="text-xs font-semibold">Free to spend &amp; buffer</span>
         <span className="text-2xl font-bold tabular-nums tracking-tight">{money(totals.free)}</span>
@@ -255,6 +258,7 @@ export function MonthSheet() {
             avatar={<Avatar label={m.emoji || initials(m.name)} color={m.color} />}
             salary={<SalaryInput member={m} month={data.month} />}
             totals={m}
+            names={names}
           />
         ))}
         <Sheet

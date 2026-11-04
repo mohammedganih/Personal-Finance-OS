@@ -8,6 +8,7 @@ import { useToast } from '@/components/ui/use-toast';
 export interface SummaryItem {
   id: string; type: string; name: string; amount: number; status: string;
   dueDate: string | null; shared: boolean; memberId: string | null;
+  fullAmount: number | null; sharePct: number | null; debitedFromMemberId: string | null;
 }
 export interface SummaryBucket { total: number; paid: number; items: SummaryItem[] }
 export interface CardSplit {
