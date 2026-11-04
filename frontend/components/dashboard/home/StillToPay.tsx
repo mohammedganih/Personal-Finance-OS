@@ -5,35 +5,49 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle } from 'lucide-react';
 import { api } from '@/lib/api';
 import { formatCurrency, formatDate } from '@/lib/format';
-import { useMonthlyPlan, MonthlyPaymentRow } from '@/hooks/useMonthlyPlan';
+import { useMonthlyPlan, useUndoPayment, MonthlyPaymentRow } from '@/hooks/useMonthlyPlan';
 import { useAccountFunding } from '@/hooks/useAccountFunding';
 import { useFamilyMembers } from '@/hooks/useFamilyMembers';
-import { usePayBillOccurrence } from '@/hooks/useBills';
 import { useToast } from '@/components/ui/use-toast';
 
 // Pending rows for the current calendar month, earliest first. Mark paid reuses
-// the same endpoints as components/shared/MonthlyPayments.tsx and the bills page.
+// the same endpoints as components/shared/MonthlyPayments.tsx and the bills page,
+// and offers Undo in the confirmation toast.
 
 function useMarkPaid() {
   const qc = useQueryClient();
-  const { toast } = useToast();
-  const payBill = usePayBillOccurrence();
-  const other = useMutation({
-    mutationFn: (row: MonthlyPaymentRow) => row.type === 'CARD_EMI'
-      ? api.post(`/card-emis/${row.id}/pay`, {})
-      : api.post('/dashboard/monthly-payment', { type: row.type, id: row.id, status: 'PAID', accountId: row.accountId || undefined }),
-    onSuccess: () => { qc.invalidateQueries(); toast({ title: 'Payment recorded' }); },
+  const { toast, dismiss } = useToast();
+  const undo = useUndoPayment();
+  const pay = useMutation({
+    mutationFn: (row: MonthlyPaymentRow) => row.type === 'BILL'
+      ? api.post(`/bills/${row.id}/pay`, { createTransaction: true, dueDate: row.dueDate, accountId: row.accountId ?? undefined })
+      : row.type === 'CARD_EMI'
+        ? api.post(`/card-emis/${row.id}/pay`, {})
+        : api.post('/dashboard/monthly-payment', { type: row.type, id: row.id, status: 'PAID', accountId: row.accountId || undefined }),
+    onSuccess: (_res, row) => {
+      qc.invalidateQueries();
+      const target = { type: row.type, id: row.id, month: row.dueDate?.slice(0, 7), dueDate: row.dueDate };
+      const id = toast({
+        title: 'Payment recorded',
+        description: `${row.name} · ${formatCurrency(row.amount)}`,
+        duration: 10_000,
+        action: (
+          <button
+            type="button"
+            onClick={() => { undo.mutate(target); dismiss(id); }}
+            className="mr-6 shrink-0 rounded-full border border-line-strong bg-paper-card px-3 py-1 text-xs font-medium text-ink-primary hover:bg-paper-subtle"
+          >
+            Undo
+          </button>
+        ),
+      });
+    },
     onError: (error: unknown) => {
       const e = error as { response?: { data?: { message?: string } } };
       toast({ title: e.response?.data?.message || 'Could not record payment', variant: 'destructive' });
     },
   });
-  return {
-    pending: payBill.isPending || other.isPending,
-    mark: (row: MonthlyPaymentRow) => row.type === 'BILL'
-      ? payBill.mutate({ id: row.id, dueDate: row.dueDate!, accountId: row.accountId ?? undefined })
-      : other.mutate(row),
-  };
+  return { pending: pay.isPending || undo.isPending, mark: (row: MonthlyPaymentRow) => pay.mutate(row) };
 }
 
 export function StillToPay() {

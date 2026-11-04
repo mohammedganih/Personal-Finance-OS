@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import { useMonthlyPlan, MonthlyPaymentRow } from '@/hooks/useMonthlyPlan';
+import { useMonthlyPlan, useUndoPayment, UNDOABLE_TYPES, MonthlyPaymentRow } from '@/hooks/useMonthlyPlan';
 import { useAccounts } from '@/hooks/useAccounts';
 import { ChevronDown } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/format';
@@ -15,6 +15,7 @@ export function MonthlyPayments({ type }: { type?: 'LOAN' | 'INVESTMENT' }) {
   const { data: accounts } = useAccounts();
   const [accountId, setAccountId] = useState('');
   const { data, isLoading, isError } = useMonthlyPlan();
+  const undo = useUndoPayment();
   const action = useMutation({ mutationFn: ({ row, status }: { row: MonthlyPaymentRow; status: string }) => row.type === 'CARD_EMI'
     ? api.post(`/card-emis/${row.id}/pay`, { accountId: accountId || undefined })
     : api.post('/dashboard/monthly-payment', { type: row.type, id: row.id, status, accountId: accountId || row.accountId || undefined }),
@@ -51,6 +52,7 @@ export function MonthlyPayments({ type }: { type?: 'LOAN' | 'INVESTMENT' }) {
     {rows.map(row => <div key={row.id} className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-3">
       <div><p className="text-sm font-medium text-ink-primary">{row.name}</p><p className="text-xs text-ink-secondary">{formatCurrency(row.amount)} | {row.status === 'PAID' ? 'Paid this month' : row.status === 'SKIPPED' ? 'Skipped this month' : 'Not paid this month'}</p></div>
       {row.dueDate && <span className="text-xs text-ink-muted">Due {row.dueDate}</span>}
+      {UNDOABLE_TYPES.includes(row.type) && row.status !== 'PENDING' && <button disabled={undo.isPending} onClick={() => { if (window.confirm(`Undo the ${row.status === 'PAID' ? 'payment' : 'skip'} for ${row.name}?`)) undo.mutate({ type: row.type, id: row.id, month: row.type === 'CARD_EMI' ? row.dueDate?.slice(0, 7) : data.current.month }); }} className="border border-line rounded-lg px-3 py-2 text-xs disabled:opacity-50">Undo</button>}
       {row.type === 'CREDIT_CARD' && row.status !== 'PAID' && <a href="#your-loans" className="text-xs underline text-ink-secondary">Pay via Pay Bill below</a>}
       {['LOAN', 'INVESTMENT', 'CARD_EMI'].includes(row.type) && row.status !== 'PAID' && <div className="flex gap-2"><button disabled={action.isPending} onClick={() => action.mutate({ row, status: 'PAID' })} className="bg-mono text-white rounded-lg px-3 py-2 text-xs disabled:opacity-50">{row.status === 'SKIPPED' ? 'Pay instead' : 'Record payment'}</button>{row.type !== 'CARD_EMI' && row.status !== 'SKIPPED' && <button disabled={action.isPending} onClick={() => action.mutate({ row, status: 'SKIPPED' })} className="border border-line rounded-lg px-3 py-2 text-xs disabled:opacity-50">Skip this month</button>}</div>}
     </div>)}

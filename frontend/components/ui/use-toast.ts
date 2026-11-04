@@ -10,6 +10,8 @@ type ToasterToast = ToastProps & {
   id: string;
   title?: React.ReactNode;
   description?: React.ReactNode;
+  /** Optional button shown in the toast, e.g. Undo. */
+  action?: React.ReactNode;
 };
 
 let count = 0;

@@ -62,3 +62,18 @@ On this machine, the patch was applied to the local dev DB (`shazah_finance`) an
 - **Split payments:** the month sheet now respects `OwnershipSplit`. Every entity type the model supports is covered, which today means only investments. A split row is shared between the two people by the stored ratio. Each card shows the person's share with a "half of ₹X" tag, and Combined still counts the full amount. DBS Bank RD (₹30,000) and Malabar Gold Scheme (₹10,000) already had 50/50 splits saved, so no data change was needed for them.
 - **Debited-from note:** an item paid from a bank account owned by someone other than the payer shows "Debited from <name>'s account". For example, the Marriage Expense loan is paid by Fathimah but debited from Mohammed's ICICI account. That loan was already stored with borrower Mohammed Gani and payer Fathimah.
 - **Bills:** a one-off data update (no schema change) set `memberId` = Mohammed Gani on the 15 active recurring bills in the local dev DB. All 15 previously had `memberId` = NULL. To undo it, set `memberId` back to NULL for those bill ids.
+
+## Follow-up: Undo a payment (2026-11-04)
+- `POST /dashboard/monthly-payment/undo` with body `{ type: LOAN | INVESTMENT | CARD_EMI | BILL, id, month?, dueDate? }` (`backend/src/services/paymentUndo.service.ts`) reverses exactly what Mark paid wrote, in one DB transaction:
+  - **All types:** deletes the expense transactions, adds the amount back to each bank account they debited, and deletes the month's paid/skipped record. A skipped month only has its record deleted.
+  - **Loans:** add the principal back to the remaining balance and reopen a loan the payment had closed.
+  - **RD:** removes one instalment.
+  - **Card EMI:** reduces the paid-instalment count by one and reopens a completed EMI.
+  - **Bills:** reuse the existing bill undo, so `dueDate` is required.
+- Loans and card EMIs can only undo their most recent payment, because later instalments are worked out from the balance.
+- UI:
+  - Home "Mark paid" shows a "Payment recorded · Undo" message for 10 seconds.
+  - Paid and skipped items in the month sheet, and in the Loans and Investments payment lists, have an Undo button (with a confirm).
+  - The toast component gained an optional `action` slot.
+- Tests: `paymentUndo.integration.test.ts` covers every type, the payment-order rule, other users' data, and refusing a second payment in the same month.
+- Not yet covered: credit-card bill payments. They keep no payment record today, so there is nothing to reverse safely.

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Check, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/format';
+import { useUndoPayment, UNDOABLE_TYPES } from '@/hooks/useMonthlyPlan';
 import {
   MemberSummary, MonthSummary, SummaryBucket, SummaryTotals, CardSplit,
   useMonthSummary, usePeriodMonth, useSaveSalary,
@@ -70,6 +71,7 @@ function SalaryInput({ member, month }: { member: MemberSummary; month: string }
 }
 
 function Line({ label, bucket, names, showWho }: { label: string; bucket: SummaryBucket; names: Map<string, string>; showWho?: boolean }) {
+  const undo = useUndoPayment();
   const progress = bucket.total === 0 ? (bucket.items.length ? 'Skipped' : 'Nothing due') : bucket.paid >= bucket.total ? 'All paid' : `${money(bucket.paid)} of ${money(bucket.total)} paid`;
   return (
     <details className="group border-b border-line">
@@ -106,7 +108,23 @@ function Line({ label, bucket, names, showWho }: { label: string; bucket: Summar
                   {item.fullAmount !== null && item.sharePct !== null && <Tag>{item.sharePct === 50 ? 'half' : `${item.sharePct}%`} of {money(item.fullAmount)}</Tag>}
                   {debitedFrom && <span className="mt-0.5 block pl-[21px] text-[11px] text-ink-muted">Debited from {firstName(debitedFrom)}&apos;s account</span>}
                 </span>
-                <span className="shrink-0 font-medium tabular-nums">{money(item.amount)}</span>
+                <span className="flex shrink-0 items-start gap-2">
+                  {(paid || skipped) && UNDOABLE_TYPES.includes(item.type) && (
+                    <button
+                      type="button"
+                      disabled={undo.isPending}
+                      onClick={() => {
+                        if (window.confirm(`Undo the ${paid ? 'payment' : 'skip'} for ${item.name}?`)) {
+                          undo.mutate({ type: item.type, id: item.id, month: item.dueDate?.slice(0, 7), dueDate: item.dueDate });
+                        }
+                      }}
+                      className="rounded text-[11px] font-medium text-ink-muted underline underline-offset-2 hover:text-ink-primary disabled:opacity-50"
+                    >
+                      Undo
+                    </button>
+                  )}
+                  <span className="font-medium tabular-nums">{money(item.amount)}</span>
+                </span>
               </li>
             );
           })}
