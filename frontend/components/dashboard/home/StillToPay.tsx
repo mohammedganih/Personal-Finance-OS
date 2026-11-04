@@ -1,70 +1,36 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, ChevronRight } from 'lucide-react';
-import { api } from '@/lib/api';
+import { AlertTriangle, ChevronRight, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatCurrency, formatDate } from '@/lib/format';
-import { useMonthlyPlan, useUndoPayment, MonthlyPaymentRow } from '@/hooks/useMonthlyPlan';
+import { useMonthlyPlan, MonthlyPaymentRow, MonthlyPlan } from '@/hooks/useMonthlyPlan';
 import { useAccountFunding } from '@/hooks/useAccountFunding';
 import { useFamilyMembers } from '@/hooks/useFamilyMembers';
 import { useCreditCards } from '@/hooks/useCreditCards';
-import { useToast } from '@/components/ui/use-toast';
+import { PaymentActions, isTickOnly } from '@/components/shared/PaymentActions';
 
-// Pending rows for the current calendar month, earliest first. Card EMIs and
-// bills charged to a card sit under their card: ticking them moves no money,
-// paying the card bill does. Mark paid offers Undo in its confirmation toast.
+// What is still to pay: last month's missed items and anything already past due
+// (Overdue), then this week, then later this month. Card EMIs and bills charged
+// to a card sit under their card: ticking them moves no money, paying the card does.
 
-const isOnCard = (r: MonthlyPaymentRow) => r.type === 'CARD_EMI' || (r.type === 'BILL' && !!r.creditCardId);
+type Row = MonthlyPaymentRow & { planMonth: string };
+type CardGroup = { kind: 'card'; cardId: string; name: string; statement?: Row; items: Row[]; dueDate?: string; memberId?: string | null };
+type Entry = { kind: 'row'; row: Row; dueDate?: string } | CardGroup;
+
 const owed = (r: MonthlyPaymentRow) => (r.type === 'CREDIT_CARD' ? r.remaining ?? r.amount : r.amount);
+const entryOwed = (e: Entry) => (e.kind === 'row' ? owed(e.row) : e.statement ? owed(e.statement) : e.items.reduce((t, i) => t + i.amount, 0));
+const istToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+const addDays = (key: string, n: number) => { const d = new Date(`${key}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+const DISMISS_KEY = 'shazah:topups-moved';
 
-type CardGroup = { kind: 'card'; cardId: string; name: string; statement?: MonthlyPaymentRow; items: MonthlyPaymentRow[]; dueDate?: string; memberId?: string | null };
-type Entry = { kind: 'row'; row: MonthlyPaymentRow; dueDate?: string } | CardGroup;
-
-function useMarkPaid() {
-  const qc = useQueryClient();
-  const { toast, dismiss } = useToast();
-  const undo = useUndoPayment();
-  const pay = useMutation({
-    mutationFn: (row: MonthlyPaymentRow) => row.type === 'BILL'
-      ? api.post(`/bills/${row.id}/pay`, { createTransaction: true, dueDate: row.dueDate, accountId: row.creditCardId ? undefined : row.accountId ?? undefined })
-      : row.type === 'CARD_EMI'
-        ? api.post(`/card-emis/${row.id}/pay`, {})
-        : api.post('/dashboard/monthly-payment', { type: row.type, id: row.id, status: 'PAID', accountId: row.accountId || undefined }),
-    onSuccess: (_res, row) => {
-      qc.invalidateQueries();
-      const target = { type: row.type, id: row.id, month: row.dueDate?.slice(0, 7), dueDate: row.dueDate };
-      const id = toast({
-        title: isOnCard(row) ? 'Ticked off · paid with the card bill' : 'Payment recorded',
-        description: `${row.name} · ${formatCurrency(row.amount)}`,
-        duration: 10_000,
-        action: (
-          <button
-            type="button"
-            onClick={() => { undo.mutate(target); dismiss(id); }}
-            className="mr-6 shrink-0 rounded-full border border-line-strong bg-paper-card px-3 py-1 text-xs font-medium text-ink-primary hover:bg-paper-subtle"
-          >
-            Undo
-          </button>
-        ),
-      });
-    },
-    onError: (error: unknown) => {
-      const e = error as { response?: { data?: { message?: string } } };
-      toast({ title: e.response?.data?.message || 'Could not record payment', variant: 'destructive' });
-    },
-  });
-  return { pending: pay.isPending || undo.isPending, mark: (row: MonthlyPaymentRow) => pay.mutate(row) };
-}
-
-/** Plain rows plus one group per card (its statement, EMIs and card-charged bills). */
-export function buildEntries(rows: MonthlyPaymentRow[], cardNames: Map<string, string>): Entry[] {
+/** Plain rows plus one group per card (its statement, EMIs and card-charged bills), earliest first. */
+export function buildEntries(rows: Row[], cardNames: Map<string, string>): Entry[] {
   const groups = new Map<string, CardGroup>();
   const entries: Entry[] = [];
   for (const row of rows) {
-    const cardId = row.type === 'CREDIT_CARD' ? row.creditCardId ?? row.id : isOnCard(row) ? row.creditCardId : undefined;
+    const cardId = row.type === 'CREDIT_CARD' ? row.creditCardId ?? row.id : isTickOnly(row) ? row.creditCardId : undefined;
     if (!cardId) { entries.push({ kind: 'row', row, dueDate: row.dueDate }); continue; }
     let g = groups.get(cardId);
     if (!g) {
@@ -82,25 +48,39 @@ export function buildEntries(rows: MonthlyPaymentRow[], cardNames: Map<string, s
   return entries.sort((a, b) => (a.dueDate ?? '9999').localeCompare(b.dueDate ?? '9999'));
 }
 
-function DateCell({ date }: { date?: string }) {
+/** Amount each person still owes, honouring splits (e.g. a 50/50 RD). */
+export function perPerson(entries: Entry[]) {
+  const totals = new Map<string, number>();
+  const add = (id: string | null | undefined, n: number) => totals.set(id ?? '', (totals.get(id ?? '') ?? 0) + n);
+  for (const e of entries) {
+    if (e.kind === 'card') { add(e.memberId, entryOwed(e)); continue; }
+    const amount = owed(e.row);
+    const sp = e.row.split;
+    if (sp && e.row.memberId) { add(sp.memberId, (amount * sp.pct) / 100); add(e.row.memberId, amount - (amount * sp.pct) / 100); }
+    else add(e.row.memberId, amount);
+  }
+  return totals;
+}
+
+function DateCell({ date, overdue }: { date?: string; overdue?: boolean }) {
   return (
-    <div className="text-center text-[11px] leading-tight text-ink-muted">
-      {date ? <><b className="block text-base text-ink-primary">{formatDate(date, 'd')}</b>{formatDate(date, 'MMM')}</> : '—'}
+    <div className={cn('text-center text-[11px] leading-tight', overdue ? 'text-updown-down' : 'text-ink-muted')}>
+      {date ? <><b className={cn('block text-base', overdue ? 'text-updown-down' : 'text-ink-primary')}>{formatDate(date, 'd')}</b>{formatDate(date, 'MMM')}</> : '—'}
     </div>
   );
 }
 
-const pill = 'rounded-full border border-line-strong bg-paper-card px-3 py-1 text-xs font-medium text-ink-primary hover:bg-paper-subtle disabled:opacity-50';
+const rowGrid = 'grid grid-cols-[44px_minmax(0,1fr)_auto] items-center gap-3 sm:grid-cols-[52px_minmax(0,1fr)_auto_auto]';
+const actionCell = 'col-start-2 col-end-4 justify-self-start sm:col-auto sm:justify-self-end';
 
-function CardGroupRow({ group, who, mark, pending }: { group: CardGroup; who: string; mark: (r: MonthlyPaymentRow) => void; pending: boolean }) {
+function CardGroupRow({ group, who, overdue }: { group: CardGroup; who: string; overdue: boolean }) {
   const [open, setOpen] = useState(false);
   const inside = group.items.reduce((s, i) => s + i.amount, 0);
   const st = group.statement;
-  const amount = st ? owed(st) : inside;
   return (
     <li className="border-b border-line py-2.5 last:border-b-0">
-      <div className="grid grid-cols-[44px_minmax(0,1fr)_auto] items-center gap-3 sm:grid-cols-[52px_minmax(0,1fr)_auto_auto]">
-        <DateCell date={group.dueDate} />
+      <div className={rowGrid}>
+        <DateCell date={group.dueDate} overdue={overdue} />
         <div className="min-w-0">
           <p className="truncate text-sm font-medium text-ink-primary">{group.name} bill</p>
           <p className="text-xs text-ink-muted">
@@ -112,13 +92,11 @@ function CardGroupRow({ group, who, mark, pending }: { group: CardGroup; who: st
               </button>
             )}
           </p>
-          {!st && <p className="text-[11px] text-amber-800">Statement not entered yet. Update it on Loans &amp; Cards.</p>}
+          {!st && <p className="text-[11px] text-amber-800">Statement not entered yet. <Link href="/loans#your-loans" className="underline">Enter it on Loans &amp; Cards</Link>.</p>}
           {st?.paidAmount ? <p className="text-[11px] text-ink-muted">{formatCurrency(st.paidAmount)} paid so far</p> : null}
         </div>
-        <span className="text-sm font-semibold tabular-nums text-ink-primary">{formatCurrency(amount)}</span>
-        <div className="col-start-2 col-end-4 justify-self-start sm:col-auto sm:justify-self-auto">
-          <Link href="/loans#your-loans" className={cn(pill, 'inline-block')}>Pay card</Link>
-        </div>
+        <span className="text-sm font-semibold tabular-nums text-ink-primary">{formatCurrency(st ? owed(st) : inside)}</span>
+        <div className={actionCell}>{st && <PaymentActions row={st} planMonth={st.planMonth} />}</div>
       </div>
       {open && (
         <ul className="ml-[56px] mt-2 grid gap-1.5 border-l border-line pl-3 sm:ml-[64px]">
@@ -127,7 +105,7 @@ function CardGroupRow({ group, who, mark, pending }: { group: CardGroup; who: st
               <span className="min-w-0">{item.name}{item.dueDate && <span className="text-ink-muted"> · {formatDate(item.dueDate, 'd MMM')}</span>}</span>
               <span className="flex items-center gap-2">
                 <span className="tabular-nums">{formatCurrency(item.amount)}</span>
-                <button type="button" disabled={pending || (item.type === 'BILL' && !item.dueDate)} onClick={() => mark(item)} className={pill} title="Counts it as part of the card bill. No money moves.">Tick off</button>
+                <PaymentActions row={item} planMonth={item.planMonth} />
               </span>
             </li>
           ))}
@@ -137,20 +115,71 @@ function CardGroupRow({ group, who, mark, pending }: { group: CardGroup; who: st
   );
 }
 
+function Section({ title, entries, who, overdue, tone }: { title: string; entries: Entry[]; who: (id?: string | null) => string; overdue?: boolean; tone?: 'down' }) {
+  if (!entries.length) return null;
+  const total = entries.reduce((s, e) => s + entryOwed(e), 0);
+  return (
+    <div className="mt-3 first:mt-0">
+      <h3 className={cn('flex justify-between text-[11px] font-semibold uppercase tracking-wider', tone === 'down' ? 'text-updown-down' : 'text-ink-muted')}>
+        <span>{title}</span><span className="tabular-nums">{formatCurrency(total)}</span>
+      </h3>
+      <ul>
+        {entries.map((entry) => entry.kind === 'card' ? (
+          <CardGroupRow key={`card-${entry.cardId}`} group={entry} who={who(entry.memberId)} overdue={!!overdue} />
+        ) : (
+          <li key={`${entry.row.planMonth}-${entry.row.type}-${entry.row.id}-${entry.row.dueDate}`} className={cn(rowGrid, 'border-b border-line py-2.5 last:border-b-0')}>
+            <DateCell date={entry.row.dueDate} overdue={overdue} />
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium text-ink-primary">{entry.row.name}</p>
+              <p className="text-xs text-ink-muted">{who(entry.row.memberId)}{entry.row.split ? ` · split ${100 - entry.row.split.pct}/${entry.row.split.pct}` : ''}</p>
+            </div>
+            <span className="text-sm font-semibold tabular-nums text-ink-primary">{formatCurrency(entry.row.amount)}</span>
+            <div className={actionCell}><PaymentActions row={entry.row} planMonth={entry.row.planMonth} /></div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function useMovedTopUps() {
+  const [moved, setMoved] = useState<string[]>([]);
+  useEffect(() => {
+    try { setMoved(JSON.parse(sessionStorage.getItem(DISMISS_KEY) ?? '[]')); } catch { /* storage unavailable */ }
+  }, []);
+  const markMoved = (key: string) => {
+    const next = [...moved, key];
+    setMoved(next);
+    try { sessionStorage.setItem(DISMISS_KEY, JSON.stringify(next)); } catch { /* storage unavailable */ }
+  };
+  return { moved, markMoved };
+}
+
 export function StillToPay() {
   const { data, isLoading, isError } = useMonthlyPlan();
   const { data: funding } = useAccountFunding();
   const { data: members } = useFamilyMembers();
   const { data: cards } = useCreditCards();
-  const { mark, pending } = useMarkPaid();
+  const { moved, markMoved } = useMovedTopUps();
 
   const names = new Map((members ?? []).map((m) => [m.id, m.name.split(' ')[0]]));
   const who = (memberId?: string | null) => (memberId && names.get(memberId) ? `${names.get(memberId)} pays` : 'No person set');
-  const rows = (data?.current.rows ?? []).filter((r) => r.status === 'PENDING');
-  const entries = buildEntries(rows, new Map((cards ?? []).map((c) => [c.id, c.cardName])));
-  // Card EMIs/bills inside a card group are paid through the card, so count the statement (or them, if none).
-  const left = entries.reduce((s, e) => s + (e.kind === 'row' ? owed(e.row) : e.statement ? owed(e.statement) : e.items.reduce((t, i) => t + i.amount, 0)), 0);
-  const topUps = (funding?.accounts ?? []).filter((a) => a.amountToAdd > 0);
+  const today = istToday();
+  const weekEnd = addDays(today, 6);
+
+  const pending = (plan?: MonthlyPlan): Row[] =>
+    (plan?.rows ?? []).filter((r) => r.status === 'PENDING').map((r) => ({ ...r, planMonth: plan!.month }));
+  const lastMonth = pending(data?.previous).filter((r) => r.type !== 'CREDIT_CARD');
+  const thisMonth = pending(data?.current);
+  const entries = buildEntries([...lastMonth, ...thisMonth], new Map((cards ?? []).map((c) => [c.id, c.cardName])));
+
+  const isOverdue = (e: Entry) => (e.kind === 'row' ? e.row.planMonth !== data?.current.month : e.items.some((i) => i.planMonth !== data?.current.month)) || (!!e.dueDate && e.dueDate < today);
+  const overdue = entries.filter(isOverdue);
+  const thisWeek = entries.filter((e) => !isOverdue(e) && (!e.dueDate || e.dueDate <= weekEnd));
+  const later = entries.filter((e) => !isOverdue(e) && !!e.dueDate && e.dueDate > weekEnd);
+  const left = entries.reduce((s, e) => s + entryOwed(e), 0);
+  const people = Array.from(perPerson(entries).entries()).filter(([, n]) => n > 0.5);
+  const topUps = (funding?.accounts ?? []).filter((a) => a.amountToAdd > 0 && !moved.includes(`${a.id}:${a.amountToAdd}`));
 
   return (
     <section className="card-light min-w-0 rounded-2xl px-5 py-[18px]">
@@ -159,40 +188,33 @@ export function StillToPay() {
         {data && <span className="text-xs text-ink-muted">{formatCurrency(left)} left · {entries.length} {entries.length === 1 ? 'payment' : 'payments'}</span>}
       </div>
 
+      {people.length > 0 && (
+        <p className="mb-2.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-secondary">
+          {people.map(([id, n]) => <span key={id || 'none'}>{id ? names.get(id) ?? 'Someone' : 'No person set'} <b className="tabular-nums text-ink-primary">{formatCurrency(Math.round(n))}</b></span>)}
+        </p>
+      )}
+
       {topUps.map((a) => (
-        <p key={a.id} className="mb-2 flex items-center gap-2.5 rounded-xl bg-amber-50 px-3 py-2.5 text-[13px] text-amber-800">
-          <AlertTriangle aria-hidden="true" className="h-4 w-4 shrink-0" />
-          <span>
+        <div key={a.id} className="mb-2 flex items-start gap-2.5 rounded-xl bg-amber-50 px-3 py-2.5 text-[13px] text-amber-800">
+          <AlertTriangle aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />
+          <span className="flex-1">
             Move {formatCurrency(a.amountToAdd)} to {a.name}
             {a.nextPayment?.dueDate ? <> before {formatDate(a.nextPayment.dueDate, 'd MMM')}</> : null}
             {a.nextPayment ? <> to cover {a.nextPayment.name}</> : null}.
           </span>
-        </p>
+          <button type="button" onClick={() => markMoved(`${a.id}:${a.amountToAdd}`)} className="inline-flex shrink-0 items-center gap-1 rounded-full border border-amber-300 px-2 py-0.5 text-xs font-medium hover:bg-amber-100" title="Hides this until the amount changes. Update the account balance on Accounts to make it permanent.">
+            <X aria-hidden="true" className="h-3 w-3" />Done, I moved it
+          </button>
+        </div>
       ))}
 
       {isLoading && <div className="h-40 rounded-xl shimmer" />}
       {isError && <p role="alert" className="text-sm text-ink-secondary">Could not load payments. Please refresh.</p>}
       {data && entries.length === 0 && <p className="py-6 text-center text-sm text-ink-muted">Everything for this month is paid.</p>}
 
-      <ul>
-        {entries.map((entry) => entry.kind === 'card' ? (
-          <CardGroupRow key={`card-${entry.cardId}`} group={entry} who={who(entry.memberId)} mark={mark} pending={pending} />
-        ) : (
-          <li key={`${entry.row.type}-${entry.row.id}-${entry.row.dueDate}`} className="grid grid-cols-[44px_minmax(0,1fr)_auto] items-center gap-3 border-b border-line py-2.5 last:border-b-0 sm:grid-cols-[52px_minmax(0,1fr)_auto_auto]">
-            <DateCell date={entry.row.dueDate} />
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium text-ink-primary">{entry.row.name}</p>
-              <p className="text-xs text-ink-muted">{who(entry.row.memberId)}</p>
-            </div>
-            <span className="text-sm font-semibold tabular-nums text-ink-primary">{formatCurrency(entry.row.amount)}</span>
-            <div className="col-start-2 col-end-4 justify-self-start sm:col-auto sm:justify-self-auto">
-              <button type="button" disabled={pending || (entry.row.type === 'BILL' && !entry.row.dueDate)} onClick={() => mark(entry.row)} className={pill}>
-                Mark paid
-              </button>
-            </div>
-          </li>
-        ))}
-      </ul>
+      <Section title="Overdue" entries={overdue} who={who} overdue tone="down" />
+      <Section title="Due this week" entries={thisWeek} who={who} />
+      <Section title="Later this month" entries={later} who={who} />
     </section>
   );
 }

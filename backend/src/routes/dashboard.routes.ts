@@ -1,7 +1,7 @@
 import { getAccountFundingPlan } from '../services/accountFunding.service';
 import { getMonthSummary, saveSalary } from '../services/monthSummary.service';
 import { undoPayment } from '../services/paymentUndo.service';
-import { getMonthlyPlan, currentMonth, monthWindow, decideMonthlyPayment } from '../services/monthlyPayments.service';
+import { getMonthlyPlan, currentMonth, monthWindow, decideMonthlyPayment, previousMonth } from '../services/monthlyPayments.service';
 import { z } from 'zod';
 import { validate } from '../middleware/validate.middleware';
 import { AuthRequest } from '../types';
@@ -19,11 +19,16 @@ router.get('/account-funding', async (req: AuthRequest, res) => {
 });
 router.get('/monthly-plan', async (req: AuthRequest, res) => {
   const month = currentMonth();
-  res.json({ success: true, data: { current: await getMonthlyPlan(req.user!.userId, month), next: await getMonthlyPlan(req.user!.userId, monthWindow(month).next) } });
+  const [current, next, previous] = await Promise.all([getMonthlyPlan(req.user!.userId, month), getMonthlyPlan(req.user!.userId, monthWindow(month).next), getMonthlyPlan(req.user!.userId, previousMonth(month))]);
+  res.json({ success: true, data: { current, next, previous } });
 });
-router.post('/monthly-payment', validate(z.object({ type: z.enum(['LOAN', 'INVESTMENT']), id: z.string().min(1), status: z.enum(['PAID', 'SKIPPED']), accountId: z.string().min(1).optional() })), async (req: AuthRequest, res) => {
-  const { type, id, status, accountId } = req.body;
-  res.json({ success: true, data: await decideMonthlyPayment(req.user!.userId, type, id, status, accountId) });
+const paymentBody = z.object({
+  type: z.enum(['LOAN', 'INVESTMENT']), id: z.string().min(1), status: z.enum(['PAID', 'SKIPPED']), accountId: z.string().min(1).optional(),
+  month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/).optional(), amount: z.coerce.number().positive().max(1e12).optional(), paidDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+});
+router.post('/monthly-payment', validate(paymentBody), async (req: AuthRequest, res) => {
+  const { type, id, status, accountId, month, amount, paidDate } = paymentBody.parse(req.body);
+  res.json({ success: true, data: await decideMonthlyPayment(req.user!.userId, type, id, status, accountId, { month, amount, paidDate }) });
 });
 const monthParam = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/);
 const undoBody = z.object({ type: z.enum(['LOAN', 'INVESTMENT', 'CARD_EMI', 'CREDIT_CARD', 'BILL']), id: z.string().min(1), month: monthParam.optional(), dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() });

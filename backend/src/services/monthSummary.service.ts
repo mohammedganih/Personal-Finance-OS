@@ -1,6 +1,6 @@
 import { prisma } from '../lib/prisma';
 import { createError } from '../middleware/error.middleware';
-import { currentMonth, getMonthlyPlan, monthWindow, MonthlyPlanRow } from './monthlyPayments.service';
+import { currentMonth, getMonthlyPlan, monthWindow, MonthlyPlanRow, SPLIT_ENTITY } from './monthlyPayments.service';
 
 // The home page "month sheet": per person, salary − loans − investments − bills
 // = left for the month; minus last month's card spending = free to spend.
@@ -46,8 +46,6 @@ export interface SummaryExtras {
 }
 type SheetRow = MonthlyPlanRow & { fullAmount?: number | null; sharePct?: number | null; debitedFromMemberId?: string | null };
 
-// Plan row type → OwnershipSplit entity type, for every type the split model covers.
-const SPLIT_ENTITY: Record<string, string> = { INVESTMENT: 'INVESTMENT' };
 
 const round = (n: number) => Math.round(n * 100) / 100;
 const counts = (r: MonthlyPlanRow) => r.status !== 'SKIPPED';
@@ -150,7 +148,7 @@ export async function getMonthSummary(userId: string, month = currentMonth()): P
     getMonthlyPlan(userId, month),
     prisma.familyMember.findMany({ where: { userId }, orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }] }),
     prisma.monthlySalary.findMany({ where: { userId, month: { lte: month } } }),
-    prisma.ownershipSplit.findMany({ where: { userId, entityType: { in: Object.values(SPLIT_ENTITY) as ('INVESTMENT')[] } } }),
+    prisma.ownershipSplit.findMany({ where: { userId, entityType: { in: Array.from(new Set(Object.values(SPLIT_ENTITY))) } } }),
     prisma.account.findMany({ where: { userId }, select: { id: true, memberId: true } }),
   ]);
   return buildMonthSummary(month, plan.rows, members, salaries.map(s => ({ memberId: s.memberId, month: s.month, amount: Number(s.amount) })), {

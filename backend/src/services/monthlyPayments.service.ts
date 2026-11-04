@@ -25,7 +25,11 @@ export interface MonthlyPlanRow {
   /** Card statements only: amount already paid this month, and what is still owed. */
   paidAmount?: number;
   remaining?: number;
+  /** OwnershipSplit: the other person and the % of this row they pay. */
+  split?: { memberId: string; pct: number };
 }
+// Plan row type → OwnershipSplit entity type, for every type the split model covers.
+export const SPLIT_ENTITY: Record<string, 'INVESTMENT'> = { INVESTMENT: 'INVESTMENT' };
 export async function getMonthlyPlan(userId: string, month = currentMonth()) {
   const window = monthWindow(month);
   const [loans, investments, events, bills, cards, cardEmis] = await Promise.all([
@@ -81,6 +85,11 @@ export async function getMonthlyPlan(userId: string, month = currentMonth()) {
     if (bill.status === 'PAUSED') continue;
     rows.push({ id: bill.billId, type: 'BILL', name: bill.name, amount: bill.amount, accountId: bill.accountId, creditCardId: bill.creditCardId ?? undefined, memberId: bill.memberId ?? (bill.creditCardId ? cardMember.get(bill.creditCardId) ?? null : null), status: ['PAID', 'SKIPPED'].includes(bill.status) ? bill.status : 'PENDING', dueDate: bill.dueDate });
   }
+  const splits = await prisma.ownershipSplit.findMany({ where: { userId, entityType: { in: Array.from(new Set(Object.values(SPLIT_ENTITY))) } } });
+  for (const r of rows) {
+    const sp = SPLIT_ENTITY[r.type] && splits.find(x => x.entityType === SPLIT_ENTITY[r.type] && x.entityId === r.id);
+    if (sp && sp.secondaryMemberId !== r.memberId) r.split = { memberId: sp.secondaryMemberId, pct: Math.round((100 - Number(sp.ratio)) * 100) / 100 };
+  }
   return { month, rows, ...summarizeRows(rows) };
 }
 export function summarizeRows(input: { type: string; amount: number; status: string; paidAmount?: number; remaining?: number }[]) {
@@ -91,8 +100,24 @@ export function summarizeRows(input: { type: string; amount: number; status: str
   const sum = (status?: string, type?: string) => rows.filter(r => (!status || r.status === status) && (!type || r.type === type)).reduce((s, r) => s + r.amount, 0);
   return { scheduled: sum(), paid: sum('PAID'), skipped: sum('SKIPPED'), remaining: sum('PENDING'), loans: sum('PENDING', 'LOAN'), creditCards: sum('PENDING', 'CREDIT_CARD') + sum('PENDING', 'CARD_EMI'), investments: sum('PENDING', 'INVESTMENT'), bills: sum('PENDING', 'BILL') };
 }
-export async function decideMonthlyPayment(userId: string, type: 'LOAN' | 'INVESTMENT', id: string, status: 'PAID' | 'SKIPPED', accountId?: string) {
-  const month = currentMonth();
+export interface PaymentOptions {
+  /** `YYYY-MM`: this month (default) or last month, for an overdue instalment. */
+  month?: string;
+  /** A different amount than scheduled (part payment, or a changed SIP amount). */
+  amount?: number;
+  /** `YYYY-MM-DD` the money actually left the account; defaults to now. */
+  paidDate?: string;
+}
+export function previousMonth(month = currentMonth()) {
+  const [y, m] = month.split('-').map(Number);
+  return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`;
+}
+export async function decideMonthlyPayment(userId: string, type: 'LOAN' | 'INVESTMENT', id: string, status: 'PAID' | 'SKIPPED', accountId?: string, options: PaymentOptions = {}) {
+  const month = options.month ?? currentMonth();
+  if (month !== currentMonth() && month !== previousMonth()) throw createError('Only this month or last month can be recorded', 400);
+  if (options.amount !== undefined && !(options.amount > 0)) throw createError('Amount must be positive', 400);
+  const paidOn = options.paidDate ? new Date(`${options.paidDate}T12:00:00+05:30`) : new Date();
+  if (Number.isNaN(paidOn.getTime()) || paidOn.getTime() > Date.now() + 86_400_000) throw createError('Paid date is not valid', 400);
   const emiCategory = await findCategory(userId, type === 'LOAN' ? 'Loan EMI' : 'Investment');
   const wealthCategory = type === 'LOAN' ? await findCategory(userId, 'Wealth Creation') : null;
   try {
@@ -104,8 +129,8 @@ export async function decideMonthlyPayment(userId: string, type: 'LOAN' | 'INVES
       if (inv && !recurringTypes.includes(inv.assetType)) throw createError('This investment has no monthly installment', 400);
       const start = loan?.startDate ?? inv!.purchaseDate;
       if (currentMonth(start) > month || (inv?.maturityDate && currentMonth(inv.maturityDate) < month)) throw createError('No installment due this month', 400);
-      const split = loan ? calculateEMISplit(Number(loan.remainingBalance), Number(loan.emi), Number(loan.interestRate)) : null;
-      const amount = split?.actualPayment ?? Number(inv!.monthlyAmount);
+      const split = loan ? calculateEMISplit(Number(loan.remainingBalance), options.amount ?? Number(loan.emi), Number(loan.interestRate)) : null;
+      const amount = split?.actualPayment ?? options.amount ?? Number(inv!.monthlyAmount);
       if (amount <= 0) throw createError('No payment amount configured', 400);
       const sourceAccount = accountId || loan?.bankAccountId || inv?.bankAccountId;
       if (sourceAccount && !await tx.account.findFirst({ where: { id: sourceAccount, userId } })) throw createError('Account not found', 404);
@@ -122,7 +147,7 @@ export async function decideMonthlyPayment(userId: string, type: 'LOAN' | 'INVES
         { amount: split.interestPortion, description: `EMI Interest: ${loan.name}`, categoryId: emiCategory, isWealthTransfer: false },
         { amount: split.principalPortion, description: `EMI Principal: ${loan.name}`, categoryId: loan.linkedInvestmentId ? wealthCategory : emiCategory, isWealthTransfer: !!loan.linkedInvestmentId },
       ] : [{ amount, description: `${inv!.assetType}: ${inv!.assetName}`, categoryId: emiCategory, isWealthTransfer: false }];
-      for (const portion of portions.filter(p => p.amount > 0)) transactions.push(await tx.transaction.create({ data: { userId, type: 'EXPENSE', ...portion, accountId: sourceAccount, memberId: loan?.payerMemberId ?? loan?.memberId ?? inv?.memberId, date: new Date(), isRecurring: true } }));
+      for (const portion of portions.filter(p => p.amount > 0)) transactions.push(await tx.transaction.create({ data: { userId, type: 'EXPENSE', ...portion, accountId: sourceAccount, memberId: loan?.payerMemberId ?? loan?.memberId ?? inv?.memberId, date: paidOn, isRecurring: true } }));
       if (loan && split) await tx.loan.update({ where: { id }, data: { remainingBalance: split.newBalance, isActive: !split.isPaidOff } });
       if (inv?.assetType === 'RECURRING_DEPOSIT') await tx.investment.update({ where: { id }, data: { quantity: { increment: 1 } } });
       if (sourceAccount) await tx.account.update({ where: { id: sourceAccount }, data: { balance: { decrement: amount } } });
