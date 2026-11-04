@@ -40,7 +40,7 @@ describe('month summary buckets', () => {
     ];
     const s = buildMonthSummary('2026-11', rows, members, [{ memberId: 'm1', month: '2026-11', amount: 50000 }]);
     const [a, b] = s.members;
-    expect(a.cards).toEqual([{ creditCardId: 'sbi', name: 'SBI', memberId: 'm1', dueDate: '2026-11-10', status: 'PENDING', statement: 23450, deducted: 4849, spending: 18601, needsStatementUpdate: false }]);
+    expect(a.cards).toEqual([{ creditCardId: 'sbi', name: 'SBI', memberId: 'm1', dueDate: '2026-11-10', status: 'PENDING', statement: 23450, deducted: 4849, spending: 18601, needsStatementUpdate: false, source: 'CARD', oneOff: 0, linked: 0, paidOff: 0 }]);
     expect(a.loans.total).toBe(4200); // card EMI counts as a loan
     expect(a.bills.total).toBe(0); // skipped bill is listed but not counted
     expect(a.bills.items).toHaveLength(1);

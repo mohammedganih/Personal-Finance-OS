@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const mocks = vi.hoisted(() => ({ cards: vi.fn(), emis: vi.fn(), events: vi.fn() }));
 vi.mock('../lib/prisma', () => ({ prisma: {
   loan: { findMany: vi.fn().mockResolvedValue([]) }, investment: { findMany: vi.fn().mockResolvedValue([]) },
-  creditCard: { findMany: mocks.cards }, cardEMI: { findMany: mocks.emis }, monthlyPayment: { findMany: mocks.events },
+  creditCard: { findMany: mocks.cards }, cardEMI: { findMany: mocks.emis }, cardStatement: { findMany: vi.fn().mockResolvedValue([]) }, monthlyPayment: { findMany: mocks.events },
   ownershipSplit: { findMany: vi.fn().mockResolvedValue([]) },
 } }));
 vi.mock('./bill.service', () => ({ getBillsCalendar: vi.fn().mockResolvedValue([]) }));
