@@ -10,6 +10,7 @@ import {
   PiggyBank,
   Wallet,
   FileText,
+  Landmark,
 } from 'lucide-react';
 
 // `group` drives the sidebar headings; '' = no heading, 'spacer' = blank gap.
@@ -21,7 +22,8 @@ export const NAV_ITEMS: readonly { href: string; label: string; icon: typeof Hom
   { href: '/transactions', label: 'Transactions', icon: ArrowLeftRight, group: 'This month' },
   { href: '/bills', label: 'Bills', icon: Receipt, group: 'This month' },
   { href: '/budgets', label: 'Budgets', icon: PiggyBank, group: 'This month' },
-  { href: '/loans', label: 'Loans & Cards', icon: CreditCard, group: 'Commitments' },
+  { href: '/loans', label: 'Loans', icon: Landmark, group: 'Commitments' },
+  { href: '/credit-cards', label: 'Credit Cards', icon: CreditCard, group: 'Commitments' },
   { href: '/investments', label: 'Investments', icon: TrendingUp, group: 'Commitments' },
   { href: '/goals', label: 'Goals', icon: Target, group: 'Commitments' },
   { href: '/analytics', label: 'Analytics', icon: BarChart3, group: 'Insights' },

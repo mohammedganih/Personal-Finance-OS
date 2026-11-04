@@ -3,21 +3,16 @@
 import { useState } from 'react';
 import { differenceInMonths } from 'date-fns';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
-import { MoreVertical, Plus, ChevronDown, CreditCard as CreditCardIcon } from 'lucide-react';
-import { useMonthlyPlan } from '@/hooks/useMonthlyPlan';
+import { MoreVertical, Plus, ChevronDown } from 'lucide-react';
 import { useLoans, useDeleteLoan, usePayLoanEMI } from '@/hooks/useLoans';
-import { useCreditCards, useDeleteCreditCard } from '@/hooks/useCreditCards';
-import { useCardEMIs } from '@/hooks/useCardEMIs';
-import { LOAN_TYPE_ICONS, LOAN_TYPE_COLORS, CREDIT_CARD_BUCKET_COLOR } from '@/lib/loanTypeMeta';
+import { LOAN_TYPE_ICONS, LOAN_TYPE_COLORS } from '@/lib/loanTypeMeta';
 import { LOAN_TYPE_LABELS } from '@/lib/constants';
 import { formatCurrency, formatDate } from '@/lib/format';
-import { Loan, CreditCard } from '@/types';
+import Link from 'next/link';
+import { Loan } from '@/types';
 import { cn } from '@/lib/utils';
 import { LoanForm } from '@/components/loans/LoanForm';
-import { CreditCardForm } from '@/components/loans/CreditCardForm';
-import { PayBillDialog } from '@/components/loans/PayBillDialog';
-import { CardEMIsDialog } from './CardEMIsDialog';
-import { PrepayLoanDialog, ChangeRateDialog, CardStatementDialog, isStatementStale } from '@/components/loans/LoanChangeDialogs';
+import { PrepayLoanDialog, ChangeRateDialog } from '@/components/loans/LoanChangeDialogs';
 import { PaymentHistoryDialog } from '@/components/shared/PaymentHistoryDialog';
 import type { HistoryType } from '@/hooks/usePaymentHistory';
 
@@ -64,52 +59,43 @@ function MenuItem({ onSelect, danger, children }: { onSelect: () => void; danger
 }
 
 export function YourLoansTable() {
-  const { data: monthlyPlan } = useMonthlyPlan();
   const { data: loans, isLoading: loansLoading } = useLoans();
-  const { data: cards, isLoading: cardsLoading } = useCreditCards();
-  const { data: cardEmis } = useCardEMIs(false);
   const { mutate: deleteLoan } = useDeleteLoan();
-  const { mutate: deleteCard } = useDeleteCreditCard();
   const { mutate: payEMI, isPending: isPayingEMI } = usePayLoanEMI();
 
   const [payingLoanId, setPayingLoanId] = useState<string | null>(null);
   const [showClosed, setShowClosed] = useState(false);
   const [editingLoan, setEditingLoan] = useState<Loan | null>(null);
   const [showLoanForm, setShowLoanForm] = useState(false);
-  const [editingCard, setEditingCard] = useState<CreditCard | null>(null);
-  const [showCardForm, setShowCardForm] = useState(false);
-  const [payingCard, setPayingCard] = useState<CreditCard | null>(null);
-  const [emisForCard, setEmisForCard] = useState<CreditCard | null>(null);
   const [prepaying, setPrepaying] = useState<Loan | null>(null);
   const [changingRate, setChangingRate] = useState<Loan | null>(null);
-  const [statementCard, setStatementCard] = useState<CreditCard | null>(null);
   const [historyFor, setHistoryFor] = useState<{ type: HistoryType; id: string; name: string } | null>(null);
 
-  if (loansLoading || cardsLoading) return <div className="card-light rounded-2xl h-96 shimmer" />;
+  if (loansLoading) return <div className="card-light rounded-2xl h-96 shimmer" />;
 
   const activeLoans = (loans ?? []).filter((l) => l.isActive);
   const closedLoans = (loans ?? []).filter((l) => !l.isActive);
-  const activeCards = (cards ?? []).filter((c) => c.isActive);
-
-  const emisForCardId = (id: string) => (cardEmis ?? []).filter((e) => e.creditCardId === id && !e.isArchived);
 
   const now = new Date();
 
   return (
     <div id="your-loans" className="card-light rounded-2xl p-5">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-semibold text-ink-primary">Your Loans</h3>
+        <div>
+          <h3 className="text-sm font-semibold text-ink-primary">Your Loans</h3>
+          <p className="text-xs text-ink-muted">Credit cards, statements and card EMIs are on <Link href="/credit-cards" className="underline underline-offset-2 hover:text-ink-primary">Credit Cards</Link>.</p>
+        </div>
         <button
-          onClick={() => { setEditingCard(null); setShowCardForm(true); }}
+          onClick={() => { setEditingLoan(null); setShowLoanForm(true); }}
           className="w-7 h-7 rounded-full bg-paper-subtle hover:bg-line flex items-center justify-center text-ink-secondary hover:text-ink-primary transition-colors"
-          aria-label="Add Credit Card"
-          title="Add Credit Card"
+          aria-label="Add loan"
+          title="Add loan"
         >
           <Plus className="w-4 h-4" />
         </button>
       </div>
 
-      {activeLoans.length === 0 && activeCards.length === 0 ? (
+      {activeLoans.length === 0 ? (
         <div className="h-40 flex items-center justify-center text-sm text-ink-muted">No loans tracked yet</div>
       ) : (
         <div className="overflow-x-auto -mx-1">
@@ -193,71 +179,6 @@ export function YourLoansTable() {
                 );
               })}
 
-              {activeCards.map((card) => {
-                const cardEmisActive = emisForCardId(card.id);
-                const emiOutstanding = cardEmisActive.reduce((s, e) => s + e.outstanding, 0);
-                const effectiveOutstanding = card.outstanding + emiOutstanding;
-                const utilization = card.creditLimit > 0 ? (effectiveOutstanding / card.creditLimit) * 100 : 0;
-                const dueRows = monthlyPlan?.current.rows.filter(r => (r.type === 'CREDIT_CARD' && r.id === card.id) || (r.type === 'CARD_EMI' && r.creditCardId === card.id)) ?? [];
-                const combinedMonthly = dueRows.filter(r => r.status === 'PENDING').reduce((sum, row) => sum + row.amount, 0);
-                const monthlyLabel = monthlyPlan ? `Still due in ${monthlyPlan.current.month}` : 'Loading due amount';
-
-                return (
-                  <tr key={card.id}>
-                    <td className="px-1 py-3.5">
-                      <div className="flex items-center gap-3">
-                        <span className="w-9 h-9 rounded-lg bg-paper-subtle flex items-center justify-center shrink-0" style={{ color: CREDIT_CARD_BUCKET_COLOR }}>
-                          <CreditCardIcon className="w-4 h-4" />
-                        </span>
-                        <span className="min-w-0">
-                          <p className="text-sm font-medium text-ink-primary truncate">{card.cardName}</p>
-                          <p className="text-xs text-ink-muted truncate">
-                            {card.bank ?? 'Credit Card'}{card.lastFourDigits ? ` • •••• ${card.lastFourDigits}` : ''}
-                          </p>
-                          {isStatementStale(card) && (
-                            <button type="button" onClick={() => setStatementCard(card)} className="mt-0.5 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800 hover:bg-amber-100">
-                              Statement out of date · update
-                            </button>
-                          )}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-1 py-3.5 whitespace-nowrap">
-                      <p className="text-sm font-semibold text-ink-primary tabular-nums">{formatCurrency(effectiveOutstanding, 'INR', true)}</p>
-                      <p className="text-xs text-ink-muted tabular-nums">of {formatCurrency(card.creditLimit, 'INR', true)}</p>
-                    </td>
-                    <td className="px-1 py-3.5 whitespace-nowrap">
-                      <p className="text-sm text-ink-primary tabular-nums">{card.interestRate ? `${card.interestRate}%` : '—'}</p>
-                      <p className="text-xs text-ink-muted">Revolving</p>
-                    </td>
-                    <td className="px-1 py-3.5 whitespace-nowrap">
-                      <p className="text-sm text-ink-primary tabular-nums">
-                        {monthlyPlan ? formatCurrency(combinedMonthly, 'INR', true) : '...'}
-                      </p>
-                      <p className="text-xs text-ink-muted">{monthlyLabel}</p>
-                    </td>
-                    <td className="px-1 py-3.5 min-w-32">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-semibold text-ink-primary tabular-nums">{utilization.toFixed(1)}%</span>
-                        <span className="text-[10px] text-ink-muted">Utilized</span>
-                      </div>
-                      <div className="h-1.5 bg-paper-subtle rounded-full overflow-hidden">
-                        <div className="h-full rounded-full" style={{ width: `${Math.min(100, utilization)}%`, background: CREDIT_CARD_BUCKET_COLOR }} />
-                      </div>
-                    </td>
-                    <td className="px-1 py-3.5 text-right">
-                      <RowMenu>
-                        <MenuItem onSelect={() => setStatementCard(card)}>Update statement</MenuItem>
-                        {card.outstanding > 0 && <MenuItem onSelect={() => setPayingCard(card)}>Pay Bill</MenuItem>}
-                        <MenuItem onSelect={() => setHistoryFor({ type: 'CREDIT_CARD', id: card.id, name: card.cardName })}>Payment history</MenuItem>
-                        <MenuItem onSelect={() => setEmisForCard(card)}>Manage EMIs{cardEmisActive.length > 0 ? ` (${cardEmisActive.length})` : ''}</MenuItem>
-                        <MenuItem onSelect={() => { setEditingCard(card); setShowCardForm(true); }}>Edit</MenuItem>
-                        <MenuItem danger onSelect={() => deleteCard(card.id)}>Delete</MenuItem>
-                      </RowMenu>
-                    </td>
-                  </tr>
-                );
-              })}
             </tbody>
           </table>
         </div>
@@ -294,12 +215,8 @@ export function YourLoansTable() {
       )}
 
       {showLoanForm && <LoanForm onClose={() => { setShowLoanForm(false); setEditingLoan(null); }} loan={editingLoan ?? undefined} />}
-      {showCardForm && <CreditCardForm onClose={() => { setShowCardForm(false); setEditingCard(null); }} card={editingCard ?? undefined} />}
-      {payingCard && <PayBillDialog card={payingCard} onClose={() => setPayingCard(null)} />}
-      {emisForCard && <CardEMIsDialog card={emisForCard} onClose={() => setEmisForCard(null)} />}
       {prepaying && <PrepayLoanDialog loan={prepaying} onClose={() => setPrepaying(null)} />}
       {changingRate && <ChangeRateDialog loan={changingRate} onClose={() => setChangingRate(null)} />}
-      {statementCard && <CardStatementDialog card={statementCard} onClose={() => setStatementCard(null)} />}
       {historyFor && <PaymentHistoryDialog {...historyFor} onClose={() => setHistoryFor(null)} />}
     </div>
   );

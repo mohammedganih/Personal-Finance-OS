@@ -9,7 +9,7 @@ import { PaymentActions } from '@/components/shared/PaymentActions';
 import { ChevronDown } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/format';
 
-export function MonthlyPayments({ type }: { type?: 'LOAN' | 'INVESTMENT' }) {
+export function MonthlyPayments({ type }: { type?: 'LOAN' | 'INVESTMENT' | 'CARD' }) {
   const { data, isLoading, isError } = useMonthlyPlan();
   const { data: investments } = useInvestments();
   const [scheduling, setScheduling] = useState<Investment | null>(null);
@@ -34,10 +34,10 @@ export function MonthlyPayments({ type }: { type?: 'LOAN' | 'INVESTMENT' }) {
       </details>
     </section>)}
   </div>;
-  const rows = data.current.rows.filter(r => r.type === type || (type === 'LOAN' && ['CARD_EMI', 'CREDIT_CARD'].includes(r.type)));
+  const rows = data.current.rows.filter(r => type === 'CARD' ? ['CARD_EMI', 'CREDIT_CARD'].includes(r.type) : r.type === type);
   return <section className="card-light rounded-2xl p-5 space-y-4">
-    <h3 className="text-sm font-semibold text-ink-primary">{type === 'LOAN' ? 'Loan and credit card' : 'SIP, RD & gold scheme'} payments - {formatDate(`${data.current.month}-01`, 'MMM yyyy')}</h3>
-    <p className="text-xs text-ink-muted">Record a payment you have made, or skip this month. Use ⋯ to choose the account, a different amount or the date paid. Payments create transactions; skips record status without moving money; Undo reverses either.{type === 'LOAN' && ' Card EMIs are ticked off and paid with the card bill.'}</p>
+    <h3 className="text-sm font-semibold text-ink-primary">{type === 'LOAN' ? 'Loan' : type === 'CARD' ? 'Credit card' : 'SIP, RD & gold scheme'} payments - {formatDate(`${data.current.month}-01`, 'MMM yyyy')}</h3>
+    <p className="text-xs text-ink-muted">Record a payment you have made, or skip this month. Use ⋯ to choose the account, a different amount or the date paid. Payments create transactions; skips record status without moving money; Undo reverses either.{type === 'CARD' && ' Card EMIs are ticked off and paid with the card bill.'}</p>
     {rows.length === 0 && <p className="text-sm text-ink-muted">No monthly payments scheduled.</p>}
     {rows.map(row => <div key={row.id} className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-3">
       <div className="min-w-0">

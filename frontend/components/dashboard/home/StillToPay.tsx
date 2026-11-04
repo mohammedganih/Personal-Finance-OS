@@ -92,7 +92,7 @@ function CardGroupRow({ group, who, overdue }: { group: CardGroup; who: string; 
               </button>
             )}
           </p>
-          {!st && <p className="text-[11px] text-amber-800">Statement not entered yet. <Link href="/loans#your-loans" className="underline">Enter it on Loans &amp; Cards</Link>.</p>}
+          {!st && <p className="text-[11px] text-amber-800">Statement not entered yet. <Link href="/credit-cards" className="underline">Enter it on Credit Cards</Link>.</p>}
           {st?.paidAmount ? <p className="text-[11px] text-ink-muted">{formatCurrency(st.paidAmount)} paid so far</p> : null}
         </div>
         <span className="text-sm font-semibold tabular-nums text-ink-primary">{formatCurrency(st ? owed(st) : inside)}</span>

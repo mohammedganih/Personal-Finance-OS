@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/components/ui/use-toast';
 import { api } from '@/lib/api';
 
-export type MonthlyPaymentRow = { id: string; type: string; name: string; amount: number; status: string; accountId?: string | null; dueDate?: string; creditCardId?: string; memberId?: string | null; shared?: boolean; paidAmount?: number; remaining?: number; split?: { memberId: string; pct: number } };
+export type MonthlyPaymentRow = { id: string; type: string; name: string; amount: number; status: string; accountId?: string | null; dueDate?: string; creditCardId?: string; memberId?: string | null; shared?: boolean; paidAmount?: number; remaining?: number; split?: { memberId: string; pct: number }; statementId?: string };
 export type MonthlyPlan = { month: string; rows: MonthlyPaymentRow[]; scheduled: number; paid: number; skipped: number; remaining: number; loans: number; creditCards: number; investments: number; bills: number };
 export function useMonthlyPlan() {
   return useQuery({ queryKey: ['dashboard', 'monthly-plan'], queryFn: async () => (await api.get<{ data: { current: MonthlyPlan; next: MonthlyPlan; previous?: MonthlyPlan } }>('/dashboard/monthly-plan')).data.data });

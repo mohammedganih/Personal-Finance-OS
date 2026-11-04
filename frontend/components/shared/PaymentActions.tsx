@@ -16,7 +16,7 @@ import type { HistoryType } from '@/hooks/usePaymentHistory';
 // One set of Pay / Tick off / Skip / Undo controls, shared by Home, Loans,
 // Investments and Bills, so every payment behaves the same everywhere.
 
-export type PayableRow = Pick<MonthlyPaymentRow, 'id' | 'type' | 'name' | 'amount' | 'status' | 'dueDate' | 'accountId' | 'creditCardId' | 'remaining'>;
+export type PayableRow = Pick<MonthlyPaymentRow, 'id' | 'type' | 'name' | 'amount' | 'status' | 'dueDate' | 'accountId' | 'creditCardId' | 'remaining'> & { statementId?: string };
 export interface PayOptions { accountId?: string; amount?: number; paidDate?: string }
 
 /** Card EMIs and bills charged to a card are paid with the card bill: ticking them moves no money. */
@@ -35,7 +35,7 @@ function request(row: PayableRow, planMonth: string | undefined, status: 'PAID' 
     case 'CARD_EMI':
       return api.post(`/card-emis/${row.id}/pay`, {});
     case 'CREDIT_CARD':
-      return api.post(`/credit-cards/${row.creditCardId ?? row.id}/pay`, { amount: o.amount ?? row.remaining ?? row.amount, accountId: o.accountId ?? row.accountId ?? undefined });
+      return api.post(`/credit-cards/${row.creditCardId ?? row.id}/pay`, { amount: o.amount ?? row.remaining ?? row.amount, accountId: o.accountId ?? row.accountId ?? undefined, paidDate: o.paidDate, month: row.statementId ? row.dueDate?.slice(0, 7) : undefined });
     default:
       return api.post('/dashboard/monthly-payment', { type: row.type, id: row.id, status, month: planMonth, accountId: o.accountId ?? row.accountId ?? undefined, amount: o.amount, paidDate: o.paidDate });
   }
@@ -107,7 +107,7 @@ export function PaymentActions({ row, planMonth, className }: { row: PayableRow;
     const options: PayOptions = withOptions && movesMoney ? {
       accountId: accountId || undefined,
       amount: Number.isFinite(n) && n > 0 && n !== owed ? n : undefined,
-      paidDate: row.type === 'CREDIT_CARD' || paidDate === todayKey() ? undefined : paidDate,
+      paidDate: paidDate === todayKey() ? undefined : paidDate,
     } : {};
     pay.mutate({ row, planMonth, status, options }, { onSuccess: () => setOpen(false) });
   };
@@ -137,11 +137,9 @@ export function PaymentActions({ row, planMonth, className }: { row: PayableRow;
             <label className="grid gap-1">Amount
               <input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} className="rounded-lg border border-line bg-paper-subtle p-2 tabular-nums text-ink-primary" />
             </label>
-            {row.type !== 'CREDIT_CARD' && (
-              <label className="grid gap-1">Paid on
-                <input type="date" value={paidDate} max={todayKey()} onChange={(e) => setPaidDate(e.target.value)} className="rounded-lg border border-line bg-paper-subtle p-2 text-ink-primary" />
-              </label>
-            )}
+            <label className="grid gap-1">Paid on
+              <input type="date" value={paidDate} max={todayKey()} onChange={(e) => setPaidDate(e.target.value)} className="rounded-lg border border-line bg-paper-subtle p-2 text-ink-primary" />
+            </label>
           </>}
           <div className="flex flex-wrap gap-2 pt-1">
             {movesMoney && <button type="button" disabled={busy} onClick={() => submit('PAID', true)} className="rounded-lg bg-mono px-3 py-1.5 font-medium text-white disabled:opacity-50">Save payment</button>}
