@@ -722,6 +722,7 @@ export interface CardEMISummary {
 
 export interface CreditCard {
   bankAccountId?: string | null;
+  memberId?: string | null;
   id: string;
   cardName: string;
   bank: string | null;

@@ -115,8 +115,13 @@ export async function deleteCardEMI(userId: string, id: string) {
   await prisma.cardEMI.delete({ where: { id } });
 }
 
-export async function payCardEMI(userId: string, emiId: string, accountId?: string) {
-  const categoryId = await findCategory(userId, 'Card EMI');
+/**
+ * Ticks off this month's card EMI instalment. The EMI is part of the card bill,
+ * so this moves no money: the bank debit and the expense are recorded once,
+ * when the card bill itself is paid (credit-card.service payCreditCardBill).
+ * `accountId` is accepted for older clients and ignored.
+ */
+export async function payCardEMI(userId: string, emiId: string, _accountId?: string) {
   try {
     return await prisma.$transaction(async tx => {
       const emi = await tx.cardEMI.findFirst({ where: { id: emiId, userId, isArchived: false }, include: { creditCard: true } });
@@ -125,18 +130,14 @@ export async function payCardEMI(userId: string, emiId: string, accountId?: stri
       const dueDate = nextCardEMIDueDate(emi, emi.creditCard, month);
       if (!dueDate) throw createError('All instalments for this EMI are already paid', 400);
       if (dueDate.slice(0, 7) > month) throw createError('Next installment is not due this month', 400);
-      if (accountId && !await tx.account.findFirst({ where: { id: accountId, userId } })) throw createError('Account not found', 404);
       const key = { userId, entityType: 'CARD_EMI', entityId: emiId, month: dueDate.slice(0, 7) };
       if (await tx.monthlyPayment.findUnique({ where: { userId_entityType_entityId_month: key } })) throw createError('This due-month installment is already recorded', 409);
       const amount = Number(emi.emiAmount);
-      const event = await tx.monthlyPayment.create({ data: { ...key, amount, status: 'PAID' } });
+      await tx.monthlyPayment.create({ data: { ...key, amount, status: 'PAID' } });
       const newEmisPaid = emi.emisPaid + 1;
       const isComplete = newEmisPaid >= emi.tenureMonths;
       const updatedEMI = await tx.cardEMI.update({ where: { id: emiId }, data: { emisPaid: newEmisPaid, isArchived: isComplete } });
-      const transaction = await tx.transaction.create({ data: { userId, type: 'EXPENSE', amount, description: `Card EMI: ${emi.itemName} (${newEmisPaid}/${emi.tenureMonths})`, date: new Date(), categoryId, accountId, isRecurring: true } });
-      if (accountId) await tx.account.update({ where: { id: accountId }, data: { balance: { decrement: amount } } });
-      await tx.monthlyPayment.update({ where: { id: event.id }, data: { transactionIds: [transaction.id] } });
-      return { emi: serializeWithStats(updatedEMI), transaction: { ...transaction, amount: Number(transaction.amount) }, isComplete };
+      return { emi: serializeWithStats(updatedEMI), transaction: null, isComplete, billedToCard: true };
     });
   } catch (error) {
     if ((error as { code?: string }).code === 'P2002') throw createError('This due-month installment is already recorded', 409);

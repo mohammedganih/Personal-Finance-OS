@@ -97,7 +97,13 @@ export async function getAccountFundingPlan(userId: string, month = currentMonth
   ]);
   // Bill occurrence history distinguishes actual unpaid arrears from paid/skipped.
   const bills = await getBillsCalendar(userId, oldestBill ? indiaDateKey(oldestBill.startDate) : window.start, horizon);
-  const payments: FundingPayment[] = [...plan.rows, ...next.rows].filter(p => p.type !== 'BILL');
+  // A card is paid once, through its statement: count what is still owed on it,
+  // and only count its EMIs separately while no statement has been entered.
+  const all = [...plan.rows, ...next.rows];
+  const statementCards = new Set(all.filter(p => p.type === 'CREDIT_CARD').map(p => `${p.creditCardId}:${(p.dueDate ?? '').slice(0, 7)}`));
+  const payments: FundingPayment[] = all
+    .filter(p => p.type !== 'BILL' && !(p.type === 'CARD_EMI' && statementCards.has(`${p.creditCardId}:${(p.dueDate ?? '').slice(0, 7)}`)))
+    .map(p => (p.type === 'CREDIT_CARD' ? { ...p, amount: p.remaining ?? p.amount } : p));
   for (const bill of bills) {
     if (bill.effectiveBillStatus !== 'ACTIVE' || bill.creditCardId || bill.currency !== 'INR' || !['OVERDUE', 'DUE_TODAY', 'UPCOMING'].includes(bill.status)) continue;
     payments.push({ id: bill.billId, type: 'BILL', name: bill.name, amount: bill.amount, status: 'PENDING', dueDate: bill.dueDate, accountId: bill.accountId });

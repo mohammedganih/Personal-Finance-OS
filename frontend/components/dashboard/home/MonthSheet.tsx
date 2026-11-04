@@ -156,7 +156,7 @@ function CardLine({ cards, total, names, showWho }: { cards: CardSplit[]; total:
               const who = showWho && card.memberId ? names.get(card.memberId) : undefined;
               return (
                 <li key={card.creditCardId} className="grid gap-1.5">
-                  <span className="flex justify-between gap-2"><span>{card.name} statement{who && <Tag>{firstName(who)}</Tag>}</span><span className="font-medium tabular-nums">{money(card.statement)}</span></span>
+                  <span className="flex justify-between gap-2"><span>{card.name} statement{who && <Tag>{firstName(who)}</Tag>}{card.status === 'PAID' && <Tag>paid</Tag>}</span><span className="font-medium tabular-nums">{money(card.statement)}</span></span>
                   {card.deducted > 0 && <span className="flex justify-between gap-2"><span>minus EMIs &amp; bills already counted above</span><span className="font-medium tabular-nums">−{money(card.deducted)}</span></span>}
                   {card.needsStatementUpdate && (
                     <span className="text-xs text-amber-800">

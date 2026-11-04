@@ -99,9 +99,10 @@ export function CardEMIsDialog({ card, onClose }: CardEMIsDialogProps) {
                         ) : (
                           <button
                             onClick={() => setPayingId(emi.id)}
+                            title="Counts this month's instalment as part of the card bill. No money moves."
                             className="px-2 py-1 rounded-lg bg-paper-subtle text-ink-primary text-xs font-medium hover:bg-line transition-colors"
                           >
-                            Pay
+                            Tick off
                           </button>
                         )}
                         <button aria-label={`Edit ${emi.itemName}`} onClick={() => { setEditingEMI(emi); setShowForm(true); }} className="p-1.5 rounded-lg text-ink-muted hover:text-ink-primary hover:bg-paper-subtle transition-colors">

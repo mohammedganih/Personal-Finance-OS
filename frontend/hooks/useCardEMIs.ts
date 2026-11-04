@@ -96,7 +96,7 @@ export function usePayCardEMI() {
       qc.invalidateQueries({ queryKey: ['dashboard'] });
       qc.invalidateQueries({ queryKey: ['debt'] });
       const { isComplete } = res.data.data;
-      toast({ title: isComplete ? '🎉 EMI fully paid off!' : 'EMI instalment recorded' });
+      toast({ title: isComplete ? '🎉 Last EMI ticked off!' : 'EMI ticked off', description: 'It is paid with the card bill, so no money moved.' });
     },
     onError: (error: unknown) => {
       const e = error as { response?: { data?: { message?: string } } };

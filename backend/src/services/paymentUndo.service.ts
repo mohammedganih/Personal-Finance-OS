@@ -4,13 +4,14 @@ import { createError } from '../middleware/error.middleware';
 import { currentMonth, monthWindow } from './monthlyPayments.service';
 import { undoOccurrence } from './bill.service';
 
-export type UndoType = 'LOAN' | 'INVESTMENT' | 'CARD_EMI' | 'BILL';
+export type UndoType = 'LOAN' | 'INVESTMENT' | 'CARD_EMI' | 'CREDIT_CARD' | 'BILL';
 export interface UndoInput { type: UndoType; id: string; month?: string; dueDate?: string }
 
 /**
  * Reverses a recorded paid or skipped instalment, exactly undoing what the pay
  * action wrote: its transactions, the bank balance it drew down, and the loan
- * balance / RD instalment count / card EMI count it moved on. Skips just clear.
+ * balance / RD instalment count / card EMI count / card balance it moved on.
+ * Skips just clear.
  */
 export async function undoPayment(userId: string, input: UndoInput) {
   if (input.type === 'BILL') {
@@ -36,7 +37,7 @@ export async function undoPayment(userId: string, input: UndoInput) {
       const txns = event.transactionIds.length
         ? await tx.transaction.findMany({ where: { id: { in: event.transactionIds }, userId } })
         : [];
-      await reverseEntity(tx, userId, input.type, input.id, txns);
+      await reverseEntity(tx, userId, input.type, input.id, txns, Number(event.amount));
       for (const t of txns) {
         if (t.accountId) await tx.account.update({ where: { id: t.accountId }, data: { balance: { increment: t.amount } } });
       }
@@ -49,7 +50,7 @@ export async function undoPayment(userId: string, input: UndoInput) {
 
 type Txn = { id: string; amount: Prisma.Decimal; description: string | null };
 
-async function reverseEntity(tx: Prisma.TransactionClient, userId: string, type: UndoType, id: string, txns: Txn[]) {
+async function reverseEntity(tx: Prisma.TransactionClient, userId: string, type: UndoType, id: string, txns: Txn[], amount: number) {
   if (type === 'LOAN') {
     const loan = await tx.loan.findFirst({ where: { id, userId } });
     if (!loan) throw createError('Loan not found', 404);
@@ -62,6 +63,11 @@ async function reverseEntity(tx: Prisma.TransactionClient, userId: string, type:
     if (inv.assetType === 'RECURRING_DEPOSIT' && Number(inv.quantity) >= 1) {
       await tx.investment.update({ where: { id }, data: { quantity: { decrement: 1 } } });
     }
+  } else if (type === 'CREDIT_CARD') {
+    const card = await tx.creditCard.findFirst({ where: { id, userId } });
+    if (!card) throw createError('Credit card not found', 404);
+    // Every payment against this statement month is undone together.
+    await tx.creditCard.update({ where: { id }, data: { outstanding: { increment: amount } } });
   } else if (type === 'CARD_EMI') {
     const emi = await tx.cardEMI.findFirst({ where: { id, userId } });
     if (!emi) throw createError('Card EMI not found', 404);

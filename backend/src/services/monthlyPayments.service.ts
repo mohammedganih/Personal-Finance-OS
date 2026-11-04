@@ -22,6 +22,9 @@ export interface MonthlyPlanRow {
   memberId?: string | null;
   /** Loans only: borrower and payer differ, or one of them is unset. */
   shared?: boolean;
+  /** Card statements only: amount already paid this month, and what is still owed. */
+  paidAmount?: number;
+  remaining?: number;
 }
 export async function getMonthlyPlan(userId: string, month = currentMonth()) {
   const window = monthWindow(month);
@@ -57,7 +60,14 @@ export async function getMonthlyPlan(userId: string, month = currentMonth()) {
     const dueDate = indiaDateKey(card.dueDate);
     // Full saved statement balance is due once; unknown future spending isn't repeated.
     const dueMonth = dueDate.slice(0, 7) < currentMonth() ? currentMonth() : dueDate.slice(0, 7);
-    if (dueMonth === month && Number(card.outstanding) > 0) rows.push({ id: card.id, type: 'CREDIT_CARD', name: `${card.cardName} - statement balance`, amount: Number(card.outstanding), status: 'PENDING', dueDate, accountId: card.bankAccountId, creditCardId: card.id, memberId: card.memberId });
+    if (dueMonth !== month) continue;
+    // Payments already made against this statement are kept on its MonthlyPayment
+    // record, so the statement stays visible (as paid / part paid) after paying.
+    const event = events.find(e => e.month === month && e.entityType === 'CREDIT_CARD' && e.entityId === card.id);
+    const paid = event ? Number(event.amount) : 0;
+    const outstanding = Number(card.outstanding);
+    if (outstanding <= 0 && !paid) continue;
+    rows.push({ id: card.id, type: 'CREDIT_CARD', name: `${card.cardName} - statement balance`, amount: outstanding + paid, paidAmount: paid, remaining: outstanding, status: outstanding <= 0 ? 'PAID' : 'PENDING', dueDate, accountId: card.bankAccountId, creditCardId: card.id, memberId: card.memberId });
   }
   for (const emi of cardEmis) {
     if (!emi.creditCard.isActive) continue;
@@ -73,7 +83,11 @@ export async function getMonthlyPlan(userId: string, month = currentMonth()) {
   }
   return { month, rows, ...summarizeRows(rows) };
 }
-export function summarizeRows(rows: { type: string; amount: number; status: string }[]) {
+export function summarizeRows(input: { type: string; amount: number; status: string; paidAmount?: number; remaining?: number }[]) {
+  // A part-paid card statement counts its paid part as paid and the rest as pending.
+  const rows = input.flatMap(r => r.status === 'PENDING' && r.paidAmount
+    ? [{ ...r, amount: r.paidAmount, status: 'PAID' }, { ...r, amount: r.remaining ?? r.amount - r.paidAmount }]
+    : [r]);
   const sum = (status?: string, type?: string) => rows.filter(r => (!status || r.status === status) && (!type || r.type === type)).reduce((s, r) => s + r.amount, 0);
   return { scheduled: sum(), paid: sum('PAID'), skipped: sum('SKIPPED'), remaining: sum('PENDING'), loans: sum('PENDING', 'LOAN'), creditCards: sum('PENDING', 'CREDIT_CARD') + sum('PENDING', 'CARD_EMI'), investments: sum('PENDING', 'INVESTMENT'), bills: sum('PENDING', 'BILL') };
 }

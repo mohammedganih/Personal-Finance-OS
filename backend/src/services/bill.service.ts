@@ -363,9 +363,13 @@ export async function payOccurrence(userId: string, billId: string, input: PayBi
   const categoryId =
     (await findCategory(userId, bill.category)) ?? (await findCategory(userId, 'Subscriptions'));
 
+  // A bill charged to a credit card is part of that card's bill: ticking it off
+  // moves no money. The expense is recorded once, when the card bill is paid.
+  const chargedToCard = !!bill.creditCardId && !input.accountId;
+
   return prisma.$transaction(async (tx) => {
     let transactionId: string | null = existing?.transactionId ?? null;
-    if (input.createTransaction) {
+    if (input.createTransaction && !chargedToCard) {
       const txn = await tx.transaction.create({
         data: {
           userId,

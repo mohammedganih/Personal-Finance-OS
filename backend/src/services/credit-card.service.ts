@@ -3,7 +3,7 @@ import { prisma } from '../lib/prisma';
 import { createError } from '../middleware/error.middleware';
 import { CreateCreditCardInput, UpdateCreditCardInput } from '../validators/credit-card.validator';
 import { findCategory } from '../lib/paymentCategory';
-import { balanceAdjustment } from '../lib/accountBalance';
+import { indiaDateKey } from '../lib/cardPaymentSchedule';
 
 export async function getCreditCards(userId: string) {
   const cards = await prisma.creditCard.findMany({
@@ -67,6 +67,19 @@ export async function deleteCreditCard(userId: string, id: string) {
   await prisma.creditCard.delete({ where: { id } });
 }
 
+/** Month a card's saved statement is due in: an overdue statement counts as this month's. */
+export function cardStatementMonth(dueDate: Date, now = new Date()) {
+  const due = indiaDateKey(dueDate).slice(0, 7);
+  const current = indiaDateKey(now).slice(0, 7);
+  return due < current ? current : due;
+}
+
+/**
+ * Pays (all or part of) a card's saved statement. This is where card EMIs and
+ * card-charged bills turn into real money: one expense, one bank debit. Each
+ * payment is kept on the statement month's MonthlyPayment record so it shows as
+ * paid and can be undone.
+ */
 export async function payCreditCardBill(
   userId: string,
   cardId: string,
@@ -78,16 +91,17 @@ export async function payCreditCardBill(
 
   const current  = Number(card.outstanding);
   const payment  = Math.min(amount, current); // can't pay more than outstanding
+  if (payment <= 0) throw createError('Nothing is outstanding on this card', 400);
   const newBal   = Math.max(0, current - payment);
+  const sourceAccount = accountId || card.bankAccountId || undefined;
+  if (sourceAccount && !await prisma.account.findFirst({ where: { id: sourceAccount, userId } })) throw createError('Account not found', 404);
 
   const categoryId = await findCategory(userId, 'Credit Card Bill');
+  const month = cardStatementMonth(card.dueDate);
 
-  const ops: Prisma.PrismaPromise<unknown>[] = [
-    prisma.creditCard.update({
-      where: { id: cardId },
-      data:  { outstanding: newBal },
-    }),
-    prisma.transaction.create({
+  return prisma.$transaction(async tx => {
+    const updatedCard = await tx.creditCard.update({ where: { id: cardId }, data: { outstanding: newBal } });
+    const transaction = await tx.transaction.create({
       data: {
         userId,
         type:        'EXPENSE',
@@ -95,23 +109,28 @@ export async function payCreditCardBill(
         description: `Bill: ${card.cardName}${card.lastFourDigits ? ` ···· ${card.lastFourDigits}` : ''}`,
         date:        new Date(),
         categoryId:  categoryId ?? undefined,
-        accountId:   accountId  ?? undefined,
+        accountId:   sourceAccount,
+        memberId:    card.memberId ?? undefined,
         isRecurring: true,
       },
-    }),
-  ];
+    });
+    // Paying a bill from a bank account draws down that account's balance too.
+    if (sourceAccount) await tx.account.update({ where: { id: sourceAccount }, data: { balance: { decrement: payment } } });
 
-  // Paying a bill from a bank account draws down that account's balance too.
-  if (accountId) ops.push(balanceAdjustment(accountId, -payment));
-
-  const [updatedCard, transaction] = await prisma.$transaction(ops);
-  const txn = transaction as { amount: { toString(): string } };
-
-  return {
-    card:        serialize(updatedCard as CreditCard),
-    transaction: { ...txn, amount: Number(txn.amount) },
-    paid:        payment,
-  };
+    const key = { userId, entityType: 'CREDIT_CARD', entityId: cardId, month };
+    const existing = await tx.monthlyPayment.findUnique({ where: { userId_entityType_entityId_month: key } });
+    if (existing) {
+      await tx.monthlyPayment.update({ where: { id: existing.id }, data: { amount: { increment: payment }, transactionIds: [...existing.transactionIds, transaction.id] } });
+    } else {
+      await tx.monthlyPayment.create({ data: { ...key, status: 'PAID', amount: payment, transactionIds: [transaction.id] } });
+    }
+    return {
+      card:        serialize(updatedCard),
+      transaction: { ...transaction, amount: Number(transaction.amount) },
+      paid:        payment,
+      month,
+    };
+  });
 }
 
 function serialize(card: CreditCard) {

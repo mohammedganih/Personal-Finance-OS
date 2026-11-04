@@ -26,7 +26,7 @@ router.post('/monthly-payment', validate(z.object({ type: z.enum(['LOAN', 'INVES
   res.json({ success: true, data: await decideMonthlyPayment(req.user!.userId, type, id, status, accountId) });
 });
 const monthParam = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/);
-const undoBody = z.object({ type: z.enum(['LOAN', 'INVESTMENT', 'CARD_EMI', 'BILL']), id: z.string().min(1), month: monthParam.optional(), dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() });
+const undoBody = z.object({ type: z.enum(['LOAN', 'INVESTMENT', 'CARD_EMI', 'CREDIT_CARD', 'BILL']), id: z.string().min(1), month: monthParam.optional(), dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() });
 router.post('/monthly-payment/undo', validate(undoBody), async (req: AuthRequest, res) => {
   res.json({ success: true, data: await undoPayment(req.user!.userId, undoBody.parse(req.body)) });
 });
