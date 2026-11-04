@@ -3,6 +3,7 @@ const mocks = vi.hoisted(() => ({ cards: vi.fn(), emis: vi.fn(), events: vi.fn()
 vi.mock('../lib/prisma', () => ({ prisma: {
   loan: { findMany: vi.fn().mockResolvedValue([]) }, investment: { findMany: vi.fn().mockResolvedValue([]) },
   creditCard: { findMany: mocks.cards }, cardEMI: { findMany: mocks.emis }, monthlyPayment: { findMany: mocks.events },
+  ownershipSplit: { findMany: vi.fn().mockResolvedValue([]) },
 } }));
 vi.mock('./bill.service', () => ({ getBillsCalendar: vi.fn().mockResolvedValue([]) }));
 import { getMonthlyPlan } from './monthlyPayments.service';
