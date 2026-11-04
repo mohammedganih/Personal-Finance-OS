@@ -36,13 +36,15 @@ function Avatar({ label, color, combined }: { label: string; color?: string | nu
 
 function SalaryInput({ member, month }: { member: MemberSummary; month: string }) {
   const save = useSaveSalary();
-  const [value, setValue] = useState(String(member.salary));
-  useEffect(() => setValue(String(member.salary)), [member.salary, member.memberId, month]);
+  const shown = (n: number) => n.toLocaleString('en-IN');
+  const [value, setValue] = useState(shown(member.salary));
+  useEffect(() => setValue(shown(member.salary)), [member.salary, member.memberId, month]);
   const id = `salary-${member.memberId}`;
 
   const commit = (confirmEstimate: boolean) => {
     const amount = Number(value.replace(/[^\d.]/g, ''));
-    if (!Number.isFinite(amount) || amount < 0) { setValue(String(member.salary)); return; }
+    if (!Number.isFinite(amount) || amount < 0) { setValue(shown(member.salary)); return; }
+    setValue(shown(amount));
     if (amount === member.salary && !(confirmEstimate && member.salaryIsEstimate)) return;
     save.mutate({ memberId: member.memberId, month, amount });
   };

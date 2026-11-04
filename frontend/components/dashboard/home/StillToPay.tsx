@@ -173,7 +173,8 @@ export function StillToPay() {
   const thisMonth = pending(data?.current);
   const entries = buildEntries([...lastMonth, ...thisMonth], new Map((cards ?? []).map((c) => [c.id, c.cardName])));
 
-  const isOverdue = (e: Entry) => (e.kind === 'row' ? e.row.planMonth !== data?.current.month : e.items.some((i) => i.planMonth !== data?.current.month)) || (!!e.dueDate && e.dueDate < today);
+  // A card group follows its statement's due date; its items may come from last month's cycle.
+  const isOverdue = (e: Entry) => (e.kind === 'row' ? e.row.planMonth !== data?.current.month : !e.statement && e.items.some((i) => i.planMonth !== data?.current.month)) || (!!e.dueDate && e.dueDate < today);
   const overdue = entries.filter(isOverdue);
   const thisWeek = entries.filter((e) => !isOverdue(e) && (!e.dueDate || e.dueDate <= weekEnd));
   const later = entries.filter((e) => !isOverdue(e) && !!e.dueDate && e.dueDate > weekEnd);

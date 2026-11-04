@@ -62,7 +62,7 @@ export function HeaderLight() {
           </div>
         ) : isLoans ? (
           <div>
-            <h1 className="text-base font-semibold text-ink-primary">Loans</h1>
+            <h1 className="text-base font-semibold text-ink-primary">Loans &amp; Cards</h1>
             <p className="text-xs text-ink-muted">Track, manage and pay off your loans faster.</p>
           </div>
         ) : isBills ? (

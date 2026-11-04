@@ -77,3 +77,61 @@ On this machine, the patch was applied to the local dev DB (`shazah_finance`) an
   - The toast component gained an optional `action` slot.
 - Tests: `paymentUndo.integration.test.ts` covers every type, the payment-order rule, other users' data, and refusing a second payment in the same month.
 - Not yet covered: credit-card bill payments. They keep no payment record today, so there is nothing to reverse safely.
+
+## Follow-up: review fixes and new features (2026-11-04)
+Built after the review of the Loans, Investments and Bills sections. Each group is its own commit on `home-redesign`.
+
+**Card money is counted once**
+- Ticking a card EMI, or a bill charged to a card, moves no money. The expense and bank debit are recorded once, when the card bill is paid (`payCreditCardBill`, which defaults to the card's linked account).
+- Card bill payments keep a `MonthlyPayment` record (`CREDIT_CARD`, statement month). The statement stays on the plan as paid or part paid, and it can be undone (all payments for that month together).
+- The funding plan counts a card's statement and only counts its EMIs while no statement is entered.
+
+**Still to pay**
+- Sections:
+  - Overdue: last month's missed items, plus anything past its date.
+  - Due this week.
+  - Later this month.
+- Each section has a total, and a top line shows what each person still owes, with splits honoured.
+- One shared control, `components/shared/PaymentActions.tsx`, is used on Home, Loans, Investments and Bills:
+  - The main button reads Mark paid, Tick off or Pay card.
+  - The ⋯ menu has Paid from, Amount, Paid on, Skip this month and Payment history.
+  - An Undo message appears after each payment or skip.
+- Top-up lines have "Done, I moved it", which hides them for the browser session.
+- `POST /dashboard/monthly-payment` accepts `month` (this month or last), `amount` and `paidDate`.
+
+**Correctness**
+- Payment expenses copy the item's `OwnershipSplit`; undo removes it.
+- A lump-sum investment purchase is recorded only once.
+- The backend is pinned to India time (`src/lib/timezone.ts`).
+- `npm run fix:bill-dates --workspace=backend` normalises bill dates saved the old way:
+  - It previews by default, saves a backup, and only writes with `--apply`.
+  - It is safe to run again.
+  - It was applied to the local dev DB: 8 bill start dates changed, and the bills calendar (July to December) was identical before and after.
+- Earlier months show the scheduled EMI, including loans closed since.
+
+**New features** (schema patch `backend/prisma/household-features.sql`, additive and idempotent, applied to the dev and test DBs)
+- **Payment history:** every payment, skip and loan change for one item, with Undo where it is safe (`GET /dashboard/payment-history`).
+- **Who pays and Split:** available on the bill, loan and card EMI forms. Cards get a payer. New split types `LOAN`, `BILL` and `CARD_EMI` are honoured by the plan, the month sheet and payment expenses.
+- **Card statements:** monthly statement entry, plus a "Statement out of date" badge once the saved due date has passed.
+- **Reminders:** the header bell lists EMIs, SIPs and card bills due within 3 days or overdue, bill reminders, and maturities within 30 days (`GET /dashboard/reminders`).
+- **Loans:**
+  - Prepay / part-pay and change interest rate; the latest one can be undone.
+  - A "closed" entry is recorded when a loan is paid off.
+  - Closed loans show their close date and history (`loan_events` table).
+- **SIPs, RDs and gold schemes:** pause for some months, or change the amount from a month on (`PUT /investments/:id/schedule`).
+
+To apply the schema patch elsewhere, run from `backend/`:
+
+```bash
+npx prisma db execute --schema prisma/schema.prisma --file prisma/household-features.sql
+```
+
+Then run `npm run prisma:generate` from the root.
+
+**Visual check:** `backend/src/scripts/seedDemoTestDb.ts` seeds a demo household into the test database only. It refuses any database name without "test", and its login is in that file. The app was run against it (backend on 5001, frontend on 3001). I checked the home page layout and maths, Mark paid followed by Undo, the ⋯ menu, the Loans page buttons, and the prepay and history dialogs.
+
+**Notes**
+- Loans and card EMIs can only undo their most recent payment.
+- Undoing a card bill reverses all of that month's payments on it together.
+- Card statements cannot be split between people; set the card's payer instead.
+- "Done, I moved it" is per browser session. Update the account balance to clear it for good.
