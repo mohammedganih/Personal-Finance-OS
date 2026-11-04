@@ -71,3 +71,16 @@ A backup was taken first: `D:\Projects\shazah-backups\shazah_finance-before-cred
 - `cardStatements.integration.test.ts`: save and replace, part payment then full payment with the cap, undo, card sync, breakdown, card expenses paid off and undone, linked purchases on Home, other households.
 
 The full backend suite passes (34 files, 337 tests), as do the shared, backend and frontend typechecks and frontend lint.
+
+## Follow-up: live statement figure (2026-11-04)
+- **Top of the Credit Cards page:**
+  - Shows **Current statement**: the statement building now (EMIs + card expenses + card bills for the open period), due on its due date.
+  - Once a statement is entered and still not fully paid, it switches to **Statement due** (what is left to pay on it).
+- **Footer removed:** the "Credit card payments" list (with the "Sapphiro – statement balance" row) no longer appears on the page.
+- **Home:** when a card has no statement row this month, its card line is "<card> statement so far" = this month's EMIs and card bills on the card + card expenses entered, with the EMIs/bills deducted as before. The "Update the statement" link now goes to Credit Cards.
+- **Data (dev DB):** the placeholder figure typed on the Sapphiro card was cleared:
+  - outstanding ₹16,500 → ₹0
+  - minimum ₹13,647 → empty
+  - due date (29 Nov) and statement date (11 Nov) unchanged
+
+  So no "statement balance ₹16,500" row shows on Home, Still to pay or the funding plan. To restore it, set outstanding back to 16500 and minimum back to 13647 on that card.

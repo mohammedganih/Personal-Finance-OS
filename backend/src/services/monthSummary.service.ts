@@ -131,11 +131,16 @@ export function cardSplits(ownRows: MonthlyPlanRow[], allRows: MonthlyPlanRow[],
       source, oneOff: s?.oneOff ?? 0, linked: s?.linked ?? 0, paidOff: s?.paidOff ?? 0,
     };
   });
+  // No statement row yet: the statement building now is this month's EMIs and
+  // card bills on the card, plus the card purchases entered for it.
   for (const s of byCard.values()) {
     if (!s.oneOff && !s.paidOff) continue;
+    const onCard = allRows.filter(r => (r.type === 'CARD_EMI' || r.type === 'BILL') && r.creditCardId === s.creditCardId && counts(r));
+    const deducted = round(onCard.reduce((sum, r) => sum + r.amount, 0) + s.linked);
+    const due = onCard.find(r => r.type === 'CARD_EMI')?.dueDate ?? null;
     out.push({
-      creditCardId: s.creditCardId, name: s.name, memberId: s.memberId, dueDate: null, status: 'PENDING',
-      statement: 0, deducted: s.linked, spending: round(s.oneOff + s.paidOff), needsStatementUpdate: false,
+      creditCardId: s.creditCardId, name: s.name, memberId: s.memberId, dueDate: due, status: 'PENDING',
+      statement: round(deducted + s.oneOff), deducted, spending: round(s.oneOff + s.paidOff), needsStatementUpdate: false,
       source: 'EXPENSES', oneOff: s.oneOff, linked: s.linked, paidOff: s.paidOff,
     });
   }

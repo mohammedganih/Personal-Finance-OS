@@ -71,6 +71,12 @@ describe('Home card spending from real data', () => {
     const rows = [statementRow({ statementId: 's1' }), emi];
     expect(cardSplits(rows, rows, spend({ paidOff: 800 }))[0].spending).toBe(15800);
     const [only] = cardSplits([], [], spend({ paidOff: 800, oneOff: 200 }));
-    expect(only).toMatchObject({ source: 'EXPENSES', statement: 0, spending: 1000 });
+    expect(only).toMatchObject({ source: 'EXPENSES', statement: 200, spending: 1000 });
+  });
+
+  it('shows the statement building now (EMIs + purchases) when the card has no statement row', () => {
+    const rows = [{ ...emi, dueDate: '2026-11-29' }];
+    const [c] = cardSplits([], rows, spend({ oneOff: 2598 }));
+    expect(c).toMatchObject({ source: 'EXPENSES', statement: 7598, deducted: 5000, spending: 2598, dueDate: '2026-11-29' });
   });
 });

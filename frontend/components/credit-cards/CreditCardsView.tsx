@@ -10,7 +10,6 @@ import {
   useCardExpenses, useCardStatements, useDeleteCardExpense, useDeleteStatement, useUndoCardExpensePayment,
 } from '@/hooks/useCardStatements';
 import { PaymentActions } from '@/components/shared/PaymentActions';
-import { MonthlyPayments } from '@/components/shared/MonthlyPayments';
 import { CreditCardForm } from '@/components/loans/CreditCardForm';
 import { CardEMIsDialog } from '@/components/loans/light/CardEMIsDialog';
 import { CardExpenseDialog, PayExpenseDialog, StatementDialog } from './CardDialogs';
@@ -178,6 +177,12 @@ function CardPanel({ card }: { card: CreditCard }) {
   const utilization = card.creditLimit > 0 ? Math.min(100, (used / card.creditLimit) * 100) : 0;
   const payFrom = accounts?.find((a) => a.id === card.bankAccountId)?.name;
   const list = expenses ?? [];
+  // An entered statement not yet paid in full; otherwise the statement building now
+  // (EMIs + card expenses + card bills so far), which switches to the real one once entered.
+  const unpaid = data?.statements.find((st) => st.status !== 'PAID');
+  const current = data && (unpaid
+    ? { amount: unpaid.remaining, dueDate: unpaid.dueDate, unpaid: true }
+    : { amount: data.upcoming.estimatedTotal, dueDate: data.upcoming.dueDate, unpaid: false });
   const shown = showAll ? list : list.slice(0, 8);
 
   return (
@@ -199,7 +204,11 @@ function CardPanel({ card }: { card: CreditCard }) {
           </div>
         </div>
         <dl className="mt-4 grid grid-cols-2 gap-4 border-t border-line pt-4 text-xs sm:grid-cols-4">
-          <div><dt className="text-ink-muted">Statement balance</dt><dd className="mt-1 text-sm font-semibold tabular-nums text-ink-primary">{formatCurrency(card.outstanding)}</dd><dd className="text-ink-muted">due {formatDate(card.dueDate, 'd MMM')}</dd></div>
+          <div>
+            <dt className="text-ink-muted">{current?.unpaid ? 'Statement due' : 'Current statement'}</dt>
+            <dd className="mt-1 text-sm font-semibold tabular-nums text-ink-primary">{current ? formatCurrency(current.amount) : '…'}</dd>
+            {current && <dd className="text-ink-muted">{current.unpaid ? 'left to pay' : 'so far'} · due {formatDate(current.dueDate, 'd MMM')}</dd>}
+          </div>
           <div><dt className="text-ink-muted">EMIs still to bill</dt><dd className="mt-1 text-sm font-semibold tabular-nums text-ink-primary">{formatCurrency(emiOutstanding)}</dd><dd className="text-ink-muted">{active.length} active</dd></div>
           <div><dt className="text-ink-muted">Credit limit</dt><dd className="mt-1 text-sm font-semibold tabular-nums text-ink-primary">{formatCurrency(card.creditLimit, 'INR', true)}</dd></div>
           <div>
@@ -265,10 +274,9 @@ export function CreditCardsView() {
         </div>
         <button type="button" onClick={() => setAdding(true)} className={pill}>Add a card</button>
       </div>
-      {card ? <>
+      {card ? (
         <CardPanel key={card.id} card={card} />
-        <MonthlyPayments type="CARD" />
-      </> : (
+      ) : (
         <div className="card-light grid h-48 place-items-center rounded-2xl text-sm text-ink-muted">No credit cards yet.</div>
       )}
       {adding && <CreditCardForm onClose={() => setAdding(false)} />}

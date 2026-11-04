@@ -14,6 +14,8 @@ export interface SummaryBucket { total: number; paid: number; items: SummaryItem
 export interface CardSplit {
   creditCardId: string; name: string; memberId: string | null; dueDate: string | null; status: string;
   statement: number; deducted: number; spending: number; needsStatementUpdate: boolean;
+  /** STATEMENT = saved statement; EXPENSES = statement building now from EMIs + card expenses; CARD = figure typed on the card. */
+  source?: 'STATEMENT' | 'EXPENSES' | 'CARD';
 }
 export interface SummaryTotals {
   salary: number; loans: SummaryBucket; investments: SummaryBucket; bills: SummaryBucket;
