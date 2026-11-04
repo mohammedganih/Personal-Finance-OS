@@ -12,19 +12,23 @@ import {
   FileText,
 } from 'lucide-react';
 
-export const NAV_ITEMS = [
-  { href: '/dashboard', label: 'Dashboard', icon: Home },
-  { href: '/transactions', label: 'Transactions', icon: ArrowLeftRight },
-  { href: '/accounts', label: 'Accounts', icon: Wallet },
-  { href: '/budgets', label: 'Budgets', icon: PiggyBank },
-  { href: '/investments', label: 'Investments', icon: TrendingUp },
-  { href: '/loans', label: 'Loans', icon: CreditCard },
-  { href: '/goals', label: 'Goals', icon: Target },
-  { href: '/bills', label: 'Bills', icon: Receipt },
-  { href: '/analytics', label: 'Analytics', icon: BarChart3 },
-  { href: '/reports', label: 'Reports', icon: FileText },
-  { href: '/settings', label: 'Settings', icon: Settings },
-] as const;
+// `group` drives the sidebar headings; '' = no heading, 'spacer' = blank gap.
+export const NAV_GROUPS = ['', 'This month', 'Commitments', 'Insights', 'spacer'] as const;
+export type NavGroup = (typeof NAV_GROUPS)[number];
+
+export const NAV_ITEMS: readonly { href: string; label: string; icon: typeof Home; group: NavGroup }[] = [
+  { href: '/dashboard', label: 'Home', icon: Home, group: '' },
+  { href: '/transactions', label: 'Transactions', icon: ArrowLeftRight, group: 'This month' },
+  { href: '/bills', label: 'Bills', icon: Receipt, group: 'This month' },
+  { href: '/budgets', label: 'Budgets', icon: PiggyBank, group: 'This month' },
+  { href: '/loans', label: 'Loans & Cards', icon: CreditCard, group: 'Commitments' },
+  { href: '/investments', label: 'Investments', icon: TrendingUp, group: 'Commitments' },
+  { href: '/goals', label: 'Goals', icon: Target, group: 'Commitments' },
+  { href: '/analytics', label: 'Analytics', icon: BarChart3, group: 'Insights' },
+  { href: '/reports', label: 'Reports', icon: FileText, group: 'Insights' },
+  { href: '/accounts', label: 'Accounts', icon: Wallet, group: 'spacer' },
+  { href: '/settings', label: 'Settings', icon: Settings, group: 'spacer' },
+];
 
 export const ASSET_TYPE_LABELS: Record<string, string> = {
   STOCK:             'Stock',

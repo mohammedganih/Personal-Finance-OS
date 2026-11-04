@@ -15,6 +15,14 @@ export function monthWindow(month: string) {
   const [year, m] = month.split('-').map(Number);
   return { start: `${month}-01`, end: `${month}-${new Date(Date.UTC(year, m, 0)).getUTCDate()}`, next: `${m === 12 ? year + 1 : year}-${String(m === 12 ? 1 : m + 1).padStart(2, '0')}` };
 }
+export interface MonthlyPlanRow {
+  id: string; type: string; name: string; amount: number; status: string; dueDate?: string;
+  accountId?: string | null; creditCardId?: string;
+  /** Family member who pays this row; null when nobody is set. */
+  memberId?: string | null;
+  /** Loans only: borrower and payer differ, or one of them is unset. */
+  shared?: boolean;
+}
 export async function getMonthlyPlan(userId: string, month = currentMonth()) {
   const window = monthWindow(month);
   const [loans, investments, events, bills, cards, cardEmis] = await Promise.all([
@@ -25,7 +33,8 @@ export async function getMonthlyPlan(userId: string, month = currentMonth()) {
     prisma.creditCard.findMany({ where: { userId, isActive: true } }),
     prisma.cardEMI.findMany({ where: { userId }, include: { creditCard: true } }),
   ]);
-  const rows: { id: string; type: string; name: string; amount: number; status: string; dueDate?: string; accountId?: string | null; creditCardId?: string }[] = [];
+  const rows: MonthlyPlanRow[] = [];
+  const cardMember = new Map(cards.map(c => [c.id, c.memberId]));
   for (const loan of loans) {
     const event = events.find(e => e.month === month && e.entityType === 'LOAN' && e.entityId === loan.id);
     if (!event && (!loan.isActive || currentMonth(loan.startDate) > month)) continue;
@@ -37,18 +46,18 @@ export async function getMonthlyPlan(userId: string, month = currentMonth()) {
     }
     const split = calculateEMISplit(balance, Number(loan.emi), Number(loan.interestRate));
     if (!event && split.actualPayment <= 0) continue;
-    rows.push({ id: loan.id, type: 'LOAN', name: loan.name, amount: event ? Number(event.amount) : split.actualPayment, status: event?.status ?? 'PENDING', accountId: loan.bankAccountId, dueDate: dateInMonth(month, loan.paymentDay ?? Number(indiaDateKey(loan.startDate).slice(8))) });
+    rows.push({ id: loan.id, type: 'LOAN', name: loan.name, amount: event ? Number(event.amount) : split.actualPayment, status: event?.status ?? 'PENDING', accountId: loan.bankAccountId, memberId: loan.payerMemberId ?? loan.memberId, shared: !loan.memberId || !loan.payerMemberId || loan.memberId !== loan.payerMemberId, dueDate: dateInMonth(month, loan.paymentDay ?? Number(indiaDateKey(loan.startDate).slice(8))) });
   }
   for (const inv of investments) {
     const event = events.find(e => e.month === month && e.entityType === 'INVESTMENT' && e.entityId === inv.id);
     if (!event && (inv.recurringActive === false || currentMonth(inv.purchaseDate) > month || (inv.maturityDate && currentMonth(inv.maturityDate) < month) || Number(inv.monthlyAmount) <= 0)) continue;
-    rows.push({ id: inv.id, type: 'INVESTMENT', name: inv.assetName, amount: event ? Number(event.amount) : Number(inv.monthlyAmount), status: event?.status ?? 'PENDING', accountId: inv.bankAccountId, dueDate: dateInMonth(month, inv.paymentDay ?? Number(indiaDateKey(inv.purchaseDate).slice(8))) });
+    rows.push({ id: inv.id, type: 'INVESTMENT', name: inv.assetName, amount: event ? Number(event.amount) : Number(inv.monthlyAmount), status: event?.status ?? 'PENDING', accountId: inv.bankAccountId, memberId: inv.memberId, dueDate: dateInMonth(month, inv.paymentDay ?? Number(indiaDateKey(inv.purchaseDate).slice(8))) });
   }
   for (const card of cards) {
     const dueDate = indiaDateKey(card.dueDate);
     // Full saved statement balance is due once; unknown future spending isn't repeated.
     const dueMonth = dueDate.slice(0, 7) < currentMonth() ? currentMonth() : dueDate.slice(0, 7);
-    if (dueMonth === month && Number(card.outstanding) > 0) rows.push({ id: card.id, type: 'CREDIT_CARD', name: `${card.cardName} - statement balance`, amount: Number(card.outstanding), status: 'PENDING', dueDate, accountId: card.bankAccountId });
+    if (dueMonth === month && Number(card.outstanding) > 0) rows.push({ id: card.id, type: 'CREDIT_CARD', name: `${card.cardName} - statement balance`, amount: Number(card.outstanding), status: 'PENDING', dueDate, accountId: card.bankAccountId, creditCardId: card.id, memberId: card.memberId });
   }
   for (const emi of cardEmis) {
     if (!emi.creditCard.isActive) continue;
@@ -56,11 +65,11 @@ export async function getMonthlyPlan(userId: string, month = currentMonth()) {
     const currentEvent = events.find(e => e.month === currentMonth() && e.entityType === 'CARD_EMI' && e.entityId === emi.id);
     const payment = cardEMIAmountInMonth(emi, emi.creditCard, month, currentMonth(), currentEvent?.status);
     if (!event && !payment) continue;
-    rows.push({ id: emi.id, type: 'CARD_EMI', accountId: emi.creditCard.bankAccountId, creditCardId: emi.creditCardId, name: `${emi.itemName} (${emi.creditCard.cardName})`, amount: event ? Number(event.amount) : payment!.amount, status: event?.status ?? 'PENDING', dueDate: payment?.dueDate ?? dateInMonth(month, Number(indiaDateKey(emi.creditCard.dueDate).slice(8))) });
+    rows.push({ id: emi.id, type: 'CARD_EMI', accountId: emi.creditCard.bankAccountId, creditCardId: emi.creditCardId, memberId: emi.memberId ?? emi.creditCard.memberId, name: `${emi.itemName} (${emi.creditCard.cardName})`, amount: event ? Number(event.amount) : payment!.amount, status: event?.status ?? 'PENDING', dueDate: payment?.dueDate ?? dateInMonth(month, Number(indiaDateKey(emi.creditCard.dueDate).slice(8))) });
   }
   for (const bill of bills) {
     if (bill.status === 'PAUSED') continue;
-    rows.push({ id: bill.billId, type: 'BILL', name: bill.name, amount: bill.amount, accountId: bill.accountId, status: ['PAID', 'SKIPPED'].includes(bill.status) ? bill.status : 'PENDING', dueDate: bill.dueDate });
+    rows.push({ id: bill.billId, type: 'BILL', name: bill.name, amount: bill.amount, accountId: bill.accountId, creditCardId: bill.creditCardId ?? undefined, memberId: bill.memberId ?? (bill.creditCardId ? cardMember.get(bill.creditCardId) ?? null : null), status: ['PAID', 'SKIPPED'].includes(bill.status) ? bill.status : 'PENDING', dueDate: bill.dueDate });
   }
   return { month, rows, ...summarizeRows(rows) };
 }

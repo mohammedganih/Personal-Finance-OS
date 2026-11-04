@@ -148,6 +148,7 @@ model User {
   debtSnapshots       DebtSnapshot[]
   goalContributions   GoalContribution[]
   ownershipSplits     OwnershipSplit[]
+  monthlySalaries     MonthlySalary[]
 
   @@map("users")
 }
@@ -175,6 +176,7 @@ model FamilyMember {
   cardEmis          CardEMI[]
   goals             Goal[]
   secondaryOwnershipSplits OwnershipSplit[] @relation("SplitSecondaryMember")
+  monthlySalaries   MonthlySalary[]
 
   @@index([userId])
   @@map("family_members")
@@ -692,4 +694,22 @@ model MonthlyPayment {
   @@unique([userId, entityType, entityId, month])
   @@index([userId, month])
   @@map("monthly_payments")
+}
+
+// Salary actually received by a family member in a given month (YYYY-MM).
+model MonthlySalary {
+  id        String   @id @default(cuid())
+  userId    String
+  memberId  String
+  month     String
+  amount    Decimal  @db.Decimal(14, 2)
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  member FamilyMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, memberId, month])
+  @@map("monthly_salaries")
 }

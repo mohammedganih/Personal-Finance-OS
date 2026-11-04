@@ -1,5 +1,6 @@
 "use client";
 
+import { Fragment } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -42,33 +43,39 @@ export function SidebarLight() {
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-        {NAV_ITEMS.map((item) => {
+        {NAV_ITEMS.map((item, index) => {
           const Icon = item.icon;
           const isActive =
             pathname === item.href || pathname.startsWith(item.href + "/");
 
           return (
-            <Link
-              key={item.href}
-              href={item.href}
-              prefetch={true}
-              className={cn(
-                "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 group",
-                isActive
-                  ? "bg-mono text-white"
-                  : "text-ink-secondary hover:bg-paper-subtle hover:text-ink-primary",
+            <Fragment key={item.href}>
+              {item.group !== (NAV_ITEMS[index - 1]?.group ?? '') && (
+                <p aria-hidden={item.group === 'spacer'} className="px-3 pb-1 pt-4 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
+                  {item.group === 'spacer' ? ' ' : item.group}
+                </p>
               )}
-            >
-              <Icon
+              <Link
+                href={item.href}
+                prefetch={true}
                 className={cn(
-                  "w-4 h-4 shrink-0 transition-colors",
+                  "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 group",
                   isActive
-                    ? "text-white"
-                    : "text-ink-muted group-hover:text-ink-primary",
+                    ? "bg-mono text-white"
+                    : "text-ink-secondary hover:bg-paper-subtle hover:text-ink-primary",
                 )}
-              />
-              {item.label}
-            </Link>
+              >
+                <Icon
+                  className={cn(
+                    "w-4 h-4 shrink-0 transition-colors",
+                    isActive
+                      ? "text-white"
+                      : "text-ink-muted group-hover:text-ink-primary",
+                  )}
+                />
+                {item.label}
+              </Link>
+            </Fragment>
           );
         })}
       </nav>

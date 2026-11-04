@@ -683,6 +683,7 @@ export async function getBillsCalendar(userId: string, startInput?: string, endI
       effectiveBillStatus: effectiveStatus(occ.bill, today),
       accountId: occ.bill.accountId,
       creditCardId: occ.bill.creditCardId,
+      memberId: occ.bill.memberId,
       currency: occ.bill.currency,
       name: occ.bill.name,
       vendor: occ.bill.vendor,

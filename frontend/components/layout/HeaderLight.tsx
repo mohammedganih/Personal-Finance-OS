@@ -95,7 +95,7 @@ export function HeaderLight() {
               {greeting(new Date().getHours())}, {firstName}
             </h1>
             <p className="text-xs text-ink-muted">
-              Here&apos;s your financial overview for today.
+              Here&apos;s how this month looks for both of you.
             </p>
           </div>
         )}

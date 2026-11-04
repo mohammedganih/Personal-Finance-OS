@@ -1,4 +1,5 @@
 import { getAccountFundingPlan } from '../services/accountFunding.service';
+import { getMonthSummary, saveSalary } from '../services/monthSummary.service';
 import { getMonthlyPlan, currentMonth, monthWindow, decideMonthlyPayment } from '../services/monthlyPayments.service';
 import { z } from 'zod';
 import { validate } from '../middleware/validate.middleware';
@@ -22,6 +23,15 @@ router.get('/monthly-plan', async (req: AuthRequest, res) => {
 router.post('/monthly-payment', validate(z.object({ type: z.enum(['LOAN', 'INVESTMENT']), id: z.string().min(1), status: z.enum(['PAID', 'SKIPPED']), accountId: z.string().min(1).optional() })), async (req: AuthRequest, res) => {
   const { type, id, status, accountId } = req.body;
   res.json({ success: true, data: await decideMonthlyPayment(req.user!.userId, type, id, status, accountId) });
+});
+const monthParam = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/);
+router.get('/month-summary', async (req: AuthRequest, res) => {
+  const month = monthParam.optional().parse(req.query.month);
+  res.json({ success: true, data: await getMonthSummary(req.user!.userId, month) });
+});
+const salaryBody = z.object({ memberId: z.string().min(1), month: monthParam, amount: z.coerce.number().finite().min(0).max(1e12), note: z.string().max(200).nullable().optional() });
+router.put('/salary', validate(salaryBody), async (req: AuthRequest, res) => {
+  res.json({ success: true, data: await saveSalary(req.user!.userId, salaryBody.parse(req.body)) });
 });
 router.get('/overview', dashboardController.getOverview);
 router.get('/net-worth-trend', dashboardController.getNetWorthTrend);
