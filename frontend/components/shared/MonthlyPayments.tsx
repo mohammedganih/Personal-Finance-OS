@@ -1,27 +1,12 @@
  'use client';
 
-import { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { api } from '@/lib/api';
-import { useMonthlyPlan, useUndoPayment, UNDOABLE_TYPES, MonthlyPaymentRow } from '@/hooks/useMonthlyPlan';
-import { useAccounts } from '@/hooks/useAccounts';
+import { useMonthlyPlan } from '@/hooks/useMonthlyPlan';
+import { PaymentActions } from '@/components/shared/PaymentActions';
 import { ChevronDown } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/format';
-import { useToast } from '@/components/ui/use-toast';
 
 export function MonthlyPayments({ type }: { type?: 'LOAN' | 'INVESTMENT' }) {
-  const qc = useQueryClient();
-  const { toast } = useToast();
-  const { data: accounts } = useAccounts();
-  const [accountId, setAccountId] = useState('');
   const { data, isLoading, isError } = useMonthlyPlan();
-  const undo = useUndoPayment();
-  const action = useMutation({ mutationFn: ({ row, status }: { row: MonthlyPaymentRow; status: string }) => row.type === 'CARD_EMI'
-    ? api.post(`/card-emis/${row.id}/pay`, { accountId: accountId || undefined })
-    : api.post('/dashboard/monthly-payment', { type: row.type, id: row.id, status, accountId: accountId || row.accountId || undefined }),
-    onSuccess: () => { qc.invalidateQueries(); toast({ title: 'Monthly status updated' }); },
-    onError: (error: unknown) => { const e = error as { response?: { data?: { message?: string } } }; toast({ title: e.response?.data?.message || 'Could not record payment', variant: 'destructive' }); },
-  });
   if (isLoading) return <div className="card-light rounded-2xl p-5">Loading monthly payments...</div>;
   if (isError || !data) return <div role="alert" className="card-light rounded-2xl p-5">Could not load monthly payments. Please refresh.</div>;
   if (!type) return <div className="grid h-full grid-cols-1 gap-4 md:grid-cols-2">
@@ -45,16 +30,15 @@ export function MonthlyPayments({ type }: { type?: 'LOAN' | 'INVESTMENT' }) {
   </div>;
   const rows = data.current.rows.filter(r => r.type === type || (type === 'LOAN' && ['CARD_EMI', 'CREDIT_CARD'].includes(r.type)));
   return <section className="card-light rounded-2xl p-5 space-y-4">
-    <h3 className="text-sm font-semibold text-ink-primary">{type === 'LOAN' ? 'Loan and credit card' : 'SIP, RD & gold scheme'} payments - {data.current.month}</h3>
-    <p className="text-xs text-ink-muted">Record a payment you have made, or skip this month. Payments create transactions; skips record status without moving money. Earlier transactions are not automatically matched to an installment.</p>
-    <label className="flex flex-wrap gap-2 items-center text-sm text-ink-secondary">Pay from <select aria-label="Payment account" value={accountId} onChange={e => setAccountId(e.target.value)} className="bg-paper-subtle border border-line rounded-lg p-2"><option value="">Linked account / no account</option>{accounts?.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></label>
+    <h3 className="text-sm font-semibold text-ink-primary">{type === 'LOAN' ? 'Loan and credit card' : 'SIP, RD & gold scheme'} payments - {formatDate(`${data.current.month}-01`, 'MMM yyyy')}</h3>
+    <p className="text-xs text-ink-muted">Record a payment you have made, or skip this month. Use ⋯ to choose the account, a different amount or the date paid. Payments create transactions; skips record status without moving money; Undo reverses either.{type === 'LOAN' && ' Card EMIs are ticked off and paid with the card bill.'}</p>
     {rows.length === 0 && <p className="text-sm text-ink-muted">No monthly payments scheduled.</p>}
     {rows.map(row => <div key={row.id} className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-3">
-      <div><p className="text-sm font-medium text-ink-primary">{row.name}</p><p className="text-xs text-ink-secondary">{formatCurrency(row.amount)} | {row.status === 'PAID' ? 'Paid this month' : row.status === 'SKIPPED' ? 'Skipped this month' : 'Not paid this month'}</p></div>
-      {row.dueDate && <span className="text-xs text-ink-muted">Due {row.dueDate}</span>}
-      {UNDOABLE_TYPES.includes(row.type) && row.status !== 'PENDING' && <button disabled={undo.isPending} onClick={() => { if (window.confirm(`Undo the ${row.status === 'PAID' ? 'payment' : 'skip'} for ${row.name}?`)) undo.mutate({ type: row.type, id: row.id, month: row.type === 'CARD_EMI' ? row.dueDate?.slice(0, 7) : data.current.month }); }} className="border border-line rounded-lg px-3 py-2 text-xs disabled:opacity-50">Undo</button>}
-      {row.type === 'CREDIT_CARD' && row.status !== 'PAID' && <a href="#your-loans" className="text-xs underline text-ink-secondary">Pay via Pay Bill below</a>}
-      {['LOAN', 'INVESTMENT', 'CARD_EMI'].includes(row.type) && row.status !== 'PAID' && <div className="flex gap-2"><button disabled={action.isPending} onClick={() => action.mutate({ row, status: 'PAID' })} className="bg-mono text-white rounded-lg px-3 py-2 text-xs disabled:opacity-50">{row.type === 'CARD_EMI' ? 'Tick off' : row.status === 'SKIPPED' ? 'Pay instead' : 'Record payment'}</button>{row.type !== 'CARD_EMI' && row.status !== 'SKIPPED' && <button disabled={action.isPending} onClick={() => action.mutate({ row, status: 'SKIPPED' })} className="border border-line rounded-lg px-3 py-2 text-xs disabled:opacity-50">Skip this month</button>}</div>}
+      <div className="min-w-0">
+        <p className="text-sm font-medium text-ink-primary">{row.name}</p>
+        <p className="text-xs text-ink-secondary">{formatCurrency(row.type === 'CREDIT_CARD' ? row.remaining ?? row.amount : row.amount)}{row.dueDate && <> · due {formatDate(row.dueDate, 'd MMM')}</>}{row.paidAmount ? <> · {formatCurrency(row.paidAmount)} paid so far</> : null}</p>
+      </div>
+      <PaymentActions row={row} planMonth={data.current.month} />
     </div>)}
   </section>;
 }

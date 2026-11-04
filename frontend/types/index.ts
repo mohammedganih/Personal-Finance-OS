@@ -548,6 +548,9 @@ export interface BillCalendarOccurrence {
   dueDate: string; // yyyy-MM-dd
   status: BillOccurrenceStatus;
   amount: number;
+  accountId?: string | null;
+  creditCardId?: string | null;
+  memberId?: string | null;
 }
 
 export interface BillForecastMonth {

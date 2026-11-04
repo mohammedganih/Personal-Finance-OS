@@ -4,6 +4,7 @@ import { createError } from '../middleware/error.middleware';
 import { calculateEMISplit } from './loan.service';
 import { findCategory } from '../lib/paymentCategory';
 import { getBillsCalendar } from './bill.service';
+import { copySplitToTransactions } from '../lib/ownershipSplit';
 
 export const recurringTypes = ['SIP', 'RECURRING_DEPOSIT', 'GOLD_SCHEME'];
 export function currentMonth(now = new Date()) {
@@ -44,7 +45,10 @@ export async function getMonthlyPlan(userId: string, month = currentMonth()) {
   const cardMember = new Map(cards.map(c => [c.id, c.memberId]));
   for (const loan of loans) {
     const event = events.find(e => e.month === month && e.entityType === 'LOAN' && e.entityId === loan.id);
-    if (!event && (!loan.isActive || currentMonth(loan.startDate) > month)) continue;
+    const past = month < currentMonth();
+    // A loan closed since then was still being repaid in earlier months.
+    const closedLater = !loan.isActive && past && month < currentMonth(loan.updatedAt);
+    if (!event && ((!loan.isActive && !closedLater) || currentMonth(loan.startDate) > month)) continue;
     let balance = Number(loan.remainingBalance);
     // Next month assumes this month's pending EMI is paid on schedule.
     if (month > currentMonth() && currentMonth(loan.startDate) <= currentMonth()) {
@@ -52,8 +56,10 @@ export async function getMonthlyPlan(userId: string, month = currentMonth()) {
       if (!currentEvent) balance = calculateEMISplit(balance, Number(loan.emi), Number(loan.interestRate)).newBalance;
     }
     const split = calculateEMISplit(balance, Number(loan.emi), Number(loan.interestRate));
-    if (!event && split.actualPayment <= 0) continue;
-    rows.push({ id: loan.id, type: 'LOAN', name: loan.name, amount: event ? Number(event.amount) : split.actualPayment, status: event?.status ?? 'PENDING', accountId: loan.bankAccountId, memberId: loan.payerMemberId ?? loan.memberId, shared: !loan.memberId || !loan.payerMemberId || loan.memberId !== loan.payerMemberId, dueDate: dateInMonth(month, loan.paymentDay ?? Number(indiaDateKey(loan.startDate).slice(8))) });
+    if (!event && !closedLater && split.actualPayment <= 0) continue;
+    // Earlier months without a record show the scheduled EMI, not one worked out from today's balance.
+    const scheduled = past ? Number(loan.emi) : split.actualPayment;
+    rows.push({ id: loan.id, type: 'LOAN', name: loan.name, amount: event ? Number(event.amount) : scheduled, status: event?.status ?? 'PENDING', accountId: loan.bankAccountId, memberId: loan.payerMemberId ?? loan.memberId, shared: !loan.memberId || !loan.payerMemberId || loan.memberId !== loan.payerMemberId, dueDate: dateInMonth(month, loan.paymentDay ?? Number(indiaDateKey(loan.startDate).slice(8))) });
   }
   for (const inv of investments) {
     const event = events.find(e => e.month === month && e.entityType === 'INVESTMENT' && e.entityId === inv.id);
@@ -151,6 +157,7 @@ export async function decideMonthlyPayment(userId: string, type: 'LOAN' | 'INVES
       if (loan && split) await tx.loan.update({ where: { id }, data: { remainingBalance: split.newBalance, isActive: !split.isPaidOff } });
       if (inv?.assetType === 'RECURRING_DEPOSIT') await tx.investment.update({ where: { id }, data: { quantity: { increment: 1 } } });
       if (sourceAccount) await tx.account.update({ where: { id: sourceAccount }, data: { balance: { decrement: amount } } });
+      if (inv) await copySplitToTransactions(tx, userId, 'INVESTMENT', id, transactions.map(t => t.id));
       await tx.monthlyPayment.update({ where: { id: event.id }, data: { transactionIds: transactions.map(t => t.id) } });
       return { ...event, amount, transactions, transaction: transactions[0], isPaidOff: split?.isPaidOff ?? false };
     });

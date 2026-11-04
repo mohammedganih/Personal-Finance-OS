@@ -1,9 +1,9 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
-import { MoreVertical, ChevronDown } from 'lucide-react';
-import { useBills, useBillsCalendar, usePayBillOccurrence, useSkipBillOccurrence, useUndoBillOccurrence } from '@/hooks/useBills';
+import { ChevronDown } from 'lucide-react';
+import { useBills, useBillsCalendar } from '@/hooks/useBills';
+import { PaymentActions } from '@/components/shared/PaymentActions';
 import { usePeriodStore } from '@/stores/period.store';
 import { billCategoryIcon, billCategoryColor } from '@/lib/billCategoryMeta';
 import { formatCurrency, formatDate, getDaysUntil } from '@/lib/format';
@@ -29,34 +29,6 @@ function dueLabel(dueInDays: number): string {
   return `In ${dueInDays} days`;
 }
 
-function RowMenu({ children }: { children: React.ReactNode }) {
-  return (
-    <DropdownMenu.Root>
-      <DropdownMenu.Trigger asChild>
-        <button className="p-1.5 rounded-lg text-ink-muted hover:text-ink-primary hover:bg-paper-subtle transition-colors">
-          <MoreVertical className="w-4 h-4" />
-        </button>
-      </DropdownMenu.Trigger>
-      <DropdownMenu.Portal>
-        <DropdownMenu.Content align="end" className="min-w-36 rounded-xl bg-paper-card border border-line shadow-soft py-1.5 z-40">
-          {children}
-        </DropdownMenu.Content>
-      </DropdownMenu.Portal>
-    </DropdownMenu.Root>
-  );
-}
-
-function MenuItem({ onSelect, children }: { onSelect: () => void; children: React.ReactNode }) {
-  return (
-    <DropdownMenu.Item
-      onSelect={onSelect}
-      className="px-3.5 py-2 text-xs font-medium text-ink-secondary hover:bg-paper-subtle hover:text-ink-primary cursor-pointer outline-none transition-colors"
-    >
-      {children}
-    </DropdownMenu.Item>
-  );
-}
-
 /**
  * Each row is a real occurrence from getBillsCalendar (backend-computed
  * status via billSchedule.ts's projectOccurrences), scoped to the header's
@@ -71,9 +43,6 @@ export function UpcomingBillsTable() {
 
   const { data: occurrences, isLoading } = useBillsCalendar(start, end);
   const { data: bills } = useBills();
-  const { mutate: payOccurrence } = usePayBillOccurrence();
-  const { mutate: skipOccurrence } = useSkipBillOccurrence();
-  const { mutate: undoOccurrence } = useUndoBillOccurrence();
   const [tab, setTab] = useState<Tab>('All');
   const [expanded, setExpanded] = useState(false);
 
@@ -175,15 +144,15 @@ export function UpcomingBillsTable() {
                         </span>
                       </td>
                       <td className="px-1 py-3.5 text-right">
-                        {(o.status === 'PAID' || o.status === 'SKIPPED') ? (
-                          <RowMenu>
-                            <MenuItem onSelect={() => undoOccurrence({ id: o.billId, dueDate: o.dueDate })}>Undo</MenuItem>
-                          </RowMenu>
-                        ) : o.status === 'PAUSED' ? null : (
-                          <RowMenu>
-                            <MenuItem onSelect={() => payOccurrence({ id: o.billId, dueDate: o.dueDate })}>Pay</MenuItem>
-                            <MenuItem onSelect={() => skipOccurrence({ id: o.billId, dueDate: o.dueDate })}>Skip</MenuItem>
-                          </RowMenu>
+                        {o.status === 'PAUSED' ? null : (
+                          <PaymentActions
+                            className="justify-end"
+                            row={{
+                              id: o.billId, type: 'BILL', name: o.name, amount: o.amount, dueDate: o.dueDate,
+                              status: o.status === 'PAID' || o.status === 'SKIPPED' ? o.status : 'PENDING',
+                              accountId: o.accountId ?? null, creditCardId: o.creditCardId ?? undefined,
+                            }}
+                          />
                         )}
                       </td>
                     </tr>

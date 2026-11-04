@@ -72,3 +72,25 @@ export async function fetchSplits(entityType: SplitEntityType, entityIds: string
 export function attachSplit<T extends Record<string, unknown>>(entity: T, split: SplitFields | undefined): T & SplitFields {
   return { ...entity, ...(split ?? EMPTY_SPLIT) };
 }
+
+/**
+ * Gives the expense transactions a payment created the same split as the item
+ * paid (e.g. a 50/50 RD), so Analytics and Transactions show each person's share.
+ */
+export async function copySplitToTransactions(tx: Client, userId: string, entityType: SplitEntityType, entityId: string, transactionIds: string[]): Promise<void> {
+  if (!transactionIds.length) return;
+  const split = await tx.ownershipSplit.findUnique({ where: { entityType_entityId: { entityType, entityId } } });
+  if (!split) return;
+  for (const id of transactionIds) {
+    await tx.ownershipSplit.upsert({
+      where: { entityType_entityId: { entityType: 'TRANSACTION', entityId: id } },
+      create: { userId, entityType: 'TRANSACTION', entityId: id, secondaryMemberId: split.secondaryMemberId, ratio: split.ratio },
+      update: { secondaryMemberId: split.secondaryMemberId, ratio: split.ratio },
+    });
+  }
+}
+
+/** Removes the split rows of transactions that are being deleted (no FK cascades them). */
+export async function deleteTransactionSplits(tx: Client, transactionIds: string[]): Promise<void> {
+  if (transactionIds.length) await tx.ownershipSplit.deleteMany({ where: { entityType: 'TRANSACTION', entityId: { in: transactionIds } } });
+}

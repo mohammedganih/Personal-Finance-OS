@@ -9,3 +9,6 @@ dist/
 coverage/
 prisma/migrations/
 *.tsbuildinfo
+
+# One-off script backups (bill date clean-up)
+bill-dates-backup-*.json

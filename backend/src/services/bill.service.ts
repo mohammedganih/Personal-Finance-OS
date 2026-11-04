@@ -450,6 +450,7 @@ export async function undoOccurrence(userId: string, billId: string, dueDateInpu
             data: { balance: { increment: Number(txn.amount) } },
           });
         }
+        await tx.ownershipSplit.deleteMany({ where: { entityType: 'TRANSACTION', entityId: txn.id } });
         await tx.transaction.delete({ where: { id: txn.id } });
       }
     }

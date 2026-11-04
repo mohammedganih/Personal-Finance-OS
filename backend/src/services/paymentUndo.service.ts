@@ -3,6 +3,7 @@ import { prisma } from '../lib/prisma';
 import { createError } from '../middleware/error.middleware';
 import { currentMonth, monthWindow } from './monthlyPayments.service';
 import { undoOccurrence } from './bill.service';
+import { deleteTransactionSplits } from '../lib/ownershipSplit';
 
 export type UndoType = 'LOAN' | 'INVESTMENT' | 'CARD_EMI' | 'CREDIT_CARD' | 'BILL';
 export interface UndoInput { type: UndoType; id: string; month?: string; dueDate?: string }
@@ -41,6 +42,7 @@ export async function undoPayment(userId: string, input: UndoInput) {
       for (const t of txns) {
         if (t.accountId) await tx.account.update({ where: { id: t.accountId }, data: { balance: { increment: t.amount } } });
       }
+      await deleteTransactionSplits(tx, txns.map(t => t.id));
       if (txns.length) await tx.transaction.deleteMany({ where: { id: { in: txns.map(t => t.id) }, userId } });
     }
     await tx.monthlyPayment.delete({ where: { id: event.id } });

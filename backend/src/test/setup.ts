@@ -1,3 +1,4 @@
+import '../lib/timezone';
 import dotenv from 'dotenv';
 import path from 'path';
 

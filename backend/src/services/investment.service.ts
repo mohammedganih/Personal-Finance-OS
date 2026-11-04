@@ -169,7 +169,16 @@ export async function payInvestment(userId: string, id: string, accountId?: stri
   // ── For RD: also increment the instalment count ────────────────────────
   const rdIncrement = inv.assetType === 'RECURRING_DEPOSIT';
 
-  const [transaction] = await prisma.$transaction([
+  // A lump-sum purchase is a one-off: the reserved record below makes a second
+  // press fail instead of logging the full amount again.
+  const once = { userId, entityType: 'INVESTMENT_PURCHASE', entityId: id, month: 'ONCE' };
+  if (await prisma.monthlyPayment.findUnique({ where: { userId_entityType_entityId_month: once } })) {
+    throw createError('This purchase is already recorded', 409);
+  }
+
+  let transaction;
+  try {
+  [transaction] = await prisma.$transaction([
     prisma.transaction.create({
       data: {
         userId,
@@ -185,7 +194,12 @@ export async function payInvestment(userId: string, id: string, accountId?: stri
     ...(rdIncrement
       ? [prisma.investment.update({ where: { id }, data: { quantity: { increment: 1 } } })]
       : []),
+    prisma.monthlyPayment.create({ data: { ...once, status: 'PAID', amount } }),
   ]);
+  } catch (error) {
+    if ((error as { code?: string }).code === 'P2002') throw createError('This purchase is already recorded', 409);
+    throw error;
+  }
 
   return {
     transaction: { ...transaction, amount: Number(transaction.amount) },

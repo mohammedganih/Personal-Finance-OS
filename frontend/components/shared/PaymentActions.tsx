@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
+import * as Popover from '@radix-ui/react-popover';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { MoreHorizontal } from 'lucide-react';
 import { api } from '@/lib/api';
@@ -76,21 +77,11 @@ export function PaymentActions({ row, planMonth, className }: { row: PayableRow;
   const [accountId, setAccountId] = useState('');
   const [amount, setAmount] = useState(String(owed));
   const [paidDate, setPaidDate] = useState(todayKey());
-  const box = useRef<HTMLDivElement>(null);
   const tickOnly = isTickOnly(row);
   const movesMoney = !tickOnly;
   const needsDate = row.type === 'BILL' && !row.dueDate;
 
   useEffect(() => { setAmount(String(owed)); }, [owed]);
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: MouseEvent | KeyboardEvent) => {
-      if (e instanceof KeyboardEvent ? e.key === 'Escape' : !box.current?.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', close);
-    document.addEventListener('keydown', close);
-    return () => { document.removeEventListener('mousedown', close); document.removeEventListener('keydown', close); };
-  }, [open]);
 
   if (row.status !== 'PENDING') {
     if (!UNDOABLE_TYPES.includes(row.type)) return null;
@@ -119,18 +110,21 @@ export function PaymentActions({ row, planMonth, className }: { row: PayableRow;
   };
 
   return (
-    <div ref={box} className={cn('relative inline-flex items-center gap-1.5', className)}>
+    <Popover.Root open={open} onOpenChange={setOpen}>
+    <div className={cn('inline-flex items-center gap-1.5', className)}>
       <button type="button" disabled={busy || needsDate} onClick={() => (row.type === 'CREDIT_CARD' ? setOpen(true) : submit('PAID', false))} className={pill}
         title={tickOnly ? 'Counts it as part of the card bill. No money moves.' : undefined}>
         {tickOnly ? 'Tick off' : row.type === 'CREDIT_CARD' ? 'Pay card' : 'Mark paid'}
       </button>
-      {(movesMoney || canSkip(row)) && (
-        <button type="button" aria-label={`More options for ${row.name}`} aria-expanded={open} onClick={() => setOpen((o) => !o)} className="grid h-7 w-7 place-items-center rounded-full text-ink-muted hover:bg-paper-subtle hover:text-ink-primary">
-          <MoreHorizontal className="h-4 w-4" />
-        </button>
-      )}
-      {open && (
-        <div role="dialog" aria-label={`Pay ${row.name}`} className="absolute right-0 top-full z-30 mt-1 grid w-72 gap-2.5 rounded-xl border border-line bg-paper-card p-3 text-left text-xs text-ink-secondary shadow-lg">
+      {(movesMoney || canSkip(row)) ? (
+        <Popover.Trigger asChild>
+          <button type="button" aria-label={`More options for ${row.name}`} className="grid h-7 w-7 place-items-center rounded-full text-ink-muted hover:bg-paper-subtle hover:text-ink-primary">
+            <MoreHorizontal className="h-4 w-4" />
+          </button>
+        </Popover.Trigger>
+      ) : <Popover.Anchor />}
+      <Popover.Portal>
+        <Popover.Content align="end" sideOffset={4} collisionPadding={12} aria-label={`Pay ${row.name}`} className="z-50 grid w-72 gap-2.5 rounded-xl border border-line bg-paper-card p-3 text-left text-xs text-ink-secondary shadow-lg">
           <p className="text-sm font-medium text-ink-primary">{row.name}</p>
           {movesMoney && <>
             <label className="grid gap-1">Paid from
@@ -152,8 +146,9 @@ export function PaymentActions({ row, planMonth, className }: { row: PayableRow;
             {movesMoney && <button type="button" disabled={busy} onClick={() => submit('PAID', true)} className="rounded-lg bg-mono px-3 py-1.5 font-medium text-white disabled:opacity-50">Save payment</button>}
             {canSkip(row) && <button type="button" disabled={busy || needsDate} onClick={() => submit('SKIPPED', false)} className="rounded-lg border border-line px-3 py-1.5 disabled:opacity-50">Skip this month</button>}
           </div>
-        </div>
-      )}
+        </Popover.Content>
+      </Popover.Portal>
     </div>
+    </Popover.Root>
   );
 }
