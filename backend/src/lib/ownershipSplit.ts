@@ -1,7 +1,8 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from './prisma';
+import { createError } from '../middleware/error.middleware';
 
-type SplitEntityType = 'TRANSACTION' | 'INVESTMENT';
+type SplitEntityType = 'TRANSACTION' | 'INVESTMENT' | 'LOAN' | 'BILL' | 'CARD_EMI';
 type Client = Prisma.TransactionClient;
 
 export interface SplitInput {
@@ -93,4 +94,17 @@ export async function copySplitToTransactions(tx: Client, userId: string, entity
 /** Removes the split rows of transactions that are being deleted (no FK cascades them). */
 export async function deleteTransactionSplits(tx: Client, transactionIds: string[]): Promise<void> {
   if (transactionIds.length) await tx.ownershipSplit.deleteMany({ where: { entityType: 'TRANSACTION', entityId: { in: transactionIds } } });
+}
+
+/** Rejects family member ids that are not this user's (null/undefined are fine). */
+export async function assertOwnMembers(userId: string, ids: (string | null | undefined)[]): Promise<void> {
+  const wanted = Array.from(new Set(ids.filter((id): id is string => !!id)));
+  if (!wanted.length) return;
+  const found = await prisma.familyMember.count({ where: { userId, id: { in: wanted } } });
+  if (found !== wanted.length) throw createError('Family member not found', 404);
+}
+
+/** Saves (or clears, with splitMemberId: null) an item's split outside a transaction. */
+export async function saveSplit(userId: string, entityType: SplitEntityType, entityId: string, input: SplitInput): Promise<void> {
+  await writeSplit(prisma as unknown as Client, userId, entityType, entityId, input);
 }

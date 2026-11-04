@@ -59,6 +59,7 @@ async function reverseEntity(tx: Prisma.TransactionClient, userId: string, type:
     // Interest never reduced the balance; only the principal portion did.
     const principal = txns.filter(t => !(t.description ?? '').startsWith('EMI Interest:')).reduce((s, t) => s + Number(t.amount), 0);
     await tx.loan.update({ where: { id }, data: { remainingBalance: { increment: principal }, isActive: true } });
+    if (!loan.isActive) await tx.loanEvent.deleteMany({ where: { loanId: id, type: 'CLOSED' } });
   } else if (type === 'INVESTMENT') {
     const inv = await tx.investment.findFirst({ where: { id, userId } });
     if (!inv) throw createError('Investment not found', 404);

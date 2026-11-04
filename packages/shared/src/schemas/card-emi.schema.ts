@@ -11,6 +11,9 @@ export const createCardEMISchema = z.object({
   interestRate: z.number().min(0).max(100).optional(),
   startDate:    z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   notes:        z.string().max(500).optional(),
+  memberId:     z.string().cuid().optional().nullable(), // who pays it (defaults to the card's payer)
+  splitMemberId: z.string().cuid().optional().nullable(), // other person sharing it (null clears)
+  splitRatio:    z.number().min(0).max(100).optional().nullable(), // % paid by the main person
 });
 
 export const updateCardEMISchema = z.object({
@@ -24,6 +27,9 @@ export const updateCardEMISchema = z.object({
   startDate:    z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   notes:        z.string().max(500).optional(),
   isArchived:   z.boolean().optional(),
+  memberId:     z.string().cuid().optional().nullable(),
+  splitMemberId: z.string().cuid().optional().nullable(), // other person sharing it (null clears)
+  splitRatio:    z.number().min(0).max(100).optional().nullable(), // % paid by the main person
 });
 
 export type CreateCardEMIInput = z.infer<typeof createCardEMISchema>;

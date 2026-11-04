@@ -208,6 +208,32 @@ export async function payInvestment(userId: string, id: string, accountId?: stri
   };
 }
 
+export interface ScheduleInput {
+  pauseFrom?: string | null; pauseUntil?: string | null;
+  nextMonthlyAmount?: number | null; nextAmountFrom?: string | null;
+}
+
+/** Pauses a SIP/RD/gold scheme for some months, or changes its amount from a month on. */
+export async function setInvestmentSchedule(userId: string, id: string, input: ScheduleInput) {
+  const inv = await prisma.investment.findFirst({ where: { id, userId } });
+  if (!inv) throw createError('Investment not found', 404);
+  if (!INSTALLMENT_TYPES.has(inv.assetType)) throw createError('Only SIPs, RDs and gold schemes have monthly instalments', 400);
+  const pauseFrom = input.pauseFrom !== undefined ? input.pauseFrom : inv.pauseFrom;
+  const pauseUntil = input.pauseUntil !== undefined ? input.pauseUntil : inv.pauseUntil;
+  if (pauseUntil && (!pauseFrom || pauseUntil < pauseFrom)) throw createError('Resume month must be after the pause starts', 400);
+  const nextAmount = input.nextMonthlyAmount !== undefined ? input.nextMonthlyAmount : inv.nextMonthlyAmount;
+  const nextFrom = input.nextAmountFrom !== undefined ? input.nextAmountFrom : inv.nextAmountFrom;
+  if ((nextAmount == null) !== (nextFrom == null)) throw createError('Give both the new amount and the month it starts', 400);
+  const updated = await prisma.investment.update({
+    where: { id },
+    data: { pauseFrom, pauseUntil: pauseFrom ? pauseUntil : null, nextMonthlyAmount: nextAmount, nextAmountFrom: nextFrom },
+  });
+  return {
+    id: updated.id, pauseFrom: updated.pauseFrom, pauseUntil: updated.pauseUntil, nextAmountFrom: updated.nextAmountFrom,
+    nextMonthlyAmount: updated.nextMonthlyAmount != null ? Number(updated.nextMonthlyAmount) : null,
+  };
+}
+
 /**
  * Per-type invested/current value math -- exported so investmentIntelligence
  * .service.ts (annualized return, diversification, etc.) can reuse the exact
@@ -317,6 +343,7 @@ function serializeInvestment(inv: InvestmentWithRelations) {
     buyPrice:       Number(inv.buyPrice),
     currentPrice:   Number(inv.currentPrice),
     monthlyAmount:  inv.monthlyAmount  ? Number(inv.monthlyAmount)  : null,
+    nextMonthlyAmount: inv.nextMonthlyAmount != null ? Number(inv.nextMonthlyAmount) : null,
     maturityAmount: inv.maturityAmount ? Number(inv.maturityAmount) : null,
     interestRate:   inv.interestRate   ? Number(inv.interestRate)   : null,
     address:                  collateral?.address ?? null,

@@ -4,6 +4,7 @@ const { tx } = vi.hoisted(() => ({ tx: {
   account: { findFirst: vi.fn(), update: vi.fn() },
   monthlyPayment: { findUnique: vi.fn(), create: vi.fn(), delete: vi.fn(), update: vi.fn() },
   transaction: { create: vi.fn() },
+  ownershipSplit: { findUnique: vi.fn(), upsert: vi.fn() }, loanEvent: { create: vi.fn() },
 } }));
 vi.mock('../lib/prisma', () => ({ prisma: { $transaction: (fn: (client: typeof tx) => unknown) => fn(tx) } }));
 vi.mock('../lib/paymentCategory', () => ({ findCategory: vi.fn().mockResolvedValue('category') }));

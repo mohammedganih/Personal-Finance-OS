@@ -74,6 +74,8 @@ const billCore = z.object({
   accountId: z.string().optional().nullable(),
   creditCardId: z.string().optional().nullable(),
   memberId: z.string().optional().nullable(),
+  splitMemberId: z.string().cuid().optional().nullable(), // other person sharing it (null clears)
+  splitRatio:    z.number().min(0).max(100).optional().nullable(), // % paid by the main person
   url: z.string().url('Must be a valid URL').optional().or(z.literal('')),
   notes: z.string().max(2000).optional(),
   tags: z.array(z.string().min(1).max(40)).max(12).default([]),

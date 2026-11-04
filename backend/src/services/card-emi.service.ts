@@ -1,6 +1,7 @@
 import { nextCardEMIDueDate, indiaDateKey } from '../lib/cardPaymentSchedule';
 import { CardEMI } from '@prisma/client';
 import { prisma } from '../lib/prisma';
+import { assertOwnMembers, attachSplit, fetchSplits, saveSplit } from '../lib/ownershipSplit';
 import { createError } from '../middleware/error.middleware';
 import { CreateCardEMIInput, UpdateCardEMIInput } from '../validators/card-emi.validator';
 import { findCategory } from '../lib/paymentCategory';
@@ -43,8 +44,8 @@ export async function getCardEMIs(userId: string, includeArchived = false) {
     include: { creditCard: { select: { id: true, cardName: true, bank: true, lastFourDigits: true } } },
     orderBy: [{ isArchived: 'asc' }, { startDate: 'desc' }],
   });
-
-  return emis.map(serializeWithStats);
+  const splits = await fetchSplits('CARD_EMI', emis.map((e) => e.id));
+  return emis.map((e) => attachSplit(serializeWithStats(e), splits.get(e.id)));
 }
 
 export async function getCardEMIsForCard(userId: string, creditCardId: string) {
@@ -52,13 +53,15 @@ export async function getCardEMIsForCard(userId: string, creditCardId: string) {
     where: { userId, creditCardId, isArchived: false },
     orderBy: { startDate: 'desc' },
   });
-  return emis.map(serializeWithStats);
+  const splits = await fetchSplits('CARD_EMI', emis.map((e) => e.id));
+  return emis.map((e) => attachSplit(serializeWithStats(e), splits.get(e.id)));
 }
 
 export async function createCardEMI(userId: string, input: CreateCardEMIInput) {
   // Verify the card belongs to this user
   const card = await prisma.creditCard.findFirst({ where: { id: input.creditCardId, userId } });
   if (!card) throw createError('Credit card not found', 404);
+  await assertOwnMembers(userId, [input.memberId, input.splitMemberId]);
 
   const emi = await prisma.cardEMI.create({
     data: {
@@ -73,16 +76,19 @@ export async function createCardEMI(userId: string, input: CreateCardEMIInput) {
       interestRate: input.interestRate,
       startDate:    new Date(input.startDate),
       notes:        input.notes,
+      memberId:     input.memberId ?? null,
     },
     include: { creditCard: { select: { id: true, cardName: true, bank: true, lastFourDigits: true } } },
   });
-
-  return serializeWithStats(emi);
+  await saveSplit(userId, 'CARD_EMI', emi.id, input);
+  return attachSplit(serializeWithStats(emi), (await fetchSplits('CARD_EMI', [emi.id])).get(emi.id));
 }
 
 export async function updateCardEMI(userId: string, id: string, input: UpdateCardEMIInput) {
   const existing = await prisma.cardEMI.findFirst({ where: { id, userId } });
   if (!existing) throw createError('Card EMI not found', 404);
+  await assertOwnMembers(userId, [input.memberId, input.splitMemberId]);
+  await saveSplit(userId, 'CARD_EMI', id, input);
 
   // Auto-archive when fully paid
   const emisPaid    = input.emisPaid ?? existing.emisPaid;
@@ -101,12 +107,12 @@ export async function updateCardEMI(userId: string, id: string, input: UpdateCar
       ...(input.interestRate !== undefined && { interestRate: input.interestRate }),
       ...(input.startDate    !== undefined && { startDate: new Date(input.startDate) }),
       ...(input.notes        !== undefined && { notes: input.notes }),
+      ...(input.memberId     !== undefined && { memberId: input.memberId }),
       isArchived: input.isArchived ?? autoArchive,
     },
     include: { creditCard: { select: { id: true, cardName: true, bank: true, lastFourDigits: true } } },
   });
-
-  return serializeWithStats(emi);
+  return attachSplit(serializeWithStats(emi), (await fetchSplits('CARD_EMI', [id])).get(id));
 }
 
 export async function deleteCardEMI(userId: string, id: string) {

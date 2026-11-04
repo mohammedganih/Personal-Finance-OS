@@ -1,5 +1,6 @@
 import { BillFrequency, Prisma, RecurringBill } from '@prisma/client';
 import { prisma } from '../lib/prisma';
+import { assertOwnMembers, attachSplit, copySplitToTransactions, fetchSplits, saveSplit } from '../lib/ownershipSplit';
 import { createError } from '../middleware/error.middleware';
 import { findCategory } from '../lib/paymentCategory';
 import {
@@ -173,7 +174,8 @@ export async function getBills(userId: string, filters: BillFilters = {}) {
     if (b.nextDueDate) return 1;
     return a.name.localeCompare(b.name);
   });
-  return serialized;
+  const splits = await fetchSplits('BILL', serialized.map((b) => b.id));
+  return serialized.map((b) => attachSplit(b, splits.get(b.id)));
 }
 
 export async function getBill(userId: string, id: string) {
@@ -183,8 +185,9 @@ export async function getBill(userId: string, id: string) {
     orderBy: { dueDate: 'desc' },
   })) as OccurrenceRow[];
   const events = buildEventMaps(occurrences).get(id) ?? EMPTY_EVENTS;
+  const splits = await fetchSplits('BILL', [id]);
   return {
-    ...serializeBill(bill, events, new Date()),
+    ...attachSplit(serializeBill(bill, events, new Date()), splits.get(id)),
     history: occurrences.map((o) => ({
       id: o.id,
       dueDate: o.dueDate,
@@ -224,16 +227,20 @@ function billDataFromInput(input: CreateBillInput) {
 
 export async function createBill(userId: string, input: CreateBillInput) {
   await assertLinkedOwnership(userId, input);
+  await assertOwnMembers(userId, [input.splitMemberId]);
   const bill = await prisma.recurringBill.create({
     data: { userId, ...billDataFromInput(input) },
     include: BILL_INCLUDE,
   });
-  return serializeBill(bill, EMPTY_EVENTS, new Date());
+  await saveSplit(userId, 'BILL', bill.id, input);
+  return attachSplit(serializeBill(bill, EMPTY_EVENTS, new Date()), (await fetchSplits('BILL', [bill.id])).get(bill.id));
 }
 
 export async function updateBill(userId: string, id: string, input: UpdateBillInput) {
   const existing = await getOwnedBill(userId, id);
   await assertLinkedOwnership(userId, input);
+  await assertOwnMembers(userId, [input.splitMemberId]);
+  await saveSplit(userId, 'BILL', id, input);
 
   // CUSTOM interval must never survive a switch to a fixed frequency.
   const frequency = input.frequency ?? existing.frequency;
@@ -384,6 +391,7 @@ export async function payOccurrence(userId: string, billId: string, input: PayBi
         },
       });
       transactionId = txn.id;
+      await copySplitToTransactions(tx, userId, 'BILL', billId, [txn.id]);
       if (accountId) {
         await tx.account.update({ where: { id: accountId }, data: { balance: { decrement: amount } } });
       }

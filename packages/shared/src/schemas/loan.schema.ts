@@ -14,6 +14,8 @@ export const createLoanSchema = z.object({
   notes:            z.string().max(1000).optional(),
   memberId:         z.string().cuid().optional(),  // borrower
   payerMemberId:    z.string().cuid().optional(),  // who pays EMI
+  splitMemberId: z.string().cuid().optional().nullable(), // other person sharing it (null clears)
+  splitRatio:    z.number().min(0).max(100).optional().nullable(), // % paid by the main person
   bankAccountId:    z.string().cuid().optional(),  // linked bank account
   linkedInvestmentId: z.string().cuid().nullable().optional(), // collateral asset (Property, Vehicle, ...)
 });

@@ -1,6 +1,7 @@
 import { getAccountFundingPlan } from '../services/accountFunding.service';
 import { getMonthSummary, saveSalary } from '../services/monthSummary.service';
 import { undoPayment } from '../services/paymentUndo.service';
+import { getPaymentHistory, getReminders } from '../services/paymentHistory.service';
 import { getMonthlyPlan, currentMonth, monthWindow, decideMonthlyPayment, previousMonth } from '../services/monthlyPayments.service';
 import { z } from 'zod';
 import { validate } from '../middleware/validate.middleware';
@@ -34,6 +35,14 @@ const monthParam = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/);
 const undoBody = z.object({ type: z.enum(['LOAN', 'INVESTMENT', 'CARD_EMI', 'CREDIT_CARD', 'BILL']), id: z.string().min(1), month: monthParam.optional(), dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() });
 router.post('/monthly-payment/undo', validate(undoBody), async (req: AuthRequest, res) => {
   res.json({ success: true, data: await undoPayment(req.user!.userId, undoBody.parse(req.body)) });
+});
+const historyQuery = z.object({ type: z.enum(['LOAN', 'INVESTMENT', 'CARD_EMI', 'CREDIT_CARD', 'BILL']), id: z.string().min(1) });
+router.get('/payment-history', async (req: AuthRequest, res) => {
+  const { type, id } = historyQuery.parse(req.query);
+  res.json({ success: true, data: await getPaymentHistory(req.user!.userId, type, id) });
+});
+router.get('/reminders', async (req: AuthRequest, res) => {
+  res.json({ success: true, data: await getReminders(req.user!.userId) });
 });
 router.get('/month-summary', async (req: AuthRequest, res) => {
   const month = monthParam.optional().parse(req.query.month);

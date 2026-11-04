@@ -30,7 +30,7 @@ export interface MonthlyPlanRow {
   split?: { memberId: string; pct: number };
 }
 // Plan row type → OwnershipSplit entity type, for every type the split model covers.
-export const SPLIT_ENTITY: Record<string, 'INVESTMENT'> = { INVESTMENT: 'INVESTMENT' };
+export const SPLIT_ENTITY: Record<string, 'INVESTMENT' | 'LOAN' | 'BILL' | 'CARD_EMI'> = { INVESTMENT: 'INVESTMENT', LOAN: 'LOAN', BILL: 'BILL', CARD_EMI: 'CARD_EMI' };
 export async function getMonthlyPlan(userId: string, month = currentMonth()) {
   const window = monthWindow(month);
   const [loans, investments, events, bills, cards, cardEmis] = await Promise.all([
@@ -63,8 +63,9 @@ export async function getMonthlyPlan(userId: string, month = currentMonth()) {
   }
   for (const inv of investments) {
     const event = events.find(e => e.month === month && e.entityType === 'INVESTMENT' && e.entityId === inv.id);
-    if (!event && (inv.recurringActive === false || currentMonth(inv.purchaseDate) > month || (inv.maturityDate && currentMonth(inv.maturityDate) < month) || Number(inv.monthlyAmount) <= 0)) continue;
-    rows.push({ id: inv.id, type: 'INVESTMENT', name: inv.assetName, amount: event ? Number(event.amount) : Number(inv.monthlyAmount), status: event?.status ?? 'PENDING', accountId: inv.bankAccountId, memberId: inv.memberId, dueDate: dateInMonth(month, inv.paymentDay ?? Number(indiaDateKey(inv.purchaseDate).slice(8))) });
+    const instalment = instalmentFor(inv, month);
+    if (!event && (inv.recurringActive === false || instalment.paused || currentMonth(inv.purchaseDate) > month || (inv.maturityDate && currentMonth(inv.maturityDate) < month) || instalment.amount <= 0)) continue;
+    rows.push({ id: inv.id, type: 'INVESTMENT', name: inv.assetName, amount: event ? Number(event.amount) : instalment.amount, status: event?.status ?? 'PENDING', accountId: inv.bankAccountId, memberId: inv.memberId, dueDate: dateInMonth(month, inv.paymentDay ?? Number(indiaDateKey(inv.purchaseDate).slice(8))) });
   }
   for (const card of cards) {
     const dueDate = indiaDateKey(card.dueDate);
@@ -106,6 +107,12 @@ export function summarizeRows(input: { type: string; amount: number; status: str
   const sum = (status?: string, type?: string) => rows.filter(r => (!status || r.status === status) && (!type || r.type === type)).reduce((s, r) => s + r.amount, 0);
   return { scheduled: sum(), paid: sum('PAID'), skipped: sum('SKIPPED'), remaining: sum('PENDING'), loans: sum('PENDING', 'LOAN'), creditCards: sum('PENDING', 'CREDIT_CARD') + sum('PENDING', 'CARD_EMI'), investments: sum('PENDING', 'INVESTMENT'), bills: sum('PENDING', 'BILL') };
 }
+/** A SIP/RD/gold scheme's instalment for a month: paused, or the (possibly changed) amount. */
+export function instalmentFor(inv: { monthlyAmount: unknown; pauseFrom?: string | null; pauseUntil?: string | null; nextMonthlyAmount?: unknown; nextAmountFrom?: string | null }, month: string) {
+  const paused = !!inv.pauseFrom && month >= inv.pauseFrom && (!inv.pauseUntil || month <= inv.pauseUntil);
+  const changed = !!inv.nextAmountFrom && inv.nextMonthlyAmount != null && month >= inv.nextAmountFrom;
+  return { paused, amount: Number(changed ? inv.nextMonthlyAmount : inv.monthlyAmount) || 0 };
+}
 export interface PaymentOptions {
   /** `YYYY-MM`: this month (default) or last month, for an overdue instalment. */
   month?: string;
@@ -136,7 +143,9 @@ export async function decideMonthlyPayment(userId: string, type: 'LOAN' | 'INVES
       const start = loan?.startDate ?? inv!.purchaseDate;
       if (currentMonth(start) > month || (inv?.maturityDate && currentMonth(inv.maturityDate) < month)) throw createError('No installment due this month', 400);
       const split = loan ? calculateEMISplit(Number(loan.remainingBalance), options.amount ?? Number(loan.emi), Number(loan.interestRate)) : null;
-      const amount = split?.actualPayment ?? options.amount ?? Number(inv!.monthlyAmount);
+      const instalment = inv ? instalmentFor(inv, month) : null;
+      if (instalment?.paused && status === 'PAID' && options.amount === undefined) throw createError('This instalment is paused for that month', 400);
+      const amount = split?.actualPayment ?? options.amount ?? instalment!.amount;
       if (amount <= 0) throw createError('No payment amount configured', 400);
       const sourceAccount = accountId || loan?.bankAccountId || inv?.bankAccountId;
       if (sourceAccount && !await tx.account.findFirst({ where: { id: sourceAccount, userId } })) throw createError('Account not found', 404);
@@ -155,9 +164,10 @@ export async function decideMonthlyPayment(userId: string, type: 'LOAN' | 'INVES
       ] : [{ amount, description: `${inv!.assetType}: ${inv!.assetName}`, categoryId: emiCategory, isWealthTransfer: false }];
       for (const portion of portions.filter(p => p.amount > 0)) transactions.push(await tx.transaction.create({ data: { userId, type: 'EXPENSE', ...portion, accountId: sourceAccount, memberId: loan?.payerMemberId ?? loan?.memberId ?? inv?.memberId, date: paidOn, isRecurring: true } }));
       if (loan && split) await tx.loan.update({ where: { id }, data: { remainingBalance: split.newBalance, isActive: !split.isPaidOff } });
+      if (loan && split?.isPaidOff) await tx.loanEvent.create({ data: { userId, loanId: id, type: 'CLOSED', date: paidOn, balanceBefore: loan.remainingBalance, balanceAfter: 0, note: `Last EMI (${month})` } });
       if (inv?.assetType === 'RECURRING_DEPOSIT') await tx.investment.update({ where: { id }, data: { quantity: { increment: 1 } } });
       if (sourceAccount) await tx.account.update({ where: { id: sourceAccount }, data: { balance: { decrement: amount } } });
-      if (inv) await copySplitToTransactions(tx, userId, 'INVESTMENT', id, transactions.map(t => t.id));
+      await copySplitToTransactions(tx, userId, loan ? 'LOAN' : 'INVESTMENT', id, transactions.map(t => t.id));
       await tx.monthlyPayment.update({ where: { id: event.id }, data: { transactionIds: transactions.map(t => t.id) } });
       return { ...event, amount, transactions, transaction: transactions[0], isPaidOff: split?.isPaidOff ?? false };
     });

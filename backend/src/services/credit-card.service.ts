@@ -1,5 +1,6 @@
 import { CreditCard, Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
+import { assertOwnMembers } from '../lib/ownershipSplit';
 import { createError } from '../middleware/error.middleware';
 import { CreateCreditCardInput, UpdateCreditCardInput } from '../validators/credit-card.validator';
 import { findCategory } from '../lib/paymentCategory';
@@ -15,10 +16,12 @@ export async function getCreditCards(userId: string) {
 
 export async function createCreditCard(userId: string, input: CreateCreditCardInput) {
   await validatePaymentAccount(userId, input.bankAccountId);
+  await assertOwnMembers(userId, [input.memberId]);
   const card = await prisma.creditCard.create({
     data: {
       userId,
       bankAccountId: input.bankAccountId,
+      memberId:      input.memberId ?? null,
       cardName:       input.cardName,
       bank:           input.bank,
       lastFourDigits: input.lastFourDigits,
@@ -40,9 +43,11 @@ export async function updateCreditCard(userId: string, id: string, input: Update
   if (!existing) throw createError('Credit card not found', 404);
 
   await validatePaymentAccount(userId, input.bankAccountId);
+  await assertOwnMembers(userId, [input.memberId]);
   const card = await prisma.creditCard.update({
     where: { id },
     data: {
+      ...(input.memberId       !== undefined && { memberId: input.memberId }),
       ...(input.bankAccountId !== undefined && { bankAccountId: input.bankAccountId }),
       ...(input.cardName       !== undefined && { cardName: input.cardName }),
       ...(input.bank           !== undefined && { bank: input.bank }),

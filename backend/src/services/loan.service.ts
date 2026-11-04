@@ -1,5 +1,6 @@
 import { Prisma, Loan, FamilyMember, Account, Investment } from '@prisma/client';
 import { prisma } from '../lib/prisma';
+import { assertOwnMembers, attachSplit, fetchSplits, saveSplit } from '../lib/ownershipSplit';
 import { createError } from '../middleware/error.middleware';
 import { CreateLoanInput, UpdateLoanInput } from '../validators/loan.validator';
 import { findCategory } from '../lib/paymentCategory';
@@ -29,10 +30,12 @@ export async function getLoans(userId: string) {
     include: LOAN_INCLUDE,
     orderBy: { startDate: 'desc' },
   });
-  return loans.map(serializeLoan);
+  const splits = await fetchSplits('LOAN', loans.map((l) => l.id));
+  return loans.map((l) => attachSplit(serializeLoan(l), splits.get(l.id)));
 }
 
 export async function createLoan(userId: string, input: CreateLoanInput) {
+  await assertOwnMembers(userId, [input.memberId, input.payerMemberId, input.splitMemberId]);
   const loan = await prisma.loan.create({
     data: {
       userId,
@@ -54,12 +57,15 @@ export async function createLoan(userId: string, input: CreateLoanInput) {
     },
     include: LOAN_INCLUDE,
   });
-  return serializeLoan(loan);
+  await saveSplit(userId, 'LOAN', loan.id, input);
+  return attachSplit(serializeLoan(loan), (await fetchSplits('LOAN', [loan.id])).get(loan.id));
 }
 
 export async function updateLoan(userId: string, id: string, input: UpdateLoanInput) {
   const existing = await prisma.loan.findFirst({ where: { id, userId } });
   if (!existing) throw createError('Loan not found', 404);
+  await assertOwnMembers(userId, [input.memberId, input.payerMemberId, input.splitMemberId]);
+  await saveSplit(userId, 'LOAN', id, input);
 
   const loan = await prisma.loan.update({
     where: { id },
@@ -83,7 +89,7 @@ export async function updateLoan(userId: string, id: string, input: UpdateLoanIn
     },
     include: LOAN_INCLUDE,
   });
-  return serializeLoan(loan);
+  return attachSplit(serializeLoan(loan), (await fetchSplits('LOAN', [id])).get(id));
 }
 
 /** Links (or unlinks, with investmentId = null) a Loan to a collateral asset. */

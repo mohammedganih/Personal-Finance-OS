@@ -115,6 +115,9 @@ enum ContributionType {
 enum SplitEntityType {
   TRANSACTION
   INVESTMENT
+  LOAN
+  BILL
+  CARD_EMI
 }
 
 // ─── Models ──────────────────────────────────────────────────────────────────
@@ -149,6 +152,7 @@ model User {
   goalContributions   GoalContribution[]
   ownershipSplits     OwnershipSplit[]
   monthlySalaries     MonthlySalary[]
+  loanEvents          LoanEvent[]
 
   @@map("users")
 }
@@ -289,6 +293,10 @@ model Investment {
 
   // Common
   platform       String?
+  pauseFrom         String?  // YYYY-MM: no instalments from this month
+  pauseUntil        String?  // YYYY-MM: last paused month (null = until resumed)
+  nextMonthlyAmount Decimal? @db.Decimal(14, 2) // new instalment amount ...
+  nextAmountFrom    String?  // ... from this month (YYYY-MM)
   memberId       String?    // primary owner
   bankAccountId  String?
 
@@ -410,6 +418,7 @@ model Loan {
   linkedInvestment Investment?    @relation("LoanCollateral", fields: [linkedInvestmentId], references: [id], onDelete: SetNull)
 
   @@index([userId])
+  events           LoanEvent[]
   @@index([memberId])
   @@index([linkedInvestmentId])
   @@map("loans")
@@ -712,4 +721,30 @@ model MonthlySalary {
 
   @@unique([userId, memberId, month])
   @@map("monthly_salaries")
+}
+
+// Loan history beyond monthly EMIs: prepayments, rate changes, closing.
+model LoanEvent {
+  id            String   @id @default(cuid())
+  userId        String
+  loanId        String
+  type          String   // PREPAYMENT | RATE_CHANGE | CLOSED
+  date          DateTime @default(now())
+  amount        Decimal? @db.Decimal(14, 2)
+  balanceBefore Decimal? @db.Decimal(14, 2)
+  balanceAfter  Decimal? @db.Decimal(14, 2)
+  oldRate       Decimal? @db.Decimal(5, 2)
+  newRate       Decimal? @db.Decimal(5, 2)
+  oldEmi        Decimal? @db.Decimal(14, 2)
+  newEmi        Decimal? @db.Decimal(14, 2)
+  accountId     String?
+  transactionId String?
+  note          String?
+  createdAt     DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  loan Loan @relation(fields: [loanId], references: [id], onDelete: Cascade)
+
+  @@index([loanId])
+  @@map("loan_events")
 }
