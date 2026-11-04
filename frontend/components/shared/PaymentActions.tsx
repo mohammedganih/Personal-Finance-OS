@@ -10,6 +10,8 @@ import { formatCurrency } from '@/lib/format';
 import { useAccounts } from '@/hooks/useAccounts';
 import { useUndoPayment, UNDOABLE_TYPES, MonthlyPaymentRow } from '@/hooks/useMonthlyPlan';
 import { useToast } from '@/components/ui/use-toast';
+import { PaymentHistoryDialog } from '@/components/shared/PaymentHistoryDialog';
+import type { HistoryType } from '@/hooks/usePaymentHistory';
 
 // One set of Pay / Tick off / Skip / Undo controls, shared by Home, Loans,
 // Investments and Bills, so every payment behaves the same everywhere.
@@ -73,6 +75,7 @@ export function PaymentActions({ row, planMonth, className }: { row: PayableRow;
   const { pay, undo, busy } = usePaymentActions();
   const { data: accounts } = useAccounts();
   const [open, setOpen] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const owed = row.type === 'CREDIT_CARD' ? row.remaining ?? row.amount : row.amount;
   const [accountId, setAccountId] = useState('');
   const [amount, setAmount] = useState(String(owed));
@@ -116,13 +119,11 @@ export function PaymentActions({ row, planMonth, className }: { row: PayableRow;
         title={tickOnly ? 'Counts it as part of the card bill. No money moves.' : undefined}>
         {tickOnly ? 'Tick off' : row.type === 'CREDIT_CARD' ? 'Pay card' : 'Mark paid'}
       </button>
-      {(movesMoney || canSkip(row)) ? (
-        <Popover.Trigger asChild>
-          <button type="button" aria-label={`More options for ${row.name}`} className="grid h-7 w-7 place-items-center rounded-full text-ink-muted hover:bg-paper-subtle hover:text-ink-primary">
-            <MoreHorizontal className="h-4 w-4" />
-          </button>
-        </Popover.Trigger>
-      ) : <Popover.Anchor />}
+      <Popover.Trigger asChild>
+        <button type="button" aria-label={`More options for ${row.name}`} className="grid h-7 w-7 place-items-center rounded-full text-ink-muted hover:bg-paper-subtle hover:text-ink-primary">
+          <MoreHorizontal className="h-4 w-4" />
+        </button>
+      </Popover.Trigger>
       <Popover.Portal>
         <Popover.Content align="end" sideOffset={4} collisionPadding={12} aria-label={`Pay ${row.name}`} className="z-50 grid w-72 gap-2.5 rounded-xl border border-line bg-paper-card p-3 text-left text-xs text-ink-secondary shadow-lg">
           <p className="text-sm font-medium text-ink-primary">{row.name}</p>
@@ -146,9 +147,11 @@ export function PaymentActions({ row, planMonth, className }: { row: PayableRow;
             {movesMoney && <button type="button" disabled={busy} onClick={() => submit('PAID', true)} className="rounded-lg bg-mono px-3 py-1.5 font-medium text-white disabled:opacity-50">Save payment</button>}
             {canSkip(row) && <button type="button" disabled={busy || needsDate} onClick={() => submit('SKIPPED', false)} className="rounded-lg border border-line px-3 py-1.5 disabled:opacity-50">Skip this month</button>}
           </div>
+          <button type="button" onClick={() => { setOpen(false); setShowHistory(true); }} className="justify-self-start text-ink-muted underline underline-offset-2 hover:text-ink-primary">Payment history</button>
         </Popover.Content>
       </Popover.Portal>
     </div>
+    {showHistory && <PaymentHistoryDialog type={row.type as HistoryType} id={row.type === 'CREDIT_CARD' ? row.creditCardId ?? row.id : row.id} name={row.name} onClose={() => setShowHistory(false)} />}
     </Popover.Root>
   );
 }

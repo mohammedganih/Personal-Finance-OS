@@ -12,7 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useCreateLoan, useUpdateLoan } from '@/hooks/useLoans';
 import { useAccounts } from '@/hooks/useAccounts';
 import { useInvestments } from '@/hooks/useInvestments';
-import { MemberSelector } from '@/components/shared/MemberSelector';
+import { useState } from 'react';
+import { MemberSelector, SplitMemberSelector } from '@/components/shared/MemberSelector';
 import { Loader2 } from 'lucide-react';
 import { LOAN_TYPE_LABELS, ASSET_TYPE_ICONS } from '@/lib/constants';
 import { Loan, Account } from '@/types';
@@ -71,7 +72,11 @@ export function LoanForm({ onClose, loan }: LoanFormProps) {
       : { startDate: format(new Date(), 'yyyy-MM-dd'), loanType: 'PERSONAL' },
   });
 
-  const onSubmit = (data: FormData) => {
+  const [splitMemberId, setSplitMemberId] = useState<string | null>(loan?.splitMemberId ?? null);
+  const [splitRatio, setSplitRatio] = useState<number>(loan?.splitRatio ?? 50);
+  const splitPayload = { splitMemberId: splitMemberId ?? (loan?.splitMemberId ? null : undefined), splitRatio: splitMemberId ? splitRatio : undefined };
+  const onSubmit = (form: FormData) => {
+    const data = { ...form, ...splitPayload };
     if (isEdit) {
       update({ id: loan.id, data: data as Record<string, unknown> }, { onSuccess: onClose });
     } else {
@@ -156,11 +161,12 @@ export function LoanForm({ onClose, loan }: LoanFormProps) {
               onChange={(id) => setValue('memberId', id ?? undefined)}
               allowJoint={false}
             />
-            <MemberSelector
-              label="Who pays the EMI?"
-              value={watch('payerMemberId')}
-              onChange={(id) => setValue('payerMemberId', id ?? undefined)}
-              allowJoint={false}
+            <SplitMemberSelector
+              label="Who pays the EMI? (Split if you share it)"
+              memberId={watch('payerMemberId')}
+              splitMemberId={splitMemberId}
+              splitRatio={splitRatio}
+              onChange={(mId, smId, ratio) => { setValue('payerMemberId', mId ?? undefined); setSplitMemberId(smId); setSplitRatio(ratio); }}
             />
           </div>
 

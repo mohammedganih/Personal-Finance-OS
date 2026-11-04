@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { usePathname } from "next/navigation";
-import { Bell, Plus, Search } from "lucide-react";
+import { Plus, Search } from "lucide-react";
+import { RemindersBell } from "@/components/layout/RemindersBell";
 import { useAuthStore } from "@/stores/auth.store";
 import { PeriodSelectorLight } from "@/components/shared/PeriodSelectorLight";
 import { TransactionForm } from "@/components/transactions/TransactionForm";
@@ -112,12 +113,7 @@ export function HeaderLight() {
           >
             <Search className="w-4 h-4" />
           </button>
-          <button
-            aria-label="Notifications"
-            className="w-9 h-9 flex items-center justify-center rounded-full bg-paper-card border border-line text-ink-secondary hover:text-ink-primary hover:border-line-strong transition-colors relative"
-          >
-            <Bell className="w-4 h-4" />
-          </button>
+          <RemindersBell />
           <button
             onClick={() => setShowForm(true)}
             className="h-9 flex items-center gap-1.5 rounded-full bg-mono hover:bg-mono-hover text-white text-sm font-medium px-4 transition-colors"

@@ -16,6 +16,7 @@ import { useCreateBill, useUpdateBill } from '@/hooks/useBills';
 import { useAccounts } from '@/hooks/useAccounts';
 import { useCreditCards } from '@/hooks/useCreditCards';
 import { useFamilyMembers } from '@/hooks/useFamilyMembers';
+import { SplitMemberSelector } from '@/components/shared/MemberSelector';
 import { BILL_FREQUENCY_LABELS, billCategoryMeta } from '@/lib/constants';
 import { RecurringBill } from '@/types';
 import { cn } from '@/lib/utils';
@@ -111,6 +112,10 @@ export function BillForm({ onClose, bill }: { onClose: () => void; bill?: Recurr
   const category = watch('category');
   const autoDebit = watch('autoDebit');
 
+  const [splitMemberId, setSplitMemberId] = useState<string | null>(bill?.splitMemberId ?? null);
+  const [splitRatio, setSplitRatio] = useState<number>(bill?.splitRatio ?? 50);
+  const splitPayload = { splitMemberId: splitMemberId ?? (bill?.splitMemberId ? null : undefined), splitRatio: splitMemberId ? splitRatio : undefined };
+
   function onSubmit(d: FormData) {
     const payload: Record<string, unknown> = {
       name: d.name,
@@ -127,6 +132,7 @@ export function BillForm({ onClose, bill }: { onClose: () => void; bill?: Recurr
       accountId: d.accountId || null,
       creditCardId: d.creditCardId || null,
       memberId: d.memberId || null,
+      ...splitPayload,
       url: d.url || '',
       notes: d.notes || undefined,
       tags: d.tags ? d.tags.split(',').map((t) => t.trim()).filter(Boolean).slice(0, 12) : [],
@@ -309,22 +315,14 @@ export function BillForm({ onClose, bill }: { onClose: () => void; bill?: Recurr
                   <Label>End Date (optional)</Label>
                   <Input type="date" {...register('endDate')} />
                 </div>
-                <div className="space-y-1.5">
-                  <Label>Family Member</Label>
-                  <Select
-                    value={watch('memberId') || 'none'}
-                    onValueChange={(v) => setValue('memberId', v === 'none' ? '' : v)}
-                  >
-                    <SelectTrigger><SelectValue placeholder="Whole family" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Whole family</SelectItem>
-                      {(members ?? []).map((m) => (
-                        <SelectItem key={m.id} value={m.id}>{m.emoji ?? '👤'} {m.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
               </div>
+              <SplitMemberSelector
+                label="Who pays this bill? (Split if you share it)"
+                memberId={watch('memberId') || null}
+                splitMemberId={splitMemberId}
+                splitRatio={splitRatio}
+                onChange={(mId, smId, ratio) => { setValue('memberId', mId ?? ''); setSplitMemberId(smId); setSplitRatio(ratio); }}
+              />
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label>Website URL</Label>

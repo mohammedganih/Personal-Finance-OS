@@ -12,6 +12,8 @@ import { useCreateCreditCard, useUpdateCreditCard } from '@/hooks/useCreditCards
 import { Loader2 } from 'lucide-react';
 import { useAccounts } from '@/hooks/useAccounts';
 import { CreditCard } from '@/types';
+import { useState } from 'react';
+import { MemberSelector } from '@/components/shared/MemberSelector';
 
 const schema = z.object({
   bankAccountId: z.string().optional().nullable(),
@@ -58,8 +60,9 @@ export function CreditCardForm({ onClose, card }: { onClose: () => void; card?: 
         },
   });
 
+  const [memberId, setMemberId] = useState<string | null>(card?.memberId ?? null);
   const onSubmit = (data: FormData) => {
-    const payload = { ...data, bankAccountId: data.bankAccountId || null, lastFourDigits: data.lastFourDigits || undefined };
+    const payload = { ...data, bankAccountId: data.bankAccountId || null, lastFourDigits: data.lastFourDigits || undefined, memberId: memberId ?? (card?.memberId ? null : undefined) };
     if (isEdit) {
       update({ id: card.id, data: payload as Record<string, unknown> }, { onSuccess: onClose });
     } else {
@@ -131,6 +134,8 @@ export function CreditCardForm({ onClose, card }: { onClose: () => void; card?: 
             <Label>Notes</Label>
             <Input placeholder="Any details..." {...register('notes')} />
           </div>
+
+          <MemberSelector label="Who pays this card's bill?" value={memberId} onChange={setMemberId} />
 
           <div className="space-y-1.5">
             <Label htmlFor="card-payment-account">Payment bank account</Label>

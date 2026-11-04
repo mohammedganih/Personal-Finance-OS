@@ -14,6 +14,8 @@ import { useCreditCards } from '@/hooks/useCreditCards';
 import { Loader2 } from 'lucide-react';
 import { CardEMI, CreditCard } from '@/types';
 import { cn } from '@/lib/utils';
+import { useState } from 'react';
+import { SplitMemberSelector } from '@/components/shared/MemberSelector';
 
 const schema = z.object({
   creditCardId: z.string().min(1, 'Select a card'),
@@ -72,8 +74,12 @@ export function CardEMIForm({ onClose, emi, defaultCardId }: CardEMIFormProps) {
   const tenureMonths = watch('tenureMonths');
   const autoEMI = totalAmount && tenureMonths ? (totalAmount / tenureMonths).toFixed(0) : null;
 
+  const [memberId, setMemberId] = useState<string | null>(emi?.memberId ?? null);
+  const [splitMemberId, setSplitMemberId] = useState<string | null>(emi?.splitMemberId ?? null);
+  const [splitRatio, setSplitRatio] = useState<number>(emi?.splitRatio ?? 50);
+  const splitPayload = { splitMemberId: splitMemberId ?? (emi?.splitMemberId ? null : undefined), splitRatio: splitMemberId ? splitRatio : undefined };
   const onSubmit = (data: FormData) => {
-    const payload = { ...data, interestRate: data.isNoCost ? undefined : data.interestRate };
+    const payload = { ...data, interestRate: data.isNoCost ? undefined : data.interestRate, memberId: memberId ?? (emi?.memberId ? null : undefined), ...splitPayload };
     if (isEdit) {
       update({ id: emi.id, data: payload as Record<string, unknown> }, { onSuccess: onClose });
     } else {
@@ -191,6 +197,14 @@ export function CardEMIForm({ onClose, emi, defaultCardId }: CardEMIFormProps) {
               No-cost EMI would be ₹{autoEMI}/mo · enter actual EMI for interest-bearing
             </div>
           )}
+
+          <SplitMemberSelector
+            label="Who pays this EMI? (Defaults to the card's payer)"
+            memberId={memberId}
+            splitMemberId={splitMemberId}
+            splitRatio={splitRatio}
+            onChange={(mId, smId, ratio) => { setMemberId(mId); setSplitMemberId(smId); setSplitRatio(ratio); }}
+          />
 
           <div className="space-y-1.5">
             <Label>Notes (optional)</Label>

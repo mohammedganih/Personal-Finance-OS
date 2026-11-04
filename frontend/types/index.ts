@@ -107,6 +107,10 @@ export type AssetType =
 
 export interface Investment {
   paymentDay?: number | null;
+  pauseFrom?: string | null;
+  pauseUntil?: string | null;
+  nextMonthlyAmount?: number | null;
+  nextAmountFrom?: string | null;
   recurringActive?: boolean;
   id: string;
   assetName: string;
@@ -347,6 +351,8 @@ export interface GoalInsight {
 export type LoanType = 'HOME' | 'CAR' | 'PERSONAL' | 'EDUCATION' | 'BUSINESS' | 'OTHER';
 
 export interface Loan {
+  splitMemberId?: string | null;
+  splitRatio?: number | null;
   paymentDay?: number | null;
   id: string;
   name: string;
@@ -449,6 +455,8 @@ export type BillStatus = 'ACTIVE' | 'PAUSED' | 'ARCHIVED';
 export type BillOccurrenceStatus = 'PAID' | 'SKIPPED' | 'PAUSED' | 'OVERDUE' | 'DUE_TODAY' | 'UPCOMING';
 
 export interface RecurringBill {
+  splitMemberId?: string | null;
+  splitRatio?: number | null;
   id: string;
   name: string;
   vendor: string | null;
@@ -693,6 +701,9 @@ export interface MemberAnalytics {
 // ─── Card EMI ─────────────────────────────────────────────────────────────────
 
 export interface CardEMI {
+  memberId?: string | null;
+  splitMemberId?: string | null;
+  splitRatio?: number | null;
   id: string;
   userId: string;
   creditCardId: string;

@@ -10,13 +10,16 @@ import { useCreditCards, useDeleteCreditCard } from '@/hooks/useCreditCards';
 import { useCardEMIs } from '@/hooks/useCardEMIs';
 import { LOAN_TYPE_ICONS, LOAN_TYPE_COLORS, CREDIT_CARD_BUCKET_COLOR } from '@/lib/loanTypeMeta';
 import { LOAN_TYPE_LABELS } from '@/lib/constants';
-import { formatCurrency } from '@/lib/format';
+import { formatCurrency, formatDate } from '@/lib/format';
 import { Loan, CreditCard } from '@/types';
 import { cn } from '@/lib/utils';
 import { LoanForm } from '@/components/loans/LoanForm';
 import { CreditCardForm } from '@/components/loans/CreditCardForm';
 import { PayBillDialog } from '@/components/loans/PayBillDialog';
 import { CardEMIsDialog } from './CardEMIsDialog';
+import { PrepayLoanDialog, ChangeRateDialog, CardStatementDialog, isStatementStale } from '@/components/loans/LoanChangeDialogs';
+import { PaymentHistoryDialog } from '@/components/shared/PaymentHistoryDialog';
+import type { HistoryType } from '@/hooks/usePaymentHistory';
 
 function monthsLeftLabel(months: number): string {
   const y = Math.floor(months / 12);
@@ -77,6 +80,10 @@ export function YourLoansTable() {
   const [showCardForm, setShowCardForm] = useState(false);
   const [payingCard, setPayingCard] = useState<CreditCard | null>(null);
   const [emisForCard, setEmisForCard] = useState<CreditCard | null>(null);
+  const [prepaying, setPrepaying] = useState<Loan | null>(null);
+  const [changingRate, setChangingRate] = useState<Loan | null>(null);
+  const [statementCard, setStatementCard] = useState<CreditCard | null>(null);
+  const [historyFor, setHistoryFor] = useState<{ type: HistoryType; id: string; name: string } | null>(null);
 
   if (loansLoading || cardsLoading) return <div className="card-light rounded-2xl h-96 shimmer" />;
 
@@ -174,6 +181,9 @@ export function YourLoansTable() {
                       ) : (
                         <RowMenu>
                           <MenuItem onSelect={() => setPayingLoanId(loan.id)}>Pay EMI</MenuItem>
+                          <MenuItem onSelect={() => setPrepaying(loan)}>Prepay / part-pay</MenuItem>
+                          <MenuItem onSelect={() => setChangingRate(loan)}>Change interest rate</MenuItem>
+                          <MenuItem onSelect={() => setHistoryFor({ type: 'LOAN', id: loan.id, name: loan.name })}>History</MenuItem>
                           <MenuItem onSelect={() => { setEditingLoan(loan); setShowLoanForm(true); }}>Edit</MenuItem>
                           <MenuItem danger onSelect={() => deleteLoan(loan.id)}>Delete</MenuItem>
                         </RowMenu>
@@ -204,6 +214,11 @@ export function YourLoansTable() {
                           <p className="text-xs text-ink-muted truncate">
                             {card.bank ?? 'Credit Card'}{card.lastFourDigits ? ` • •••• ${card.lastFourDigits}` : ''}
                           </p>
+                          {isStatementStale(card) && (
+                            <button type="button" onClick={() => setStatementCard(card)} className="mt-0.5 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800 hover:bg-amber-100">
+                              Statement out of date · update
+                            </button>
+                          )}
                         </span>
                       </div>
                     </td>
@@ -232,7 +247,9 @@ export function YourLoansTable() {
                     </td>
                     <td className="px-1 py-3.5 text-right">
                       <RowMenu>
+                        <MenuItem onSelect={() => setStatementCard(card)}>Update statement</MenuItem>
                         {card.outstanding > 0 && <MenuItem onSelect={() => setPayingCard(card)}>Pay Bill</MenuItem>}
+                        <MenuItem onSelect={() => setHistoryFor({ type: 'CREDIT_CARD', id: card.id, name: card.cardName })}>Payment history</MenuItem>
                         <MenuItem onSelect={() => setEmisForCard(card)}>Manage EMIs{cardEmisActive.length > 0 ? ` (${cardEmisActive.length})` : ''}</MenuItem>
                         <MenuItem onSelect={() => { setEditingCard(card); setShowCardForm(true); }}>Edit</MenuItem>
                         <MenuItem danger onSelect={() => deleteCard(card.id)}>Delete</MenuItem>
@@ -265,7 +282,8 @@ export function YourLoansTable() {
                     <span className="text-[11px] text-ink-muted">{LOAN_TYPE_LABELS[loan.loanType]}</span>
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
-                    <span className="text-xs text-ink-muted">Paid off</span>
+                    <span className="text-xs text-ink-muted">Paid off {formatDate(loan.updatedAt, 'MMM yyyy')}</span>
+                    <button onClick={() => setHistoryFor({ type: 'LOAN', id: loan.id, name: loan.name })} className="text-ink-muted hover:text-ink-primary transition-colors text-xs underline underline-offset-2">History</button>
                     <button aria-label={`Delete ${loan.name}`} onClick={() => deleteLoan(loan.id)} className="text-ink-muted hover:text-updown-down transition-colors text-xs">Delete</button>
                   </div>
                 </div>
@@ -279,6 +297,10 @@ export function YourLoansTable() {
       {showCardForm && <CreditCardForm onClose={() => { setShowCardForm(false); setEditingCard(null); }} card={editingCard ?? undefined} />}
       {payingCard && <PayBillDialog card={payingCard} onClose={() => setPayingCard(null)} />}
       {emisForCard && <CardEMIsDialog card={emisForCard} onClose={() => setEmisForCard(null)} />}
+      {prepaying && <PrepayLoanDialog loan={prepaying} onClose={() => setPrepaying(null)} />}
+      {changingRate && <ChangeRateDialog loan={changingRate} onClose={() => setChangingRate(null)} />}
+      {statementCard && <CardStatementDialog card={statementCard} onClose={() => setStatementCard(null)} />}
+      {historyFor && <PaymentHistoryDialog {...historyFor} onClose={() => setHistoryFor(null)} />}
     </div>
   );
 }

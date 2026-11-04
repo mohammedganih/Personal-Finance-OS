@@ -1,12 +1,18 @@
  'use client';
 
+import { useState } from 'react';
 import { useMonthlyPlan } from '@/hooks/useMonthlyPlan';
+import { useInvestments } from '@/hooks/useInvestments';
+import { InvestmentScheduleDialog, scheduleSummary } from '@/components/investments/InvestmentScheduleDialog';
+import { Investment } from '@/types';
 import { PaymentActions } from '@/components/shared/PaymentActions';
 import { ChevronDown } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/format';
 
 export function MonthlyPayments({ type }: { type?: 'LOAN' | 'INVESTMENT' }) {
   const { data, isLoading, isError } = useMonthlyPlan();
+  const { data: investments } = useInvestments();
+  const [scheduling, setScheduling] = useState<Investment | null>(null);
   if (isLoading) return <div className="card-light rounded-2xl p-5">Loading monthly payments...</div>;
   if (isError || !data) return <div role="alert" className="card-light rounded-2xl p-5">Could not load monthly payments. Please refresh.</div>;
   if (!type) return <div className="grid h-full grid-cols-1 gap-4 md:grid-cols-2">
@@ -36,9 +42,26 @@ export function MonthlyPayments({ type }: { type?: 'LOAN' | 'INVESTMENT' }) {
     {rows.map(row => <div key={row.id} className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-3">
       <div className="min-w-0">
         <p className="text-sm font-medium text-ink-primary">{row.name}</p>
+        {row.type === 'INVESTMENT' && (() => {
+          const inv = investments?.find(i => i.id === row.id);
+          const summary = inv && scheduleSummary(inv);
+          return inv ? <p className="text-[11px] text-ink-muted">{summary && <>{summary} · </>}<button type="button" onClick={() => setScheduling(inv)} className="underline underline-offset-2 hover:text-ink-primary">Pause / change amount</button></p> : null;
+        })()}
         <p className="text-xs text-ink-secondary">{formatCurrency(row.type === 'CREDIT_CARD' ? row.remaining ?? row.amount : row.amount)}{row.dueDate && <> · due {formatDate(row.dueDate, 'd MMM')}</>}{row.paidAmount ? <> · {formatCurrency(row.paidAmount)} paid so far</> : null}</p>
       </div>
       <PaymentActions row={row} planMonth={data.current.month} />
     </div>)}
+    {type === 'INVESTMENT' && (() => {
+      // Paused this month, so not in the list above: keep a way to resume them.
+      const paused = (investments ?? []).filter(i => i.pauseFrom && !rows.some(r => r.id === i.id));
+      return paused.length > 0 && <div className="space-y-2 border-t border-line pt-3">
+        <p className="text-xs font-medium text-ink-secondary">Paused this month</p>
+        {paused.map(inv => <div key={inv.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+          <span className="min-w-0 text-ink-primary">{inv.assetName}<span className="ml-2 text-[11px] text-ink-muted">{scheduleSummary(inv)}</span></span>
+          <button type="button" onClick={() => setScheduling(inv)} className="rounded-full border border-line-strong px-3 py-1 text-xs font-medium text-ink-primary hover:bg-paper-subtle">Change</button>
+        </div>)}
+      </div>;
+    })()}
+    {scheduling && <InvestmentScheduleDialog investment={scheduling} onClose={() => setScheduling(null)} />}
   </section>;
 }
