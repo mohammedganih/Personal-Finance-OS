@@ -9,6 +9,7 @@ Every number comes from one ledger. Each transaction carries a **kind** (`INCOME
 - [Home redesign](features/home-redesign.md): the per-person month sheet, Still to pay, undo, payment history, splits, loan changes, reminders.
 - [Credit cards](features/credit-cards.md): monthly statements, card expenses, pay / undo, Home card spending.
 - [Account funding plan](features/account-funding-plan.md): how much to move into each bank account before payments go out.
+- [Ledger kinds, transfers, salary income and metrics](features/ledger-and-metrics.md): redesign foundation part 1.
 
 ## Design references
 - [Home redesign spec](design/home-redesign-spec.md): the brief the Home page was built from.
