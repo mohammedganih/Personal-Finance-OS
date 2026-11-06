@@ -25,13 +25,14 @@ type FormKey = "transaction" | "investment" | "loan" | "card" | "bill" | "goal" 
 interface PageHead {
   title: string;
   subtitle: string;
-  add: string;
-  form: FormKey;
+  /** The Add button's label and form; pages without one leave these out. */
+  add?: string;
+  form?: FormKey;
   /** Month-scoped pages show the month picker (kept in the URL as ?m=). */
   monthly: boolean;
 }
 
-// Light pages: title, one line on what the page answers, and the Add button.
+// Each page: title, one line on what the page answers, and its Add button.
 const PAGES: Record<string, PageHead> = {
   "/spending": { title: "Spending", subtitle: "Where the money went this month, bank and cards together.", add: "Add spend", form: "transaction", monthly: true },
   "/loans": { title: "Loans", subtitle: "What we owe, who pays, and when each one ends.", add: "Add loan", form: "loan", monthly: false },
@@ -40,6 +41,10 @@ const PAGES: Record<string, PageHead> = {
   "/investments": { title: "Savings & investments", subtitle: "What we hold, what goes in each month, what matures when.", add: "Add investment", form: "investment", monthly: false },
   "/goals": { title: "Goals", subtitle: "Are we on track for each goal, and what does it need a month?", add: "Add goal", form: "goal", monthly: false },
   "/accounts": { title: "Accounts", subtitle: "All your accounts in one place.", add: "Add account", form: "account", monthly: false },
+  "/net-worth": { title: "Net worth", subtitle: "What we own, less what we owe, and how it moved month to month.", monthly: false },
+  "/history": { title: "Month history", subtitle: "Every closed month: salary, commitments, spending and what was saved.", monthly: false },
+  "/health": { title: "Health check", subtitle: "Is the buffer enough, is debt in hand, and is any data out of date?", monthly: false },
+  "/settings": { title: "Settings", subtitle: "Household, people, accounts, categories and your profile.", monthly: false },
 };
 
 /** Header for the light pages: the page's title and Add button, or Home's greeting. */
@@ -66,14 +71,14 @@ export function HeaderLight() {
         <div className="flex shrink-0 items-center gap-2 sm:gap-3">
           {head.monthly && <PeriodSelectorLight />}
           <RemindersBell />
-          <button
+          {head.add && <button
             type="button"
             onClick={() => setShowForm(true)}
             className="flex h-9 items-center gap-1.5 rounded-full bg-mono px-3 text-sm font-medium text-white transition-colors hover:bg-mono-hover sm:px-4"
           >
             <Plus className="h-4 w-4" />
             <span className="hidden sm:inline">{head.add}</span>
-          </button>
+          </button>}
         </div>
       </header>
 

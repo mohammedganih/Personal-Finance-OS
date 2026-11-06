@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import { NAV_ITEMS } from "@/lib/constants";
 import { useLogout } from "@/hooks/useAuth";
 import { useAuthStore } from "@/stores/auth.store";
-import { ChevronDown, LogOut, Sparkles } from "lucide-react";
+import { ChevronDown, LogOut } from "lucide-react";
 
 /**
  * Light-theme counterpart to Sidebar.tsx, rendered only on /dashboard (see

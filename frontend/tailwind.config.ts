@@ -16,24 +16,23 @@ const config: Config = {
     },
     extend: {
       colors: {
-        // Fintech dark palette
+        // One light theme. These older token names (from the first, dark design)
+        // now point at the light palette, so every screen reads the same.
         bg: {
-          DEFAULT: '#0D0D14',
-          surface: '#111118',
-          elevated: '#16161F',
-          overlay: '#1C1C27',
+          DEFAULT: '#F9F9F7',
+          surface: '#FFFFFF',
+          elevated: '#F3F3F1',
+          overlay: '#ECECE9',
         },
         border: {
-          DEFAULT: 'rgba(255, 255, 255, 0.07)',
-          strong: 'rgba(255, 255, 255, 0.12)',
+          DEFAULT: 'rgba(11, 11, 11, 0.08)',
+          strong: 'rgba(11, 11, 11, 0.14)',
         },
         text: {
-          primary: '#F0F0F8',
-          secondary: '#9898A8',
-          // WCAG AA requires >=4.5:1 for normal text. The previous #555568 measured
-          // 2.66:1 on bg and 2.47:1 on bg-elevated -- a hard fail, not a style choice.
-          // This value measures 5.17:1 / 4.80:1 on those same two surfaces.
-          muted: '#82829A',
+          primary: '#0B0B0B',
+          secondary: '#52514E',
+          // ≥4.5:1 on white and on paper.
+          muted: '#6F6D68',
         },
         accent: {
           violet: '#7C3AED',
