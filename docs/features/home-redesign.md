@@ -1,6 +1,6 @@
 # Home page redesign
 
-Built from `docs/home-redesign-spec.md`, with `docs/home-redesign-mockup.html` as the visual reference.
+Built from `docs/design/home-redesign-spec.md`, with `docs/design/home-redesign-mockup.html` as the visual reference.
 
 The home page (`/dashboard`) now reads like the family's paper sheet. Each family member gets a card: salary received, minus loans & EMIs, minus investments, minus bills, gives **left for the month**; minus last month's card spending gives **free to spend & buffer**. A Combined card shows the whole household. Under that are **Still to pay** (pending payments this month, with Mark paid) and **Our wealth** (four compact tiles).
 
@@ -8,7 +8,7 @@ The home page (`/dashboard`) now reads like the family's paper sheet. Each famil
 
 ### Backend
 - `prisma/schema.prisma`: new `MonthlySalary` model (`monthly_salaries`), unique per user + member + month, with back-relations on `User` and `FamilyMember`.
-- `prisma/monthly-salary.sql` (new): additive, idempotent patch for existing installs. It creates the table, the unique index and two FKs (`ON DELETE CASCADE`). It changes nothing else.
+- `prisma/patches/monthly-salary.sql` (new): additive, idempotent patch for existing installs. It creates the table, the unique index and two FKs (`ON DELETE CASCADE`). It changes nothing else.
 - `src/services/monthlyPayments.service.ts`: each `getMonthlyPlan` row now also carries `memberId` (who pays), `shared` (loans only) and, for bills and card statements, `creditCardId`. No existing fields changed.
   - LOAN → `payerMemberId ?? memberId`. `shared` is true when borrower and payer differ or either is unset.
   - INVESTMENT → `memberId`. CREDIT_CARD → card `memberId`. CARD_EMI → `emi.memberId ?? card.memberId`.
@@ -40,7 +40,7 @@ The home page (`/dashboard`) now reads like the family's paper sheet. Each famil
 From `backend/`:
 
 ```bash
-npx prisma db execute --schema prisma/schema.prisma --file prisma/monthly-salary.sql
+npx prisma db execute --schema prisma/schema.prisma --file prisma/patches/monthly-salary.sql
 ```
 
 Then, from the project root:
@@ -109,7 +109,7 @@ Built after the review of the Loans, Investments and Bills sections. Each group 
   - It was applied to the local dev DB: 8 bill start dates changed, and the bills calendar (July to December) was identical before and after.
 - Earlier months show the scheduled EMI, including loans closed since.
 
-**New features** (schema patch `backend/prisma/household-features.sql`, additive and idempotent, applied to the dev and test DBs)
+**New features** (schema patch `backend/prisma/patches/household-features.sql`, additive and idempotent, applied to the dev and test DBs)
 - **Payment history:** every payment, skip and loan change for one item, with Undo where it is safe (`GET /dashboard/payment-history`).
 - **Who pays and Split:** available on the bill, loan and card EMI forms. Cards get a payer. New split types `LOAN`, `BILL` and `CARD_EMI` are honoured by the plan, the month sheet and payment expenses.
 - **Card statements:** monthly statement entry, plus a "Statement out of date" badge once the saved due date has passed.
@@ -123,7 +123,7 @@ Built after the review of the Loans, Investments and Bills sections. Each group 
 To apply the schema patch elsewhere, run from `backend/`:
 
 ```bash
-npx prisma db execute --schema prisma/schema.prisma --file prisma/household-features.sql
+npx prisma db execute --schema prisma/schema.prisma --file prisma/patches/household-features.sql
 ```
 
 Then run `npm run prisma:generate` from the root.

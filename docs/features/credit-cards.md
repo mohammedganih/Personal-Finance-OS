@@ -12,7 +12,7 @@ Credit cards now have their own page, **Credit Cards** (`/credit-cards`), split 
 - **Home:** card spending comes from the saved statement for the month: statement − card EMIs − card bills − purchases already counted elsewhere (for example a gold scheme instalment paid on the card). With no statement saved yet, it is the card expenses entered for that statement. Purchases paid off straight away that month are added on top. If there are neither, it falls back to the balance typed on the card, as before.
 
 ## Data
-New tables, applied by `backend/prisma/credit-cards.sql` (additive and idempotent; applied to the dev and test DBs on this machine):
+New tables, applied by `backend/prisma/patches/credit-cards.sql` (additive and idempotent; applied to the dev and test DBs on this machine):
 - `card_statements`: unique per card + due month (`month`, YYYY-MM).
   - Payments are not stored here. They live on the existing `CREDIT_CARD` `monthly_payments` record for that month, which is why Pay, Undo and payment history work unchanged.
   - The card's own fields (outstanding, minimum, due date, statement date) are synced from the latest saved statement, unless the card already holds a newer month's figure.
@@ -23,7 +23,7 @@ New tables, applied by `backend/prisma/credit-cards.sql` (additive and idempoten
 To apply the patch on another install, run from `backend/`:
 
 ```bash
-npx prisma db execute --schema prisma/schema.prisma --file prisma/credit-cards.sql
+npx prisma db execute --schema prisma/schema.prisma --file prisma/patches/credit-cards.sql
 ```
 
 Then run `npm run prisma:generate` from the root.

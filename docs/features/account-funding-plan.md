@@ -5,7 +5,7 @@ The dashboard now has an account allocation summary and responsive bank cards be
 ## Files changed for this feature
 
 - backend/prisma/schema.prisma
-- backend/prisma/account-funding.sql (new)
+- backend/prisma/patches/account-funding.sql (new)
 - backend/src/routes/dashboard.routes.ts
 - backend/src/services/accountFunding.service.ts (new)
 - backend/src/services/accountFunding.service.test.ts (new)
@@ -30,7 +30,7 @@ The dashboard now has an account allocation summary and responsive bank cards be
 - packages/shared/src/schemas/credit-card.schema.ts
 - packages/shared/src/schemas/loan.schema.ts
 - packages/shared/src/schemas/investment.schema.ts
-- docs/account-funding-plan.md (this report)
+- docs/features/account-funding-plan.md (this report)
 
 ## UI and design improvements
 
@@ -57,7 +57,7 @@ Funding always concerns the current calendar month (extended for imminent next-s
 
 ## Migration
 
-Applied the additive, idempotent backend/prisma/account-funding.sql to the local application and guarded test databases; existing records, balances and payment links are preserved. Generated the Prisma client. Other installations must apply the same SQL with `npx prisma db execute --schema prisma/schema.prisma --file prisma/account-funding.sql` from backend, then run `npm run prisma:generate` from the project root. This project has no existing versioned Prisma migration directory and uses db push; an isolated SQL patch avoids pushing unrelated in-progress schema changes.
+Applied the additive, idempotent backend/prisma/patches/account-funding.sql to the local application and guarded test databases; existing records, balances and payment links are preserved. Generated the Prisma client. Other installations must apply the same SQL with `npx prisma db execute --schema prisma/schema.prisma --file prisma/patches/account-funding.sql` from backend, then run `npm run prisma:generate` from the project root. This project has no existing versioned Prisma migration directory and uses db push; an isolated SQL patch avoids pushing unrelated in-progress schema changes.
 
 ## Validation and next steps
 

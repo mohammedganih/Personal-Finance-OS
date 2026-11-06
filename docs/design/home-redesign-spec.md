@@ -1,6 +1,6 @@
 # Home page redesign: build spec
 
-Approved by Shafeek on 2026-11-04. The visual reference is `docs/home-redesign-mockup.html`; open it in a browser. Match its structure, but build it with the app's existing light tokens (`card-light`, `paper`, `ink`, `mono`, `updown`, `line`) and components (`StatCardLight`, `formatCurrency`, React Query hooks).
+Approved by Shafeek on 2026-11-04. The visual reference is `docs/design/home-redesign-mockup.html`; open it in a browser. Match its structure, but build it with the app's existing light tokens (`card-light`, `paper`, `ink`, `mono`, `updown`, `line`) and components (`StatCardLight`, `formatCurrency`, React Query hooks).
 
 ## Goal
 The home page should read like the family's paper sheet. For each person: salary received, minus loans & EMIs, minus investments, minus bills, gives "left for the month"; minus last month's card spending gives "free to spend & buffer". There is a card for each family member plus a Combined card.
@@ -8,7 +8,7 @@ The home page should read like the family's paper sheet. For each person: salary
 ## Backend
 
 1. **MonthlySalary table.** Add a Prisma model `MonthlySalary` with these fields: id, userId, memberId (FamilyMember, required), month (`YYYY-MM` string), amount Decimal(14,2), note?, createdAt, updatedAt. Add `@@unique([userId, memberId, month])` and `@@map("monthly_salaries")`, plus the back-relations on User and FamilyMember.
-   - The project uses `db push`, with additive SQL patches for existing installs. Add `backend/prisma/monthly-salary.sql`, idempotent with `CREATE TABLE IF NOT EXISTS`, the unique index and FKs (ON DELETE CASCADE), following the style of `prisma/account-funding.sql`.
+   - The project uses `db push`, with additive SQL patches for existing installs. Add `backend/prisma/patches/monthly-salary.sql`, idempotent with `CREATE TABLE IF NOT EXISTS`, the unique index and FKs (ON DELETE CASCADE), following the style of `prisma/patches/account-funding.sql`.
    - Routes under `/dashboard`:
      - `GET /month-summary?month=YYYY-MM` (default: current month)
      - `PUT /salary`, body `{ memberId, month, amount }`. It upserts the row and checks that the member belongs to the user. Validate the body with zod.
@@ -67,6 +67,6 @@ The home page should read like the family's paper sheet. For each person: salary
 
 ## Rules
 - Do the work on a new git branch, `home-redesign`. Do not push.
-- Change nothing else in the database. Apply the SQL patch to the local dev DB (and the test DB if the tests use one), the same way as described in `docs/account-funding-plan.md`, then run `npm run prisma:generate`.
+- Change nothing else in the database. Apply the SQL patch to the local dev DB (and the test DB if the tests use one), the same way as described in `docs/features/account-funding-plan.md`, then run `npm run prisma:generate`.
 - Run the shared, backend and frontend TypeScript checks, frontend lint, `npm test` and the frontend production build. Fix anything you broke.
-- When done, write `docs/home-redesign.md` (what changed, how to apply the SQL) and commit.
+- When done, write `docs/features/home-redesign.md` (what changed, how to apply the SQL) and commit.
