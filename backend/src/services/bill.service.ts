@@ -5,20 +5,20 @@ import { prisma } from '../lib/prisma';
 import { assertOwnMembers, attachSplit, copySplitToTransactions, fetchSplits, saveSplit } from '../lib/ownershipSplit';
 import { assertOwned } from '../lib/ownership';
 import { createError } from '../middleware/error.middleware';
-import { findCategory } from '../lib/paymentCategory';
+import { categoryIdFor, findCategory } from '../lib/paymentCategory';
 import {
   BILL_INCLUDE, BillWithRelations, EMPTY_EVENTS, EventMap, FlatOccurrence,
   billOccurrencesInRange, billStatusKey, billStatusWhere, buildEventMaps, findBillStatus, loadBillsWithEvents, loadOccurrenceRows, projectAll, toOccurrenceRow, toSchedule,
 } from '../schedule/bills';
-import {
+import {
   ProjectedStatus,
   diffDays,
   effectiveStatus,
   monthlyEquivalent,
   nextDueDate,
   occurrencesBetween,
-  parseDateOnly,
-  startOfDay,
+  parseDateOnly,
+  startOfDay,
 } from '../lib/billSchedule';
 import {
   BulkBillActionInput,
@@ -158,7 +158,7 @@ export async function createBill(userId: string, input: CreateBillInput) {
   await assertLinkedOwnership(userId, input);
   await assertOwnMembers(userId, [input.splitMemberId]);
   const bill = await prisma.recurringBill.create({
-    data: { userId, ...billDataFromInput(input) },
+    data: { userId, ...billDataFromInput(input), categoryId: await categoryIdFor(userId, input.category || 'Other') },
     include: BILL_INCLUDE,
   });
   await saveSplit(userId, 'BILL', bill.id, input);
@@ -183,7 +183,7 @@ export async function updateBill(userId: string, id: string, input: UpdateBillIn
     data: {
       ...(input.name !== undefined && { name: input.name }),
       ...(input.vendor !== undefined && { vendor: input.vendor || null }),
-      ...(input.category !== undefined && { category: input.category || 'Other' }),
+      ...(input.category !== undefined && { category: input.category || 'Other', categoryId: await categoryIdFor(userId, input.category || 'Other') }),
       ...(input.icon !== undefined && { icon: input.icon || null }),
       ...(input.color !== undefined && { color: input.color || null }),
       ...(input.amount !== undefined && { amount: input.amount }),
@@ -224,6 +224,7 @@ export async function duplicateBill(userId: string, id: string) {
       name: `${source.name} (Copy)`,
       vendor: source.vendor,
       category: source.category,
+      categoryId: source.categoryId,
       icon: source.icon,
       color: source.color,
       amount: source.amount,
@@ -295,7 +296,7 @@ export async function payOccurrence(userId: string, billId: string, input: PayBi
   // Prefer a user category matching the bill's category, then the classic
   // "Subscriptions" bucket the dashboard already understands.
   const categoryId =
-    (await findCategory(userId, bill.category)) ?? (await findCategory(userId, 'Subscriptions'));
+    bill.categoryId ?? (await findCategory(userId, bill.category)) ?? (await findCategory(userId, 'Subscriptions'));
 
   // A bill charged to a credit card is part of that card's bill: ticking it off
   // moves no money. The expense is recorded once, when the card bill is paid.
@@ -417,7 +418,7 @@ export async function bulkAction(userId: string, input: BulkBillActionInput) {
       await prisma.recurringBill.updateMany({ where, data: { status: 'ACTIVE', pausedUntil: null } });
       break;
     case 'setCategory':
-      await prisma.recurringBill.updateMany({ where, data: { category: input.category! } });
+      await prisma.recurringBill.updateMany({ where, data: { category: input.category!, categoryId: await categoryIdFor(userId, input.category!) } });
       break;
     case 'setFrequency':
       await prisma.recurringBill.updateMany({

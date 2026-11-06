@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import { DashboardOverview, CashflowData, CategoryBreakdown, QuickInsight, Transaction, NetWorthTrendPoint, ApiResponse } from '@/types';
+import { DashboardOverview, CashflowData, CategoryBreakdown, QuickInsight, NetWorthTrendPoint, ApiResponse } from '@/types';
 import { usePeriodStore } from '@/stores/period.store';
 
 export function useDashboardOverview() {
@@ -60,19 +60,6 @@ export function useQuickInsights() {
     queryKey: ['dashboard', 'insights', month, year],
     queryFn: async () => {
       const res = await api.get<ApiResponse<QuickInsight[]>>('/dashboard/insights', { params: { month, year } });
-      return res.data.data;
-    },
-  });
-}
-
-// Deliberately NOT period-scoped -- "recent activity" is a different concept
-// from "this period's activity" and shouldn't jump around when the period
-// selector changes.
-export function useRecentTransactions(limit = 5) {
-  return useQuery({
-    queryKey: ['dashboard', 'recent-transactions', limit],
-    queryFn: async () => {
-      const res = await api.get<ApiResponse<Transaction[]>>(`/dashboard/recent-transactions?limit=${limit}`);
       return res.data.data;
     },
   });

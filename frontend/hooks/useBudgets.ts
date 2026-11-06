@@ -37,7 +37,7 @@ export function useCreateBudget() {
   return useMutation({
     mutationFn: (data: Record<string, unknown>) => api.post('/budgets', data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['budgets'] });
+      qc.invalidateQueries({ queryKey: ['budgets'] }); qc.invalidateQueries({ queryKey: ['transactions', 'spending'] });
       toast({ title: 'Budget created' });
     },
     onError: () => toast({ title: 'Failed to create budget', variant: 'destructive' }),
@@ -52,7 +52,7 @@ export function useUpdateBudget() {
     mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) =>
       api.put(`/budgets/${id}`, data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['budgets'] });
+      qc.invalidateQueries({ queryKey: ['budgets'] }); qc.invalidateQueries({ queryKey: ['transactions', 'spending'] });
       toast({ title: 'Budget updated' });
     },
     onError: () => toast({ title: 'Failed to update budget', variant: 'destructive' }),
@@ -66,8 +66,8 @@ export function useDeleteBudget() {
   return useMutation({
     mutationFn: (id: string) => api.delete(`/budgets/${id}`),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['budgets'] });
-      toast({ title: 'Budget deleted' });
+      qc.invalidateQueries({ queryKey: ['budgets'] }); qc.invalidateQueries({ queryKey: ['transactions', 'spending'] });
+      toast({ title: 'Limit removed' });
     },
     onError: () => toast({ title: 'Failed to delete budget', variant: 'destructive' }),
   });

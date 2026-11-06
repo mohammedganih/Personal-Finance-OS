@@ -226,7 +226,6 @@ export function CreditCardsView() {
   const { data: cards } = useCreditCards();
   const { data: members } = useFamilyMembers();
   const [openId, setOpenId] = useState<string | null>(null);
-  const [adding, setAdding] = useState(false);
   const names = new Map((members ?? []).map((m) => [m.id, m.name.split(' ')[0]]));
   const open = (cards ?? []).find((c) => c.id === openId) ?? null;
   const openRow = data?.cards.find((c) => c.id === openId);
@@ -261,7 +260,6 @@ export function CreditCardsView() {
         { label: 'Building now', value: data ? formatCurrency(data.totals.buildingNow) : '—', note: 'EMIs, purchases and bills this cycle' },
         { label: 'Limit left', value: data ? formatCurrency(data.totals.available) : '—' },
       ]}
-      actions={<button type="button" onClick={() => setAdding(true)} className={pill}>Add a card</button>}
     >
       {isLoading && <div className="card-light h-48 shimmer" />}
       {isError && <p role="alert" className="card-light p-5 text-sm text-ink-secondary">Could not load your cards. Please refresh.</p>}
@@ -274,7 +272,6 @@ export function CreditCardsView() {
       >
         {open && <CardDetail key={open.id} card={open} />}
       </DetailDrawer>
-      {adding && <CreditCardForm onClose={() => setAdding(false)} />}
     </RegisterPage>
   );
 }

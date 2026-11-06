@@ -2,7 +2,7 @@ import { Prisma, CreditCard, CardExpense, CardEMI } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { createError } from '../middleware/error.middleware';
 import { dateInMonth, firstCardEMIDueDate, indiaDateKey, shiftMonth } from '../lib/cardPaymentSchedule';
-import { findCategory } from '../lib/paymentCategory';
+import { categoryIdFor, findCategory } from '../lib/paymentCategory';
 import { assertOwnMembers } from '../lib/ownershipSplit';
 import { getBillsCalendar } from './bill.service';
 import type {
@@ -280,7 +280,7 @@ export async function createCardExpense(userId: string, input: CreateCardExpense
     let row = await tx.cardExpense.create({
       data: {
         userId, creditCardId: card.id, memberId: input.memberId ?? null, name: input.name, amount: input.amount,
-        date: asDate(input.date), category: input.category ?? 'Other', statementMonth,
+        date: asDate(input.date), category: input.category ?? 'Other', categoryId: await categoryIdFor(userId, input.category ?? 'Other'), statementMonth,
         linkedType: input.linkedType ?? null, linkedId: input.linkedId ?? null, notes: input.notes ?? null,
       },
     });
@@ -305,7 +305,7 @@ export async function updateCardExpense(userId: string, id: string, input: Updat
       ...(input.name !== undefined && { name: input.name }),
       ...(input.amount !== undefined && { amount: input.amount }),
       ...(input.date !== undefined && { date: asDate(input.date) }),
-      ...(input.category !== undefined && { category: input.category }),
+      ...(input.category !== undefined && { category: input.category, categoryId: await categoryIdFor(userId, input.category) }),
       ...(input.memberId !== undefined && { memberId: input.memberId }),
       ...(input.linkedType !== undefined && { linkedType: input.linkedType }),
       ...(input.linkedId !== undefined && { linkedId: input.linkedId }),
@@ -342,7 +342,7 @@ async function payExpense(tx: Prisma.TransactionClient, userId: string, expense:
   const paidOn = parsePaidDate(input.paidDate);
   const accountId = input.accountId || card.bankAccountId || null;
   if (accountId && !await tx.account.findFirst({ where: { id: accountId, userId } })) throw createError('Account not found', 404);
-  const categoryId = (await findCategory(userId, expense.category)) ?? (await findCategory(userId, 'Other'));
+  const categoryId = expense.categoryId ?? (await findCategory(userId, expense.category)) ?? (await findCategory(userId, 'Other'));
   const amount = Number(expense.amount);
   const txn = await tx.transaction.create({
     data: {

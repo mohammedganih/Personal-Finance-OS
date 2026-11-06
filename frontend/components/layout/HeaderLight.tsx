@@ -1,19 +1,18 @@
 "use client";
 
-import { useNavStore } from '@/stores/nav.store';
 import { useState } from "react";
 import { usePathname } from "next/navigation";
-import { Plus, Search, Menu } from "lucide-react";
-import { RemindersBell } from "@/components/layout/RemindersBell";
+import { Plus, Menu } from "lucide-react";
+import { useNavStore } from "@/stores/nav.store";
 import { useAuthStore } from "@/stores/auth.store";
+import { RemindersBell } from "@/components/layout/RemindersBell";
 import { PeriodSelectorLight } from "@/components/shared/PeriodSelectorLight";
 import { TransactionForm } from "@/components/transactions/TransactionForm";
 import { InvestmentForm } from "@/components/investments/InvestmentForm";
 import { LoanForm } from "@/components/loans/LoanForm";
+import { CreditCardForm } from "@/components/loans/CreditCardForm";
 import { BillForm } from "@/components/bills/BillForm";
 import { GoalForm } from "@/components/goals/GoalForm";
-import { BudgetForm } from "@/components/budgets/BudgetForm";
-import { useBudgets } from "@/hooks/useBudgets";
 import { AccountForm } from "@/components/settings/AccountSetup";
 
 function greeting(hour: number): string {
@@ -22,133 +21,70 @@ function greeting(hour: number): string {
   return "Good evening";
 }
 
-/**
- * Light-theme counterpart to Header.tsx, rendered on every light-theme route
- * (see app/(dashboard)/layout.tsx's LIGHT_ROUTES). Every other route keeps
- * the dark Header. Content branches on pathname the same way SidebarLight
- * already branches its active nav item -- one shared file per route's own
- * title/action, rather than prop-drilling through the layout or forking a
- * second header file per page.
- */
+type FormKey = "transaction" | "investment" | "loan" | "card" | "bill" | "goal" | "account";
+interface PageHead {
+  title: string;
+  subtitle: string;
+  add: string;
+  form: FormKey;
+  /** Month-scoped pages show the month picker (kept in the URL as ?m=). */
+  monthly: boolean;
+}
+
+// Light pages: title, one line on what the page answers, and the Add button.
+const PAGES: Record<string, PageHead> = {
+  "/spending": { title: "Spending", subtitle: "Where the money went this month, bank and cards together.", add: "Add spend", form: "transaction", monthly: true },
+  "/loans": { title: "Loans", subtitle: "What we owe, who pays, and when each one ends.", add: "Add loan", form: "loan", monthly: false },
+  "/credit-cards": { title: "Credit cards", subtitle: "What's on each statement, what's building, when it's due.", add: "Add card", form: "card", monthly: false },
+  "/bills": { title: "Bills & subscriptions", subtitle: "What repeats, what it costs a month, and what's due next.", add: "Add bill", form: "bill", monthly: false },
+  "/investments": { title: "Savings & investments", subtitle: "What we hold, what goes in each month, what matures when.", add: "Add investment", form: "investment", monthly: false },
+  "/goals": { title: "Goals", subtitle: "Are we on track for each goal, and what does it need a month?", add: "Add goal", form: "goal", monthly: false },
+  "/accounts": { title: "Accounts", subtitle: "All your accounts in one place.", add: "Add account", form: "account", monthly: false },
+};
+
+/** Header for the light pages: the page's title and Add button, or Home's greeting. */
 export function HeaderLight() {
   const setNavOpen = useNavStore((st) => st.setOpen);
   const pathname = usePathname();
   const { user } = useAuthStore();
   const [showForm, setShowForm] = useState(false);
   const firstName = user?.name?.split(" ")[0] ?? "there";
-
-  const isInvestments = pathname === "/investments" || pathname.startsWith("/investments/");
-  const isLoans = pathname === "/loans" || pathname.startsWith("/loans/");
-  const isBills = pathname === "/bills" || pathname.startsWith("/bills/");
-  // Exact match only -- /goals/[id] (the goal detail page) isn't a light
-  // route, see app/(dashboard)/layout.tsx.
-  const isGoals = pathname === "/goals";
-  const isTransactions = pathname === "/transactions" || pathname.startsWith("/transactions/");
-  const isBudgets = pathname === "/budgets" || pathname.startsWith("/budgets/");
-  const isAccounts = pathname === "/accounts" || pathname.startsWith("/accounts/");
-
-  // Only Budgets' Add flow needs this (BudgetForm excludes already-budgeted
-  // categories from its picker) -- disabled everywhere else so this fetch
-  // doesn't fire on every other light route too. React Query dedupes
-  // against the same ['budgets', month, year] query the page's own cards
-  // already run.
-  const { data: budgets } = useBudgets(isBudgets);
+  const page = Object.entries(PAGES).find(([path]) => pathname === path || pathname.startsWith(`${path}/`))?.[1];
+  const head = page ?? { title: `${greeting(new Date().getHours())}, ${firstName}`, subtitle: "Here's how this month looks for both of you.", add: "Add spend", form: "transaction" as FormKey, monthly: true };
+  const close = () => setShowForm(false);
 
   return (
     <>
       <header className="flex h-16 items-center justify-between gap-2 border-b border-line bg-paper-card px-4 sm:px-6">
-        <button
-          type="button"
-          onClick={() => setNavOpen(true)}
-          aria-label="Open menu"
-          className="-ml-1 grid h-9 w-9 shrink-0 place-items-center rounded-full text-ink-secondary hover:bg-paper-subtle lg:hidden"
-        >
+        <button type="button" onClick={() => setNavOpen(true)} aria-label="Open menu" className="-ml-1 grid h-9 w-9 shrink-0 place-items-center rounded-full text-ink-secondary hover:bg-paper-subtle lg:hidden">
           <Menu className="h-5 w-5" />
         </button>
-        <div className="min-w-0 flex-1 truncate [&_p]:truncate">
-        {isInvestments ? (
-          <div>
-            <h1 className="text-base font-semibold text-ink-primary">Investments</h1>
-            <p className="text-xs text-ink-muted">Track your portfolio performance and grow your wealth.</p>
-          </div>
-        ) : isLoans ? (
-          <div>
-            <h1 className="text-base font-semibold text-ink-primary">Loans &amp; Cards</h1>
-            <p className="text-xs text-ink-muted">Track, manage and pay off your loans faster.</p>
-          </div>
-        ) : isBills ? (
-          <div>
-            <h1 className="text-base font-semibold text-ink-primary">Bills &amp; Subscriptions</h1>
-            <p className="text-xs text-ink-muted">Track and manage all your recurring bills and subscriptions.</p>
-          </div>
-        ) : isGoals ? (
-          <div>
-            <h1 className="text-base font-semibold text-ink-primary">Goals</h1>
-            <p className="text-xs text-ink-muted">Plan your future and achieve your dreams.</p>
-          </div>
-        ) : isTransactions ? (
-          <div>
-            <h1 className="text-base font-semibold text-ink-primary">Transactions</h1>
-            <p className="text-xs text-ink-muted">Track, analyze and manage your money flow in detail.</p>
-          </div>
-        ) : isBudgets ? (
-          <div>
-            <h1 className="text-base font-semibold text-ink-primary">Budgets</h1>
-            <p className="text-xs text-ink-muted">Plan your spending and stay in control of your money.</p>
-          </div>
-        ) : isAccounts ? (
-          <div>
-            <h1 className="text-base font-semibold text-ink-primary">Accounts</h1>
-            <p className="text-xs text-ink-muted">All your accounts in one place.</p>
-          </div>
-        ) : (
-          <div>
-            <h1 className="text-base font-semibold text-ink-primary">
-              {greeting(new Date().getHours())}, {firstName}
-            </h1>
-            <p className="text-xs text-ink-muted">
-              Here&apos;s how this month looks for both of you.
-            </p>
-          </div>
-        )}
+        <div className="min-w-0 flex-1">
+          <h1 className="truncate text-base font-semibold text-ink-primary">{head.title}</h1>
+          <p className="truncate text-xs text-ink-muted">{head.subtitle}</p>
         </div>
-
         <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-          {/* Bills, Transactions and Budgets are genuinely month-scoped, so
-              they keep the period selector -- unlike Investments/Loans/
-              Goals/Accounts, where every figure shown is "as of now"
-              (balances, net worth), not scoped to a selected month. */}
-          {!isInvestments && !isLoans && !isGoals && !isAccounts && <PeriodSelectorLight />}
-          <button
-            aria-label="Search"
-            className="hidden sm:flex w-9 h-9 items-center justify-center rounded-full bg-paper-card border border-line text-ink-secondary hover:text-ink-primary hover:border-line-strong transition-colors"
-          >
-            <Search className="w-4 h-4" />
-          </button>
+          {head.monthly && <PeriodSelectorLight />}
           <RemindersBell />
           <button
+            type="button"
             onClick={() => setShowForm(true)}
-            className="h-9 flex items-center gap-1.5 rounded-full bg-mono hover:bg-mono-hover text-white text-sm font-medium px-3 sm:px-4 transition-colors"
+            className="flex h-9 items-center gap-1.5 rounded-full bg-mono px-3 text-sm font-medium text-white transition-colors hover:bg-mono-hover sm:px-4"
           >
-            <Plus className="w-4 h-4" />
-            <span className="hidden sm:inline">{isInvestments ? "Add Investment" : isLoans ? "Add Loan" : isBills ? "Add New" : isGoals ? "Add Goal" : isTransactions ? "Add Transaction" : isBudgets ? "Create Budget" : isAccounts ? "Add Account" : "Add"}</span>
+            <Plus className="h-4 w-4" />
+            <span className="hidden sm:inline">{head.add}</span>
           </button>
         </div>
       </header>
 
-      {showForm && (isInvestments
-        ? <InvestmentForm onClose={() => setShowForm(false)} />
-        : isLoans
-        ? <LoanForm onClose={() => setShowForm(false)} />
-        : isBills
-        ? <BillForm onClose={() => setShowForm(false)} />
-        : isGoals
-        ? <GoalForm onClose={() => setShowForm(false)} />
-        : isBudgets
-        ? <BudgetForm existingBudgets={budgets ?? []} onClose={() => setShowForm(false)} />
-        : isAccounts
-        ? <AccountForm onClose={() => setShowForm(false)} />
-        : <TransactionForm onClose={() => setShowForm(false)} />
+      {showForm && (
+        head.form === "investment" ? <InvestmentForm onClose={close} />
+        : head.form === "loan" ? <LoanForm onClose={close} />
+        : head.form === "card" ? <CreditCardForm onClose={close} />
+        : head.form === "bill" ? <BillForm onClose={close} />
+        : head.form === "goal" ? <GoalForm onClose={close} />
+        : head.form === "account" ? <AccountForm onClose={close} />
+        : <TransactionForm onClose={close} />
       )}
     </>
   );

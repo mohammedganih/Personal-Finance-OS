@@ -90,3 +90,26 @@ export function useInvestmentRegister() {
     queryFn: async () => (await api.get<{ data: InvestmentRegister }>('/registers/investments')).data.data,
   });
 }
+
+export interface SpendingEntry {
+  id: string; source: 'BANK' | 'CARD'; date: string; name: string; amount: number;
+  kind: 'INCOME' | 'SPEND' | 'TRANSFER' | 'SAVE' | 'DEBT' | 'ADJUST'; incoming: boolean;
+  categoryId: string | null; categoryName: string | null; categoryColor: string | null;
+  memberId: string | null; from: string | null; creditCardId: string | null;
+  accountId: string | null; notes: string | null; isRecurring: boolean; type: 'INCOME' | 'EXPENSE' | null;
+  splitMemberId: string | null; splitRatio: number | null; sourceType: string | null;
+}
+export interface SpendingCategory { categoryId: string | null; name: string; color: string | null; total: number; limit: number | null; budgetId: string | null }
+export interface Spending {
+  month: string; total: number;
+  days: { date: string; total: number; entries: SpendingEntry[] }[];
+  categories: SpendingCategory[];
+}
+
+/** The month's spending (under the transactions key, so adding or editing one refreshes it). */
+export function useSpending(month: string, all: boolean) {
+  return useQuery({
+    queryKey: ['transactions', 'spending', month, all],
+    queryFn: async () => (await api.get<{ data: Spending }>('/registers/spending', { params: { month, all } })).data.data,
+  });
+}
