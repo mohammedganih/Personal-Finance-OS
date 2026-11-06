@@ -1,4 +1,7 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
+import { assertOwned } from '../lib/ownership';
+import { findCategory } from '../lib/paymentCategory';
 import { createError } from '../middleware/error.middleware';
 import { currentMonth, getMonthlyPlan, monthWindow, MonthlyPlanRow, SPLIT_ENTITY } from './monthlyPayments.service';
 import { CardSpend, getCardSpendForMonth } from './cardStatement.service';
@@ -196,13 +199,69 @@ export async function getMonthSummary(userId: string, month = currentMonth()): P
   });
 }
 
-export async function saveSalary(userId: string, input: { memberId: string; month: string; amount: number; note?: string | null }) {
+export interface SaveSalaryInput {
+  memberId: string; month: string; amount: number; note?: string | null;
+  /** Account the salary landed in. Default: the one saved before, else the person's first savings account. */
+  accountId?: string | null;
+}
+
+/**
+ * Saves a person's salary for a month and keeps its one INCOME ledger entry
+ * (sourceType SALARY) in step: created on first save, adjusted when the amount
+ * or account changes (the balances move by the difference), removed at 0.
+ * A salary already typed by hand for that person and month is adopted rather
+ * than counted twice.
+ */
+export async function saveSalary(userId: string, input: SaveSalaryInput) {
   const member = await prisma.familyMember.findFirst({ where: { id: input.memberId, userId } });
   if (!member) throw createError('Family member not found', 404);
-  const row = await prisma.monthlySalary.upsert({
-    where: { userId_memberId_month: { userId, memberId: input.memberId, month: input.month } },
-    create: { userId, memberId: input.memberId, month: input.month, amount: input.amount, note: input.note ?? null },
-    update: { amount: input.amount, ...(input.note !== undefined ? { note: input.note } : {}) },
+  if (input.accountId) await assertOwned(userId, { accounts: [input.accountId] });
+  const salaryCategory = await findCategory(userId, 'Salary', 'INCOME');
+
+  return prisma.$transaction(async (tx) => {
+    const before = await tx.monthlySalary.findUnique({ where: { userId_memberId_month: { userId, memberId: input.memberId, month: input.month } } });
+    const entry = await findSalaryEntry(tx, userId, input.memberId, input.month, before?.id);
+    const accountId = input.accountId !== undefined
+      ? input.accountId
+      : before?.accountId ?? entry?.accountId ?? (await tx.account.findFirst({ where: { userId, memberId: input.memberId, type: 'SAVINGS', isActive: true }, orderBy: { createdAt: 'asc' } }))?.id ?? null;
+
+    const row = await tx.monthlySalary.upsert({
+      where: { userId_memberId_month: { userId, memberId: input.memberId, month: input.month } },
+      create: { userId, memberId: input.memberId, month: input.month, amount: input.amount, note: input.note ?? null, accountId },
+      update: { amount: input.amount, accountId, ...(input.note !== undefined ? { note: input.note } : {}) },
+    });
+
+    // Take the old entry's money back out, then put the new amount in.
+    if (entry?.accountId) await tx.account.update({ where: { id: entry.accountId }, data: { balance: { decrement: entry.amount } } });
+    let transactionId: string | null = null;
+    if (input.amount > 0) {
+      const data = { amount: input.amount, accountId, kind: 'INCOME' as const, sourceType: 'SALARY', sourceId: row.id, period: input.month };
+      const saved = entry
+        ? await tx.transaction.update({ where: { id: entry.id }, data })
+        : await tx.transaction.create({ data: {
+            ...data, userId, type: 'INCOME', memberId: input.memberId, categoryId: salaryCategory, description: 'Salary',
+            date: new Date(`${input.month}-01T12:00:00+05:30`),
+          } });
+      transactionId = saved.id;
+      if (accountId) await tx.account.update({ where: { id: accountId }, data: { balance: { increment: input.amount } } });
+    } else if (entry) {
+      await tx.transaction.delete({ where: { id: entry.id } });
+    }
+    return { ...row, amount: Number(row.amount), transactionId };
   });
-  return { ...row, amount: Number(row.amount) };
+}
+
+/** The salary's ledger entry, or the one hand-typed Salary income for that person and month. */
+async function findSalaryEntry(tx: Prisma.TransactionClient, userId: string, memberId: string, month: string, salaryId?: string) {
+  if (salaryId) {
+    const linked = await tx.transaction.findFirst({ where: { userId, sourceType: 'SALARY', sourceId: salaryId } });
+    if (linked) return linked;
+  }
+  const start = new Date(`${month}-01T00:00:00+05:30`);
+  const end = new Date(`${monthWindow(month).next}-01T00:00:00+05:30`);
+  const typed = await tx.transaction.findMany({
+    where: { userId, memberId, type: 'INCOME', sourceType: null, transferGroupId: null, category: { name: 'Salary' }, date: { gte: start, lt: end } },
+    take: 2,
+  });
+  return typed.length === 1 ? typed[0] : null;
 }

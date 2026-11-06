@@ -5,8 +5,12 @@ import { api } from '@/lib/api';
 
 export type MonthlyPaymentRow = { id: string; type: string; name: string; amount: number; status: string; accountId?: string | null; dueDate?: string; creditCardId?: string; memberId?: string | null; shared?: boolean; paidAmount?: number; remaining?: number; split?: { memberId: string; pct: number }; statementId?: string };
 export type MonthlyPlan = { month: string; rows: MonthlyPaymentRow[]; scheduled: number; paid: number; skipped: number; remaining: number; loans: number; creditCards: number; investments: number; bills: number };
-export function useMonthlyPlan() {
-  return useQuery({ queryKey: ['dashboard', 'monthly-plan'], queryFn: async () => (await api.get<{ data: { current: MonthlyPlan; next: MonthlyPlan; previous?: MonthlyPlan } }>('/dashboard/monthly-plan')).data.data });
+/** The plan for `month` (YYYY-MM, default this month) with the months either side. */
+export function useMonthlyPlan(month?: string) {
+  return useQuery({
+    queryKey: ['dashboard', 'monthly-plan', month ?? 'current'],
+    queryFn: async () => (await api.get<{ data: { current: MonthlyPlan; next: MonthlyPlan; previous?: MonthlyPlan } }>('/dashboard/monthly-plan', { params: month ? { month } : undefined })).data.data,
+  });
 }
 
 export type UndoTarget = { type: string; id: string; month?: string; dueDate?: string | null };

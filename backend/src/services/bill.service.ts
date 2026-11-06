@@ -1,6 +1,9 @@
 import { BillFrequency, Prisma, RecurringBill } from '@prisma/client';
+import { NOT_MOVES } from '../metrics';
+import { monthOf } from '../lib/ledger';
 import { prisma } from '../lib/prisma';
 import { assertOwnMembers, attachSplit, copySplitToTransactions, fetchSplits, saveSplit } from '../lib/ownershipSplit';
+import { assertOwned } from '../lib/ownership';
 import { createError } from '../middleware/error.middleware';
 import { findCategory } from '../lib/paymentCategory';
 import {
@@ -118,18 +121,7 @@ async function assertLinkedOwnership(
   userId: string,
   input: { accountId?: string | null; creditCardId?: string | null; memberId?: string | null }
 ) {
-  if (input.accountId) {
-    const account = await prisma.account.findFirst({ where: { id: input.accountId, userId } });
-    if (!account) throw createError('Linked account not found', 404);
-  }
-  if (input.creditCardId) {
-    const card = await prisma.creditCard.findFirst({ where: { id: input.creditCardId, userId } });
-    if (!card) throw createError('Linked credit card not found', 404);
-  }
-  if (input.memberId) {
-    const member = await prisma.familyMember.findFirst({ where: { id: input.memberId, userId } });
-    if (!member) throw createError('Family member not found', 404);
-  }
+  await assertOwned(userId, { accounts: [input.accountId], creditCards: [input.creditCardId], members: [input.memberId] });
 }
 
 // ─── CRUD ────────────────────────────────────────────────────────────────────
@@ -383,6 +375,10 @@ export async function payOccurrence(userId: string, billId: string, input: PayBi
           type: 'EXPENSE',
           amount,
           description: `Bill: ${bill.name}`,
+          kind: 'SPEND',
+          sourceType: 'BILL',
+          sourceId: bill.id,
+          period: monthOf(dueDate),
           date: paidDate,
           categoryId: categoryId ?? undefined,
           accountId: accountId ?? undefined,
@@ -924,7 +920,7 @@ export async function getBillsInsights(userId: string): Promise<BillInsight[]> {
   const threeMonthsAgo = new Date(today.getFullYear(), today.getMonth() - 3, 1);
   const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0, 23, 59, 59);
   const incomeAgg = await prisma.transaction.aggregate({
-    where: { userId, type: 'INCOME', date: { gte: threeMonthsAgo, lte: lastMonthEnd } },
+    where: { userId, type: 'INCOME', ...NOT_MOVES, date: { gte: threeMonthsAgo, lte: lastMonthEnd } },
     _sum: { amount: true },
   });
   const avgIncome = Number(incomeAgg._sum.amount ?? 0) / 3;

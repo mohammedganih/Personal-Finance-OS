@@ -7,7 +7,6 @@ dist/
 *.log
 .next/
 coverage/
-prisma/migrations/
 *.tsbuildinfo
 
 # One-off script backups (bill date clean-up)

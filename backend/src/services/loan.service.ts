@@ -1,6 +1,8 @@
 import { Prisma, Loan, FamilyMember, Account, Investment } from '@prisma/client';
+import { monthOf } from '../lib/ledger';
 import { prisma } from '../lib/prisma';
-import { assertOwnMembers, attachSplit, fetchSplits, saveSplit } from '../lib/ownershipSplit';
+import { attachSplit, fetchSplits, saveSplit } from '../lib/ownershipSplit';
+import { assertOwned } from '../lib/ownership';
 import { createError } from '../middleware/error.middleware';
 import { CreateLoanInput, UpdateLoanInput } from '../validators/loan.validator';
 import { findCategory } from '../lib/paymentCategory';
@@ -35,7 +37,7 @@ export async function getLoans(userId: string) {
 }
 
 export async function createLoan(userId: string, input: CreateLoanInput) {
-  await assertOwnMembers(userId, [input.memberId, input.payerMemberId, input.splitMemberId]);
+  await assertOwned(userId, { members: [input.memberId, input.payerMemberId, input.splitMemberId], accounts: [input.bankAccountId], investments: [input.linkedInvestmentId] });
   const loan = await prisma.loan.create({
     data: {
       userId,
@@ -64,7 +66,7 @@ export async function createLoan(userId: string, input: CreateLoanInput) {
 export async function updateLoan(userId: string, id: string, input: UpdateLoanInput) {
   const existing = await prisma.loan.findFirst({ where: { id, userId } });
   if (!existing) throw createError('Loan not found', 404);
-  await assertOwnMembers(userId, [input.memberId, input.payerMemberId, input.splitMemberId]);
+  await assertOwned(userId, { members: [input.memberId, input.payerMemberId, input.splitMemberId], accounts: [input.bankAccountId], investments: [input.linkedInvestmentId] });
   await saveSplit(userId, 'LOAN', id, input);
 
   const loan = await prisma.loan.update({
@@ -184,6 +186,10 @@ export async function payLoanEMI(userId: string, loanId: string, accountId?: str
         type:        'EXPENSE',
         amount:      interestPortion,
         description: `EMI Interest: ${loan.name}`,
+        kind:        'DEBT',
+        sourceType:  'LOAN',
+        sourceId:    loanId,
+        period:      monthOf(now),
         date:        now,
         categoryId:  emiCategoryId ?? undefined,
         accountId:   accountId ?? undefined,
@@ -199,6 +205,10 @@ export async function payLoanEMI(userId: string, loanId: string, accountId?: str
         type:        'EXPENSE',
         amount:      principalPortion,
         description: `EMI Principal: ${loan.name}`,
+        kind:        'DEBT',
+        sourceType:  'LOAN',
+        sourceId:    loanId,
+        period:      monthOf(now),
         date:        now,
         categoryId:  isLinked ? (wealthCategoryId ?? undefined) : (emiCategoryId ?? undefined),
         accountId:   accountId ?? undefined,

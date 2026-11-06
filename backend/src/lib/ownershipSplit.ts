@@ -1,6 +1,6 @@
 import { Prisma } from '@prisma/client';
+import { assertOwned } from './ownership';
 import { prisma } from './prisma';
-import { createError } from '../middleware/error.middleware';
 
 type SplitEntityType = 'TRANSACTION' | 'INVESTMENT' | 'LOAN' | 'BILL' | 'CARD_EMI';
 type Client = Prisma.TransactionClient;
@@ -98,10 +98,7 @@ export async function deleteTransactionSplits(tx: Client, transactionIds: string
 
 /** Rejects family member ids that are not this user's (null/undefined are fine). */
 export async function assertOwnMembers(userId: string, ids: (string | null | undefined)[]): Promise<void> {
-  const wanted = Array.from(new Set(ids.filter((id): id is string => !!id)));
-  if (!wanted.length) return;
-  const found = await prisma.familyMember.count({ where: { userId, id: { in: wanted } } });
-  if (found !== wanted.length) throw createError('Family member not found', 404);
+  await assertOwned(userId, { members: ids });
 }
 
 /** Saves (or clears, with splitMemberId: null) an item's split outside a transaction. */

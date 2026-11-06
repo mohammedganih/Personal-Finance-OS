@@ -98,19 +98,6 @@ export const BILL_FREQUENCY_LABELS: Record<string, string> = {
   CUSTOM: 'Custom Interval',
 };
 
-export const BILL_FREQUENCY_SHORT: Record<string, string> = {
-  ONE_TIME: 'once',
-  WEEKLY: '/wk',
-  BIWEEKLY: '/2wk',
-  MONTHLY: '/mo',
-  EVERY_2_MONTHS: '/2mo',
-  QUARTERLY: '/qtr',
-  EVERY_4_MONTHS: '/4mo',
-  HALF_YEARLY: '/6mo',
-  YEARLY: '/yr',
-  CUSTOM: '',
-};
-
 // Icons + colors for the suggested categories (colors come from the validated
 // CHART_COLORS palette below so category charts stay CVD-safe). Free-form
 // custom categories fall back to BILL_CATEGORY_FALLBACK.
@@ -136,12 +123,6 @@ export const BILL_CATEGORY_FALLBACK = { icon: '📦', color: '#8b8fa3' };
 export function billCategoryMeta(category: string): { icon: string; color: string } {
   return BILL_CATEGORY_META[category] ?? BILL_CATEGORY_FALLBACK;
 }
-
-export const BILL_STATUS_LABELS: Record<string, string> = {
-  ACTIVE: 'Active',
-  PAUSED: 'Paused',
-  ARCHIVED: 'Archived',
-};
 
 export const GOAL_TYPE_LABELS: Record<string, string> = {
   FARM_HOUSE: 'Farm House',

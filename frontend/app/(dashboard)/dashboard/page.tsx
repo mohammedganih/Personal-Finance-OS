@@ -5,9 +5,7 @@ import { StillToPay } from '@/components/dashboard/home/StillToPay';
 import { WealthStrip } from '@/components/dashboard/home/WealthStrip';
 
 // Home: the family's month on one sheet (salary in, commitments out, what's
-// left), then what is still to pay and a compact wealth strip. The older
-// dashboard widgets (StatsRow, AccountFundingPlan, charts, insights) are kept
-// in components/dashboard but no longer rendered here.
+// left), then what is still to pay and a compact wealth strip.
 export default function DashboardPage() {
   return (
     <div className="mx-auto max-w-7xl space-y-5">

@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import { AnnualizedReturns, TrendPoint, InvestmentCalendarEntry, DiversificationResult, MaturityEntry, InvestmentHealth, ApiResponse } from '@/types';
+import { AnnualizedReturns, TrendPoint, InvestmentCalendarEntry, DiversificationResult, MaturityEntry, ApiResponse } from '@/types';
 
 export function useAnnualizedReturns() {
   return useQuery({
@@ -49,16 +49,6 @@ export function useMaturityRadar(monthsAhead = 6) {
     queryKey: ['investments', 'maturities', monthsAhead],
     queryFn: async () => {
       const res = await api.get<ApiResponse<MaturityEntry[]>>('/investments/maturities', { params: { months: monthsAhead } });
-      return res.data.data;
-    },
-  });
-}
-
-export function useInvestmentHealth() {
-  return useQuery({
-    queryKey: ['investments', 'health'],
-    queryFn: async () => {
-      const res = await api.get<ApiResponse<InvestmentHealth>>('/investments/health');
       return res.data.data;
     },
   });

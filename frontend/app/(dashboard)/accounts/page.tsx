@@ -1,11 +1,11 @@
 'use client';
 
-import { StatsRowAccounts } from '@/components/accounts/light/StatsRowAccounts';
-import { AllAccountsTable } from '@/components/accounts/light/AllAccountsTable';
-import { AccountBreakdownDonut } from '@/components/accounts/light/AccountBreakdownDonut';
-import { UpcomingAccountsCard } from '@/components/accounts/light/UpcomingAccountsCard';
-import { QuickActionsRowAccounts } from '@/components/accounts/light/QuickActionsRowAccounts';
-import { TransactionInsightsLight } from '@/components/transactions/light/TransactionInsightsLight';
+import { StatsRowAccounts } from '@/components/accounts/StatsRowAccounts';
+import { AllAccountsTable } from '@/components/accounts/AllAccountsTable';
+import { AccountBreakdownDonut } from '@/components/accounts/AccountBreakdownDonut';
+import { UpcomingAccountsCard } from '@/components/accounts/UpcomingAccountsCard';
+import { QuickActionsRowAccounts } from '@/components/accounts/QuickActionsRowAccounts';
+import { TransactionInsightsLight } from '@/components/transactions/TransactionInsightsLight';
 
 export default function AccountsPage() {
   return (

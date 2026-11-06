@@ -9,11 +9,6 @@ export interface User {
   updatedAt: string;
 }
 
-export interface AuthResponse {
-  user: User;
-  token: string;
-}
-
 // ─── Account ─────────────────────────────────────────────────────────────────
 
 export type AccountType = 'SAVINGS' | 'CHECKING' | 'CREDIT_CARD' | 'INVESTMENT' | 'CASH' | 'OTHER';
@@ -49,6 +44,8 @@ export interface Category {
 // ─── Transaction ─────────────────────────────────────────────────────────────
 
 export type TransactionType = 'INCOME' | 'EXPENSE';
+/** What the money was for; TRANSFER entries move money between our own accounts. */
+export type TransactionKind = 'INCOME' | 'SPEND' | 'TRANSFER' | 'SAVE' | 'DEBT' | 'ADJUST';
 
 export interface Transaction {
   id: string;
@@ -60,6 +57,8 @@ export interface Transaction {
   date: string;
   isRecurring: boolean;
   isWealthTransfer: boolean;
+  kind?: TransactionKind;
+  transferGroupId?: string | null;
   memberId: string | null;
   splitMemberId: string | null;
   splitRatio: number | null;
@@ -219,19 +218,6 @@ export interface MaturityEntry {
   maturityAmount: number | null;
 }
 
-export interface RiskProfile {
-  position: number;
-  label: 'Conservative' | 'Balanced' | 'Aggressive';
-  caption: string;
-}
-
-export interface InvestmentHealth {
-  score: number;
-  label: 'Excellent' | 'Good' | 'Fair' | 'Needs attention';
-  caption: string;
-  risk: RiskProfile;
-}
-
 // ─── Goal ─────────────────────────────────────────────────────────────────────
 
 export type GoalType = 'FARM_HOUSE' | 'EMERGENCY_FUND' | 'RELOCATION' | 'CAR_PURCHASE' | 'RETIREMENT' | 'TRAVEL' | 'EDUCATION' | 'CUSTOM';
@@ -380,17 +366,6 @@ export interface Loan {
 
 // ─── Asset-Loan Intelligence ────────────────────────────────────────────────
 
-export interface AmortizationRow {
-  month: number;
-  date: string;
-  openingBalance: number;
-  interest: number;
-  principal: number;
-  closingBalance: number;
-  cumulativeInterest: number;
-  cumulativePrincipal: number;
-}
-
 export interface AssetLoanSummary {
   loanId: string;
   investmentId: string;
@@ -415,24 +390,6 @@ export interface AssetLoanSummary {
   principalPaidThisMonth: number;
   interestPaidThisMonth: number;
   interestShareOfEMIPct: number;
-}
-
-export type AssetLoanInsightSeverity = 'positive' | 'info' | 'warning';
-
-export interface AssetLoanInsight {
-  severity: AssetLoanInsightSeverity;
-  message: string;
-  loanId: string;
-}
-
-export interface HomeEquitySummary {
-  assets: AssetLoanSummary[];
-  totalEquity: number;
-  totalPropertyValue: number;
-  totalOutstanding: number;
-  totalPrincipalPaid: number;
-  totalInterestPaid: number;
-  weightedLTV: number;
 }
 
 // ─── Recurring Bills & Commitments ───────────────────────────────────────────
@@ -493,20 +450,6 @@ export interface RecurringBill {
   lastPaidDate: string | null;
 }
 
-export interface BillHistoryEntry {
-  id: string;
-  dueDate: string;
-  status: 'PAID' | 'SKIPPED';
-  amount: number | null;
-  paidDate: string | null;
-  transactionId: string | null;
-  notes: string | null;
-}
-
-export interface BillDetail extends RecurringBill {
-  history: BillHistoryEntry[];
-}
-
 export interface BillRangeTotals {
   total: number;
   count: number;
@@ -561,37 +504,10 @@ export interface BillCalendarOccurrence {
   memberId?: string | null;
 }
 
-export interface BillForecastMonth {
-  month: string; // yyyy-MM
-  label: string;
-  total: number;
-  paid: number;
-  remaining: number;
-  count: number;
-  byCategory: { category: string; total: number }[];
-}
-
 export interface BillInsight {
   severity: 'critical' | 'warning' | 'info' | 'positive';
   message: string;
   icon: string;
-}
-
-export interface BillsAnalytics {
-  categoryBreakdown: { category: string; monthlyEquivalent: number; count: number; share: number }[];
-  vendorSpend: { vendor: string; monthlyEquivalent: number; count: number }[];
-  largestBills: {
-    id: string;
-    name: string;
-    category: string;
-    icon: string | null;
-    frequency: BillFrequency;
-    amount: number;
-    monthlyEquivalent: number;
-    share: number;
-  }[];
-  trend: { month: string; paid: number; projected: number }[];
-  totalMonthly: number;
 }
 
 export interface BillReminder {
@@ -726,12 +642,6 @@ export interface CardEMI {
   updatedAt: string;
 }
 
-export interface CardEMISummary {
-  monthlyBurden: number;
-  totalOutstanding: number;
-  count: number;
-}
-
 // ─── Credit Card ──────────────────────────────────────────────────────────────
 
 export interface CreditCard {
@@ -857,22 +767,6 @@ export interface FinancialScoreResult {
   components: FinancialScoreComponent[];
 }
 
-export type FundingSourceType = 'MATURITY' | 'LIQUID_HOLDING';
-
-export interface FundingOpportunity {
-  sourceType: FundingSourceType;
-  investmentId: string;
-  assetName: string;
-  assetType: AssetType;
-  availableAmount: number;
-  availableDate: string | null;
-  targetDebtId: string;
-  targetDebtName: string;
-  monthsSaved: number;
-  interestSaved: number;
-  newMonths: number;
-}
-
 export interface DebtStrategy {
   debts: UnifiedDebt[];
   avalancheOrder: string[];
@@ -900,18 +794,6 @@ export interface DebtOverview {
 export interface DebtTrendPoint {
   date: string;
   totalOutstanding: number;
-}
-
-export interface PrepaymentResult {
-  debtId: string;
-  name: string;
-  lumpSum: number;
-  baselineMonths: number;
-  baselineInterest: number;
-  newMonths: number;
-  newInterest: number;
-  monthsSaved: number;
-  interestSaved: number;
 }
 
 export interface CalendarEntry {

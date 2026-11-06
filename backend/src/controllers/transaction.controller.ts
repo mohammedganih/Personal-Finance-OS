@@ -14,6 +14,11 @@ export async function createTransaction(req: AuthRequest, res: Response) {
   res.status(201).json({ success: true, data: transaction });
 }
 
+export async function createTransfer(req: AuthRequest, res: Response) {
+  const transfer = await transactionService.createTransfer(req.user!.userId, req.body);
+  res.status(201).json({ success: true, data: transfer });
+}
+
 export async function updateTransaction(req: AuthRequest, res: Response) {
   const transaction = await transactionService.updateTransaction(req.user!.userId, req.params.id, req.body);
   res.json({ success: true, data: transaction });

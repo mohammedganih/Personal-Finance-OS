@@ -1,10 +1,10 @@
 'use client';
 
-import { StatsRowGoals } from '@/components/goals/light/StatsRowGoals';
-import { GoalsTable } from '@/components/goals/light/GoalsTable';
-import { OverallGoalProgressLight } from '@/components/goals/light/OverallGoalProgressLight';
-import { GoalTimelineCard } from '@/components/goals/light/GoalTimelineCard';
-import { GoalInsightsLight } from '@/components/goals/light/GoalInsightsLight';
+import { StatsRowGoals } from '@/components/goals/StatsRowGoals';
+import { GoalsTable } from '@/components/goals/GoalsTable';
+import { OverallGoalProgressLight } from '@/components/goals/OverallGoalProgressLight';
+import { GoalTimelineCard } from '@/components/goals/GoalTimelineCard';
+import { GoalInsightsLight } from '@/components/goals/GoalInsightsLight';
 
 export default function GoalsPage() {
   return (

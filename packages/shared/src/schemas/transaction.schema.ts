@@ -30,6 +30,16 @@ export const transactionQuerySchema = z.object({
   sortOrder: z.enum(['asc', 'desc']).optional().default('desc'),
 });
 
+/** Money moved between two of our own accounts: neither income nor spending. */
+export const createTransferSchema = z.object({
+  fromAccountId: z.string().cuid(),
+  toAccountId:   z.string().cuid(),
+  amount:        z.number().positive('Amount must be positive').max(1e12),
+  date:          z.string().datetime({ offset: true }).or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)),
+  note:          z.string().max(255).optional(),
+}).refine((t) => t.fromAccountId !== t.toAccountId, { message: 'Pick two different accounts', path: ['toAccountId'] });
+
+export type CreateTransferInput = z.infer<typeof createTransferSchema>;
 export type CreateTransactionInput = z.infer<typeof createTransactionSchema>;
 export type UpdateTransactionInput = z.infer<typeof updateTransactionSchema>;
 export type TransactionQuery = z.infer<typeof transactionQuerySchema>;

@@ -1,4 +1,5 @@
 import { prisma } from '../lib/prisma';
+import { NOT_MOVES } from '../metrics';
 import { createError } from '../middleware/error.middleware';
 import { CreateFamilyMemberInput, UpdateFamilyMemberInput } from '../validators/family.validator';
 import { resolveMonthRange } from '../lib/dateRange';
@@ -117,12 +118,12 @@ export async function getMemberAnalytics(userId: string, month?: number, year?: 
       // accident for "this month" (nothing dated in the future), but wrong
       // for any past month, which would silently include every transaction
       // from that month onward through today.
-      where: { userId, date: { gte: startOfMonth, lte: endOfMonth } },
+      where: { userId, ...NOT_MOVES, date: { gte: startOfMonth, lte: endOfMonth } },
       select: { id: true, memberId: true, type: true, amount: true },
     }),
 
     prisma.transaction.findMany({
-      where: { userId },
+      where: { userId, ...NOT_MOVES },
       select: { id: true, memberId: true, type: true, amount: true },
     }),
 

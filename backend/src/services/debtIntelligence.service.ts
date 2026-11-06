@@ -5,6 +5,7 @@ import { simulatePayoff } from './family.service';
 import { createError } from '../middleware/error.middleware';
 import { addMonthsClamped } from '../lib/dateMath';
 import { recordDebtSnapshot } from './debtSnapshot.service';
+import { getTotalDebt, NOT_MOVES } from '../metrics';
 
 export type DebtSourceType = 'LOAN' | 'CREDIT_CARD' | 'CARD_EMI';
 
@@ -167,16 +168,13 @@ export interface DebtOverview {
  * netWorth.service's recordNetWorthSnapshot.
  */
 export async function getDebtOverview(userId: string): Promise<DebtOverview> {
-  const [loans, cards, cardEmis] = await Promise.all([
+  const [loans, cards, cardEmis, totalOutstanding] = await Promise.all([
     prisma.loan.findMany({ where: { userId, isActive: true } }),
     prisma.creditCard.findMany({ where: { userId, isActive: true } }),
     prisma.cardEMI.findMany({ where: { userId, isArchived: false } }),
+    // Same liabilities net worth subtracts: loans, card EMIs, unpaid card statements, money borrowed.
+    getTotalDebt(userId),
   ]);
-
-  const loanOutstanding = loans.reduce((s, l) => s + Number(l.remainingBalance), 0);
-  const cardOutstanding = cards.reduce((s, c) => s + Number(c.outstanding), 0);
-  const cardEmiOutstanding = cardEmis.reduce((s, e) => s + calcEMIOutstanding(e), 0);
-  const totalOutstanding = loanOutstanding + cardOutstanding + cardEmiOutstanding;
 
   // A card's minimumPayment is only a *separate* monthly obligation when
   // there's a real revolving balance behind it (same gating rule
@@ -283,7 +281,7 @@ export async function getHealthScore(userId: string): Promise<HealthScoreResult>
     prisma.loan.findMany({ where: { userId, isActive: true } }),
     prisma.creditCard.findMany({ where: { userId, isActive: true } }),
     prisma.transaction.findMany({
-      where: { userId, type: 'INCOME', date: { gte: startOfMonth, lte: endOfMonth } },
+      where: { userId, type: 'INCOME', ...NOT_MOVES, date: { gte: startOfMonth, lte: endOfMonth } },
       select: { amount: true },
     }),
   ]);

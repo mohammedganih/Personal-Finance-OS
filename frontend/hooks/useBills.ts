@@ -5,12 +5,9 @@ import { api } from '@/lib/api';
 import {
   ApiResponse,
   BillCalendarOccurrence,
-  BillDetail,
   BillFilters,
-  BillForecastMonth,
   BillInsight,
   BillReminder,
-  BillsAnalytics,
   BillsSummary,
   RecurringBill,
 } from '@/types';
@@ -37,17 +34,6 @@ export function useBills(filters: BillFilters = {}) {
   });
 }
 
-export function useBill(id: string | null) {
-  return useQuery({
-    queryKey: ['bills', 'detail', id],
-    queryFn: async () => {
-      const res = await api.get<ApiResponse<BillDetail>>(`/bills/${id}`);
-      return res.data.data;
-    },
-    enabled: !!id,
-  });
-}
-
 export function useBillsSummary() {
   return useQuery({
     queryKey: ['bills-summary'],
@@ -70,31 +56,11 @@ export function useBillsCalendar(start?: string, end?: string) {
   });
 }
 
-export function useBillsForecast(months = 12) {
-  return useQuery({
-    queryKey: ['bills-forecast', months],
-    queryFn: async () => {
-      const res = await api.get<ApiResponse<BillForecastMonth[]>>('/bills/forecast', { params: { months } });
-      return res.data.data;
-    },
-  });
-}
-
 export function useBillsInsights() {
   return useQuery({
     queryKey: ['bills-insights'],
     queryFn: async () => {
       const res = await api.get<ApiResponse<BillInsight[]>>('/bills/insights');
-      return res.data.data;
-    },
-  });
-}
-
-export function useBillsAnalytics() {
-  return useQuery({
-    queryKey: ['bills-analytics'],
-    queryFn: async () => {
-      const res = await api.get<ApiResponse<BillsAnalytics>>('/bills/analytics');
       return res.data.data;
     },
   });
@@ -172,38 +138,4 @@ export function usePauseBill() {
 
 export function useResumeBill() {
   return useBillMutation((id: string) => api.post(`/bills/${id}/resume`), 'Bill resumed', 'Failed to resume bill');
-}
-
-export function usePayBillOccurrence() {
-  return useBillMutation(
-    ({ id, ...data }: { id: string; dueDate: string; amount?: number; accountId?: string | null; createTransaction?: boolean }) =>
-      api.post(`/bills/${id}/pay`, { createTransaction: true, ...data }),
-    'Payment recorded',
-    'Failed to record payment'
-  );
-}
-
-export function useSkipBillOccurrence() {
-  return useBillMutation(
-    ({ id, ...data }: { id: string; dueDate: string; notes?: string }) => api.post(`/bills/${id}/skip`, data),
-    'Occurrence skipped',
-    'Failed to skip occurrence'
-  );
-}
-
-export function useUndoBillOccurrence() {
-  return useBillMutation(
-    ({ id, dueDate }: { id: string; dueDate: string }) => api.post(`/bills/${id}/undo`, { dueDate }),
-    'Occurrence reverted',
-    'Failed to revert occurrence'
-  );
-}
-
-export function useBulkBillAction() {
-  return useBillMutation(
-    (data: { ids: string[]; action: string; category?: string; frequency?: string; customIntervalDays?: number; pausedUntil?: string | null }) =>
-      api.post('/bills/bulk', data),
-    'Bulk action applied',
-    'Bulk action failed'
-  );
 }
