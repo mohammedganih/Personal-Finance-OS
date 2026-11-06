@@ -35,7 +35,7 @@ export interface MonthlyPlanRow {
 export const SPLIT_ENTITY: Record<string, 'INVESTMENT' | 'LOAN' | 'BILL' | 'CARD_EMI'> = { INVESTMENT: 'INVESTMENT', LOAN: 'LOAN', BILL: 'BILL', CARD_EMI: 'CARD_EMI' };
 export async function getMonthlyPlan(userId: string, month = currentMonth()) {
   const window = monthWindow(month);
-  const [loans, investments, events, bills, cards, cardEmis, statements] = await Promise.all([
+  const [loans, investments, events, bills, cards, cardEmis, statements, closeEvents] = await Promise.all([
     prisma.loan.findMany({ where: { userId } }),
     prisma.investment.findMany({ where: { userId, assetType: { in: ['SIP', 'RECURRING_DEPOSIT', 'GOLD_SCHEME'] } } }),
     prisma.monthlyPayment.findMany({ where: { userId, month: { in: [month, currentMonth()] } } }),
@@ -43,14 +43,19 @@ export async function getMonthlyPlan(userId: string, month = currentMonth()) {
     prisma.creditCard.findMany({ where: { userId, isActive: true } }),
     prisma.cardEMI.findMany({ where: { userId }, include: { creditCard: true } }),
     prisma.cardStatement.findMany({ where: { userId }, select: { id: true, creditCardId: true, month: true, totalDue: true, dueDate: true } }),
+    prisma.loanEvent.findMany({ where: { userId, type: 'CLOSED' }, select: { loanId: true, date: true }, orderBy: { date: 'desc' } }),
   ]);
   const rows: MonthlyPlanRow[] = [];
   const cardMember = new Map(cards.map(c => [c.id, c.memberId]));
+  // When each loan closed: its latest CLOSED history entry (newest first). Older
+  // loans closed before history existed fall back to their last-edited time.
+  const closedOn = new Map<string, Date>();
+  for (const e of closeEvents) if (!closedOn.has(e.loanId)) closedOn.set(e.loanId, e.date);
   for (const loan of loans) {
     const event = events.find(e => e.month === month && e.entityType === 'LOAN' && e.entityId === loan.id);
     const past = month < currentMonth();
     // A loan closed since then was still being repaid in earlier months.
-    const closedLater = !loan.isActive && past && month < currentMonth(loan.updatedAt);
+    const closedLater = !loan.isActive && past && month < currentMonth(closedOn.get(loan.id) ?? loan.updatedAt);
     if (!event && ((!loan.isActive && !closedLater) || currentMonth(loan.startDate) > month)) continue;
     let balance = Number(loan.remainingBalance);
     // Next month assumes this month's pending EMI is paid on schedule.
