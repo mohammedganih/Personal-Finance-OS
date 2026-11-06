@@ -57,23 +57,3 @@ export function useDeleteInvestment() {
     onError: () => toast({ title: 'Failed to delete investment', variant: 'destructive' }),
   });
 }
-
-export function usePayInvestment() {
-  const qc = useQueryClient();
-  const { toast } = useToast();
-  return useMutation({
-    mutationFn: ({ id, accountId }: { id: string; accountId?: string }) =>
-      api.post(`/investments/${id}/pay`, { accountId }),
-    onSuccess: (res) => {
-      const { amount, isInstallment } = res.data.data;
-      qc.invalidateQueries({ queryKey: ['investments'] });
-      qc.invalidateQueries({ queryKey: ['transactions'] });
-      qc.invalidateQueries({ queryKey: ['dashboard'] });
-      toast({
-        title: isInstallment ? 'Payment logged as expense' : 'Investment logged as expense',
-        description: `₹${Number(amount).toLocaleString('en-IN')} added to this month's expenses`,
-      });
-    },
-    onError: () => toast({ title: 'Failed to log payment', variant: 'destructive' }),
-  });
-}

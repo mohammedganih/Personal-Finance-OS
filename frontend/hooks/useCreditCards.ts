@@ -47,22 +47,3 @@ export function useDeleteCreditCard() {
     onError: () => toast({ title: 'Failed to remove', variant: 'destructive' }),
   });
 }
-
-export function usePayCreditCardBill() {
-  const qc = useQueryClient();
-  const { toast } = useToast();
-  return useMutation({
-    mutationFn: ({ id, amount, accountId }: { id: string; amount: number; accountId?: string }) =>
-      api.post(`/credit-cards/${id}/pay`, { amount, accountId }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['credit-cards'] }); qc.invalidateQueries({ queryKey: ['dashboard'] });
-      qc.invalidateQueries({ queryKey: ['debt'] });
-      qc.invalidateQueries({ queryKey: ['transactions'] });
-      qc.invalidateQueries({ queryKey: ['accounts'] });
-      qc.invalidateQueries({ queryKey: ['dashboard'] });
-      qc.invalidateQueries({ queryKey: ['debt'] });
-      toast({ title: 'Bill payment recorded' });
-    },
-    onError: () => toast({ title: 'Failed to record payment', variant: 'destructive' }),
-  });
-}

@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import { CardEMI, CardEMISummary, ApiResponse } from '@/types';
+import { CardEMI, ApiResponse } from '@/types';
 import { useToast } from '@/components/ui/use-toast';
 
 export function useCardEMIs(includeArchived = false) {
@@ -23,16 +23,6 @@ export function useCardEMIsForCard(creditCardId: string) {
       return res.data.data;
     },
     enabled: !!creditCardId,
-  });
-}
-
-export function useCardEMISummary() {
-  return useQuery({
-    queryKey: ['card-emis', 'summary'],
-    queryFn: async () => {
-      const res = await api.get<ApiResponse<CardEMISummary>>('/card-emis/summary');
-      return res.data.data;
-    },
   });
 }
 

@@ -1,8 +1,8 @@
 'use client';
 
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import { HealthScoreResult, DebtStrategy, PrepaymentResult, CalendarEntry, Recommendation, FundingOpportunity, DebtOverview, DebtTrendPoint, ApiResponse } from '@/types';
+import { HealthScoreResult, DebtStrategy, CalendarEntry, Recommendation, DebtOverview, DebtTrendPoint, ApiResponse } from '@/types';
 
 export function useDebtOverview() {
   return useQuery({
@@ -44,15 +44,6 @@ export function useDebtStrategy(extraPayment = 5000) {
   });
 }
 
-export function usePrepaymentCalculator() {
-  return useMutation({
-    mutationFn: async ({ debtId, lumpSum }: { debtId: string; lumpSum: number }) => {
-      const res = await api.get<ApiResponse<PrepaymentResult>>('/debt/prepayment', { params: { debtId, lumpSum } });
-      return res.data.data;
-    },
-  });
-}
-
 export function useEMICalendar(monthsAhead = 3) {
   return useQuery({
     queryKey: ['debt', 'calendar', monthsAhead],
@@ -68,16 +59,6 @@ export function useDebtRecommendations() {
     queryKey: ['debt', 'recommendations'],
     queryFn: async () => {
       const res = await api.get<ApiResponse<Recommendation[]>>('/debt/recommendations');
-      return res.data.data;
-    },
-  });
-}
-
-export function useFundingOpportunities(monthsAhead = 6) {
-  return useQuery({
-    queryKey: ['debt', 'funding-opportunities', monthsAhead],
-    queryFn: async () => {
-      const res = await api.get<ApiResponse<FundingOpportunity[]>>('/debt/funding-opportunities', { params: { months: monthsAhead } });
       return res.data.data;
     },
   });
