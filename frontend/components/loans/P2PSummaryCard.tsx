@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Plus, Pencil, Trash2, Check, Users } from 'lucide-react';
 import { useP2PLoans, useP2PSummary, useUpdateP2PLoan, useDeleteP2PLoan } from '@/hooks/useP2P';
-import { formatCurrency, formatDate, getDaysUntil } from '@/lib/format';
+import { formatCurrency, getDaysUntil } from '@/lib/format';
 import { P2PForm } from '@/components/loans/P2PForm';
 import { P2PLoan } from '@/types';
 import { cn } from '@/lib/utils';

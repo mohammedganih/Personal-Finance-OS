@@ -9,7 +9,7 @@ import { useCreditCards } from '@/hooks/useCreditCards';
 import { usePortfolioSummary } from '@/hooks/useInvestments';
 import { useLoans } from '@/hooks/useLoans';
 import { useFamilyMembers } from '@/hooks/useFamilyMembers';
-import { buildLedger, LEDGER_BUCKETS, LedgerBucket, LedgerRow } from '@/lib/accountLedger';
+import { buildLedger, LEDGER_BUCKETS, LedgerRow } from '@/lib/accountLedger';
 import { formatCurrency } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { AccountForm } from '@/components/settings/AccountSetup';

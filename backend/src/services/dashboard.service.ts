@@ -1,7 +1,7 @@
 import { prisma } from '../lib/prisma';
 import { QuickInsight } from '../types';
 import { monthKey, resolveMonthRange } from '../lib/dateRange';
-import { getBalanceSheet, getMonthFlows, getMonthFlowsRange, NOT_MOVES, outgoings, savingsRate } from '../metrics';
+import { getBalanceSheet, getMonthFlows, getMonthFlowsRange, outgoings, savingsRate } from '../metrics';
 import { effectiveStatus, monthlyEquivalent } from '../lib/billSchedule';
 
 /** Monthly cash-flow impact of all currently-active recurring bills. */
@@ -101,56 +101,6 @@ export async function getDashboardOverview(userId: string, month?: number, year?
   };
 }
 
-export async function getCashflowTrend(userId: string, months = 6, month?: number, year?: number) {
-  // Expenses = spending + debt repayments; savings = what is left of income
-  // (the same rule as the overview's savings rate). Transfers are not flows.
-  const flows = await getMonthFlowsRange(userId, monthKey(month, year), months);
-  return flows.map((f) => {
-    const [y, m] = f.month.split('-').map(Number);
-    const expenses = outgoings(f);
-    return {
-      month: new Date(y, m - 1, 1).toLocaleString('default', { month: 'short', year: '2-digit' }),
-      income: f.income,
-      expenses,
-      savings: f.income - expenses,
-    };
-  });
-}
-
-export async function getExpenseBreakdown(userId: string, month?: number, year?: number) {
-  const { start: startOfMonth, end: endOfMonth } = resolveMonthRange(month, year);
-
-  const expenses = await prisma.transaction.groupBy({
-    by: ['categoryId'],
-    where: { userId, type: 'EXPENSE', ...NOT_MOVES, date: { gte: startOfMonth, lte: endOfMonth } },
-    _sum: { amount: true },
-    _count: true,
-  });
-
-  const total = expenses.reduce((s, e) => s + Number(e._sum.amount || 0), 0);
-
-  const categories = await prisma.category.findMany({
-    where: { id: { in: expenses.map((e) => e.categoryId).filter(Boolean) as string[] } },
-    select: { id: true, name: true, icon: true, color: true },
-  });
-
-  const catMap = new Map(categories.map((c) => [c.id, c]));
-
-  return expenses.map((e) => {
-    const cat = e.categoryId ? catMap.get(e.categoryId) : null;
-    const amount = Number(e._sum.amount || 0);
-    return {
-      categoryId: e.categoryId,
-      categoryName: cat?.name ?? 'Uncategorized',
-      color: cat?.color ?? '#6B7280',
-      icon: cat?.icon ?? '📦',
-      total: amount,
-      percentage: total > 0 ? (amount / total) * 100 : 0,
-      count: e._count,
-    };
-  });
-}
-
 export async function getQuickInsights(userId: string, month?: number, year?: number): Promise<QuickInsight[]> {
   const insights: QuickInsight[] = [];
   const [lastMonth, thisMonth] = await getMonthFlowsRange(userId, monthKey(month, year), 2);
@@ -196,16 +146,3 @@ export async function getQuickInsights(userId: string, month?: number, year?: nu
   return insights;
 }
 
-export async function getRecentTransactions(userId: string, limit = 5) {
-  const transactions = await prisma.transaction.findMany({
-    where: { userId },
-    include: {
-      category: { select: { id: true, name: true, icon: true, color: true } },
-      account: { select: { id: true, name: true } },
-    },
-    orderBy: { date: 'desc' },
-    take: limit,
-  });
-
-  return transactions.map((t) => ({ ...t, amount: Number(t.amount) }));
-}

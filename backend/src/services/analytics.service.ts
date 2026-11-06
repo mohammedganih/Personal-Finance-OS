@@ -1,12 +1,8 @@
-import { prisma } from '../lib/prisma';
-import { NOT_MOVES } from '../metrics';
 import { getDiversification, getInvestmentHealth } from './investmentIntelligence.service';
 import { getHealthScore, bandFor, HealthScoreBand } from './debtIntelligence.service';
 import { getDashboardOverview } from './dashboard.service';
 
 // ── Spending Rhythm ─────────────────────────────────────────────────────────
-
-const WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 export interface SpendingRhythmDay {
   day: string;
@@ -20,56 +16,6 @@ export interface SpendingRhythm {
   weeksOfData: number;
   hasEnoughData: boolean;
   peakDay: SpendingRhythmDay | null;
-}
-
-/**
- * Pure function over already-fetched expense transactions. Averages spend
- * per weekday across however many times that weekday has actually occurred
- * in the data, not total/7 -- a user with 10 weeks of history shouldn't have
- * Friday's average diluted by weeks that haven't happened yet.
- */
-export function computeSpendingRhythm(transactions: { date: Date; amount: number }[], now: Date): SpendingRhythm {
-  const totals = new Array(7).fill(0);
-  const occurrenceDates: Set<string>[] = Array.from({ length: 7 }, () => new Set());
-  let earliest: Date | null = null;
-
-  for (const t of transactions) {
-    const jsDay = t.date.getDay(); // 0 = Sun .. 6 = Sat
-    const dayIndex = (jsDay + 6) % 7; // 0 = Mon .. 6 = Sun
-    totals[dayIndex] += t.amount;
-    occurrenceDates[dayIndex].add(t.date.toISOString().slice(0, 10));
-    if (!earliest || t.date < earliest) earliest = t.date;
-  }
-
-  const days: SpendingRhythmDay[] = WEEKDAY_LABELS.map((day, dayIndex) => {
-    const occurrences = occurrenceDates[dayIndex].size;
-    return {
-      day,
-      dayIndex,
-      avgAmount: occurrences > 0 ? totals[dayIndex] / occurrences : 0,
-      occurrences,
-    };
-  });
-
-  const weeksOfData = earliest ? Math.floor((now.getTime() - earliest.getTime()) / (1000 * 60 * 60 * 24 * 7)) : 0;
-  const hasEnoughData = weeksOfData >= 12;
-
-  const withData = days.filter((d) => d.occurrences > 0);
-  const peakDay = withData.length > 0 ? withData.reduce((a, b) => (b.avgAmount > a.avgAmount ? b : a)) : null;
-
-  return { days, weeksOfData, hasEnoughData, peakDay };
-}
-
-export async function getSpendingRhythm(userId: string): Promise<SpendingRhythm> {
-  const transactions = await prisma.transaction.findMany({
-    where: { userId, type: 'EXPENSE', isWealthTransfer: false, ...NOT_MOVES },
-    select: { date: true, amount: true },
-  });
-
-  return computeSpendingRhythm(
-    transactions.map((t) => ({ date: t.date, amount: Number(t.amount) })),
-    new Date()
-  );
 }
 
 // ── Financial Score ─────────────────────────────────────────────────────────

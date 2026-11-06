@@ -15,7 +15,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useCreateBill, useUpdateBill } from '@/hooks/useBills';
 import { useAccounts } from '@/hooks/useAccounts';
 import { useCreditCards } from '@/hooks/useCreditCards';
-import { useFamilyMembers } from '@/hooks/useFamilyMembers';
 import { SplitMemberSelector } from '@/components/shared/MemberSelector';
 import { BILL_FREQUENCY_LABELS, billCategoryMeta } from '@/lib/constants';
 import { RecurringBill } from '@/types';
@@ -68,7 +67,6 @@ export function BillForm({ onClose, bill }: { onClose: () => void; bill?: Recurr
   const { mutate: updateBill, isPending: isUpdating } = useUpdateBill();
   const { data: accounts } = useAccounts();
   const { data: cards } = useCreditCards();
-  const { data: members } = useFamilyMembers();
   const isPending = isCreating || isUpdating;
 
   const knownCategory = !bill || (BILL_CATEGORIES as readonly string[]).includes(bill.category);

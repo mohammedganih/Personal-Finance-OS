@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import { Loan, ApiResponse, AssetLoanSummary } from '@/types';
+import { Loan, ApiResponse } from '@/types';
 import { useToast } from '@/components/ui/use-toast';
 
 export function useLoans() {
@@ -48,13 +48,3 @@ export function useDeleteLoan() {
   });
 }
 
-export function useAssetLoanSummary(loanId: string | undefined) {
-  return useQuery({
-    queryKey: ['asset-loans', loanId, 'summary'],
-    queryFn: async () => {
-      const res = await api.get<ApiResponse<AssetLoanSummary>>(`/asset-loans/${loanId}/summary`);
-      return res.data.data;
-    },
-    enabled: !!loanId,
-  });
-}

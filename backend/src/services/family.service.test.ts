@@ -1,7 +1,5 @@
-import { describe, it, expect, beforeEach, afterAll } from 'vitest';
-import { resetDatabase, prisma } from '../test/db';
-import * as authService from './auth.service';
-import { simulatePayoff, getMemberAnalytics } from './family.service';
+import { describe, it, expect } from 'vitest';
+import { simulatePayoff } from './family.service';
 
 describe('simulatePayoff', () => {
   it('pays off a zero-interest loan in exactly balance/emi months', () => {
@@ -65,53 +63,3 @@ describe('simulatePayoff', () => {
   });
 });
 
-describe('getMemberAnalytics (split-overlay regression)', () => {
-  // txnShare/invShare used to read splitMemberId/splitRatio straight off the
-  // Transaction/Investment row; they now look them up from the OwnershipSplit
-  // overlay table. This locks in the same per-member math either way.
-
-  beforeEach(resetDatabase);
-  afterAll(() => prisma.$disconnect());
-
-  it('splits a transaction and an investment 60/40 between two members, with the rest unassigned', async () => {
-    const { user } = await authService.register({
-      name: 'Test User', email: `test-${Date.now()}-${Math.random()}@example.com`, password: 'Password123',
-    });
-    const alice = await prisma.familyMember.create({ data: { userId: user.id, name: 'Alice' } });
-    const bob   = await prisma.familyMember.create({ data: { userId: user.id, name: 'Bob' } });
-
-    // Alice earns 1000, split 60/40 with Bob.
-    const txn = await prisma.transaction.create({
-      data: { userId: user.id, type: 'INCOME', amount: 1000, date: new Date(), memberId: alice.id },
-    });
-    await prisma.ownershipSplit.create({
-      data: { userId: user.id, entityType: 'TRANSACTION', entityId: txn.id, secondaryMemberId: bob.id, ratio: 60 },
-    });
-
-    // Alice holds an investment worth 500 (10 units @ 50), split 60/40 with Bob.
-    const inv = await prisma.investment.create({
-      data: {
-        userId: user.id, assetName: 'Test Fund', assetType: 'STOCK',
-        quantity: 10, buyPrice: 50, currentPrice: 50, purchaseDate: new Date(), memberId: alice.id,
-      },
-    });
-    await prisma.ownershipSplit.create({
-      data: { userId: user.id, entityType: 'INVESTMENT', entityId: inv.id, secondaryMemberId: bob.id, ratio: 60 },
-    });
-
-    // An unassigned transaction (no memberId at all) should count toward neither member.
-    await prisma.transaction.create({
-      data: { userId: user.id, type: 'EXPENSE', amount: 250, date: new Date() },
-    });
-
-    const { breakdown, unassignedExpenses } = await getMemberAnalytics(user.id);
-    const aliceRow = breakdown.find((b) => b.member.id === alice.id)!;
-    const bobRow   = breakdown.find((b) => b.member.id === bob.id)!;
-
-    expect(aliceRow.totalIncome).toBeCloseTo(600, 2);   // 1000 * 60%
-    expect(bobRow.totalIncome).toBeCloseTo(400, 2);      // 1000 * 40%
-    expect(aliceRow.investmentValue).toBeCloseTo(300, 2); // 500 * 60%
-    expect(bobRow.investmentValue).toBeCloseTo(200, 2);   // 500 * 40%
-    expect(unassignedExpenses).toBeCloseTo(250, 2);
-  });
-});

@@ -5,7 +5,7 @@ import {
   computeDebtStats, calculateHealthScore, getUnifiedDebtsWithStats,
   getHealthScore, getDebtStrategy, UnifiedDebt, DebtWithStats,
   simulatePrepayment, generateRecommendations,
-  getPrepayment, getEMICalendar, getRecommendations,
+  getEMICalendar, getRecommendations,
 } from './debtIntelligence.service';
 
 describe('computeDebtStats (pure)', () => {
@@ -219,22 +219,6 @@ describe('debtIntelligence.service integration', () => {
     expect(result.contractedSchedule[result.contractedSchedule.length - 1]).toBeLessThanOrEqual(0.01);
     expect(result.acceleratedSchedule[result.acceleratedSchedule.length - 1]).toBeLessThanOrEqual(0.01);
     expect(result.acceleratedSchedule.length).toBeLessThanOrEqual(result.contractedSchedule.length);
-  });
-
-  it('getPrepayment simulates a lump sum against a real loan by its unified id', async () => {
-    const userId = await setupUser();
-    const loan = await prisma.loan.create({
-      data: { userId, name: 'Personal Loan', loanType: 'PERSONAL', principal: 100000, interestRate: 12, emi: 5000, remainingBalance: 100000, tenureMonths: 24, startDate: new Date() },
-    });
-
-    const result = await getPrepayment(userId, `loan:${loan.id}`, 30000);
-    expect(result.newMonths).toBeLessThan(result.baselineMonths);
-    expect(result.interestSaved).toBeGreaterThan(0);
-  });
-
-  it('getPrepayment throws for an unknown debt id', async () => {
-    const userId = await setupUser();
-    await expect(getPrepayment(userId, 'loan:does-not-exist', 1000)).rejects.toThrow();
   });
 
   it('getEMICalendar projects a loan installment within the requested window', async () => {

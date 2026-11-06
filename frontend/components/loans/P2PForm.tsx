@@ -1,6 +1,6 @@
 'use client';
 
-import { useForm, Controller } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { format } from 'date-fns';
@@ -32,7 +32,7 @@ export function P2PForm({ onClose, loan }: { onClose: () => void; loan?: P2PLoan
   const { mutate: update, isPending: isUpdating } = useUpdateP2PLoan();
   const isPending = isCreating || isUpdating;
 
-  const { register, handleSubmit, watch, setValue, control, formState: { errors } } = useForm<FormData>({
+  const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: loan
       ? {

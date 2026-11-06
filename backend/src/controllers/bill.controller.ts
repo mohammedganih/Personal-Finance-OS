@@ -17,36 +17,6 @@ export async function getBill(req: AuthRequest, res: Response) {
   res.json({ success: true, data: bill });
 }
 
-export async function getBillsSummary(req: AuthRequest, res: Response) {
-  const summary = await billService.getBillsSummary(req.user!.userId);
-  res.json({ success: true, data: summary });
-}
-
-export async function getBillsCalendar(req: AuthRequest, res: Response) {
-  const occurrences = await billService.getBillsCalendar(
-    req.user!.userId,
-    req.query.start as string | undefined,
-    req.query.end as string | undefined
-  );
-  res.json({ success: true, data: occurrences });
-}
-
-export async function getBillsForecast(req: AuthRequest, res: Response) {
-  const months = Math.min(24, Math.max(1, Number(req.query.months) || 12));
-  const forecast = await billService.getBillsForecast(req.user!.userId, months);
-  res.json({ success: true, data: forecast });
-}
-
-export async function getBillsInsights(req: AuthRequest, res: Response) {
-  const insights = await billService.getBillsInsights(req.user!.userId);
-  res.json({ success: true, data: insights });
-}
-
-export async function getBillsAnalytics(req: AuthRequest, res: Response) {
-  const analytics = await billService.getBillsAnalytics(req.user!.userId);
-  res.json({ success: true, data: analytics });
-}
-
 export async function getBillReminders(req: AuthRequest, res: Response) {
   const reminders = await billService.getBillReminders(req.user!.userId);
   res.json({ success: true, data: reminders });

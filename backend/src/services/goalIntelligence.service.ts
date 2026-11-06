@@ -1,4 +1,4 @@
-import { Goal, GoalContribution } from '@prisma/client';
+import { Goal } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { createError } from '../middleware/error.middleware';
 import { getDashboardOverview } from './dashboard.service';

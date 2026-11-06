@@ -2,11 +2,9 @@ import { nextCardEMIDueDate, indiaDateKey, shiftMonth } from '../lib/cardPayment
 import { prisma } from '../lib/prisma';
 import { calcEMIOutstanding } from './card-emi.service';
 import { simulatePayoff } from './family.service';
-import { createError } from '../middleware/error.middleware';
-import { recordDebtSnapshot } from './debtSnapshot.service';
 import { dueItems } from '../schedule/dueItems';
 import type { ItemType } from '../schedule/types';
-import { getTotalDebt, NOT_MOVES } from '../metrics';
+import { NOT_MOVES } from '../metrics';
 
 export type DebtSourceType = 'LOAN' | 'CREDIT_CARD' | 'CARD_EMI';
 
@@ -157,38 +155,6 @@ export interface DebtOverview {
   totalOutstanding: number;
   totalMonthlyEMI: number;
   activeLoanCount: number;
-}
-
-/**
- * The plain "how much do I owe in total" figure -- unconditional loan +
- * credit card (revolving + EMI-blocked) outstanding, unlike
- * getUnifiedDebts's simulation-ready total which deliberately excludes a
- * card missing minimumPayment/interestRate. A headline total shouldn't
- * silently drop a real debt just because it can't be simulated. Records a
- * daily snapshot as a side effect, same record-on-read pattern as
- * netWorth.service's recordNetWorthSnapshot.
- */
-export async function getDebtOverview(userId: string): Promise<DebtOverview> {
-  const [loans, cards, cardEmis, totalOutstanding] = await Promise.all([
-    prisma.loan.findMany({ where: { userId, isActive: true } }),
-    prisma.creditCard.findMany({ where: { userId, isActive: true } }),
-    prisma.cardEMI.findMany({ where: { userId, isArchived: false } }),
-    // Same liabilities net worth subtracts: loans, card EMIs, unpaid card statements, money borrowed.
-    getTotalDebt(userId),
-  ]);
-
-  // A card's minimumPayment is only a *separate* monthly obligation when
-  // there's a real revolving balance behind it (same gating rule
-  // getUnifiedDebts already uses below) -- when outstanding is 0, whatever
-  // was entered there is describing the same cycle's total due that the
-  // card's own EMIs already cover, so adding it again would double-count.
-  const totalMonthlyEMI = loans.reduce((s, l) => s + Number(l.emi), 0)
-    + cards.reduce((s, c) => s + (Number(c.outstanding) > 0 ? Number(c.minimumPayment ?? 0) : 0), 0)
-    + cardEmis.reduce((s, e) => s + Number(e.emiAmount), 0);
-
-  await recordDebtSnapshot(userId, totalOutstanding);
-
-  return { totalOutstanding, totalMonthlyEMI, activeLoanCount: loans.length };
 }
 
 // ── Health Score ────────────────────────────────────────────────────────────
@@ -402,13 +368,6 @@ export function simulatePrepayment(debt: UnifiedDebt, lumpSum: number): Prepayme
     monthsSaved: Math.max(0, baseline.months - withPrepay.months),
     interestSaved: Math.max(0, baseline.totalInterest - withPrepay.totalInterest),
   };
-}
-
-export async function getPrepayment(userId: string, debtId: string, lumpSum: number): Promise<PrepaymentResult> {
-  const debts = await getUnifiedDebts(userId);
-  const debt = debts.find((d) => d.id === debtId);
-  if (!debt) throw createError('Debt not found', 404);
-  return simulatePrepayment(debt, lumpSum);
 }
 
 // ── EMI calendar ─────────────────────────────────────────────────────────────

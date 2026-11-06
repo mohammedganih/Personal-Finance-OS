@@ -304,33 +304,6 @@ const LOAN_WITH_ASSET_INCLUDE = {
   },
 } as const;
 
-async function loadLinkedLoan(userId: string, loanId: string): Promise<LoadedLoan> {
-  const loan = await prisma.loan.findFirst({
-    where: { id: loanId, userId },
-    include: LOAN_WITH_ASSET_INCLUDE,
-  });
-  if (!loan) throw createError('Loan not found', 404);
-  if (!loan.linkedInvestmentId) throw createError('Loan is not linked to an asset', 400);
-  return loan;
-}
-
-export async function getAmortizationSchedule(userId: string, loanId: string): Promise<AmortizationRow[]> {
-  const loan = await prisma.loan.findFirst({ where: { id: loanId, userId } });
-  if (!loan) throw createError('Loan not found', 404);
-  return generateAmortizationSchedule({
-    principal: Number(loan.principal),
-    interestRate: Number(loan.interestRate),
-    emi: Number(loan.emi),
-    tenureMonths: loan.tenureMonths,
-    startDate: loan.startDate,
-  });
-}
-
-export async function getAssetLoanSummary(userId: string, loanId: string): Promise<AssetLoanSummary> {
-  const loan = await loadLinkedLoan(userId, loanId);
-  return computeAssetLoanSummary(toAssetLoanInput(loan), new Date());
-}
-
 export async function getAllAssetLoanSummaries(userId: string): Promise<AssetLoanSummary[]> {
   const loans = await prisma.loan.findMany({
     where: { userId, linkedInvestmentId: { not: null } },
@@ -348,22 +321,3 @@ export async function getAssetLoanInsights(userId: string): Promise<AssetLoanIns
   return summaries.flatMap((s) => generateAssetLoanInsights(s, overview.netWorth));
 }
 
-export async function getHomeEquitySummary(userId: string) {
-  const summaries = await getAllAssetLoanSummaries(userId);
-  const totalEquity = summaries.reduce((s, x) => s + x.equity, 0);
-  const totalPropertyValue = summaries.reduce((s, x) => s + x.currentPropertyValue * (x.ownershipPercent / 100), 0);
-  const totalOutstanding = summaries.reduce((s, x) => s + x.remainingBalance, 0);
-  const totalPrincipalPaid = summaries.reduce((s, x) => s + x.principalPaid, 0);
-  const totalInterestPaid = summaries.reduce((s, x) => s + x.interestPaid, 0);
-  const weightedLTV = totalPropertyValue > 0 ? (totalOutstanding / totalPropertyValue) * 100 : 0;
-
-  return {
-    assets: summaries,
-    totalEquity,
-    totalPropertyValue,
-    totalOutstanding,
-    totalPrincipalPaid,
-    totalInterestPaid,
-    weightedLTV,
-  };
-}

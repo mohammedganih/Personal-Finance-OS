@@ -5,7 +5,6 @@ import { api } from '@/lib/api';
 import {
   ApiResponse,
   BillFilters,
-  BillInsight,
   BillReminder,
   RecurringBill,
 } from '@/types';
@@ -27,16 +26,6 @@ export function useBills(filters: BillFilters = {}) {
     queryKey: ['bills', filters],
     queryFn: async () => {
       const res = await api.get<ApiResponse<RecurringBill[]>>('/bills', { params: filters });
-      return res.data.data;
-    },
-  });
-}
-
-export function useBillsInsights() {
-  return useQuery({
-    queryKey: ['bills-insights'],
-    queryFn: async () => {
-      const res = await api.get<ApiResponse<BillInsight[]>>('/bills/insights');
       return res.data.data;
     },
   });

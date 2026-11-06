@@ -161,17 +161,6 @@ export async function payCardEMI(userId: string, emiId: string, _accountId?: str
   }
 }
 
-export async function getCardEMISummary(userId: string) {
-  const emis = await prisma.cardEMI.findMany({
-    where: { userId, isArchived: false },
-  });
-
-  const monthlyBurden = emis.reduce((s, e) => s + Number(e.emiAmount), 0);
-  const totalOutstanding = emis.reduce((s, e) => s + calcEMIOutstanding(e), 0);
-
-  return { monthlyBurden, totalOutstanding, count: emis.length };
-}
-
 // ── Serializer ────────────────────────────────────────────────────────────────
 function serializeWithStats(emi: CardEMI & { creditCard?: { id: string; cardName: string; bank: string | null; lastFourDigits: string | null } }) {
   const outstanding  = calcEMIOutstanding(emi);

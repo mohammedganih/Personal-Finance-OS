@@ -18,11 +18,6 @@ router.use(authenticate);
 
 // Aggregate views (registered before /:id so the ids don't shadow them)
 router.get('/', billController.getBills);
-router.get('/summary', billController.getBillsSummary);
-router.get('/calendar', billController.getBillsCalendar);
-router.get('/forecast', billController.getBillsForecast);
-router.get('/insights', billController.getBillsInsights);
-router.get('/analytics', billController.getBillsAnalytics);
 router.get('/reminders', billController.getBillReminders);
 
 // Bulk before /:id for the same reason

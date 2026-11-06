@@ -71,9 +71,6 @@ router.put('/salary', validate(salaryBody), async (req: AuthRequest, res) => {
 });
 router.get('/overview', dashboardController.getOverview);
 router.get('/net-worth-trend', dashboardController.getNetWorthTrend);
-router.get('/cashflow', dashboardController.getCashflow);
-router.get('/expense-breakdown', dashboardController.getExpenseBreakdown);
 router.get('/insights', dashboardController.getInsights);
-router.get('/recent-transactions', dashboardController.getRecentTransactions);
 
 export default router;

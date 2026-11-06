@@ -14,7 +14,7 @@ import { useAccounts } from '@/hooks/useAccounts';
 import { useCreateGoal, useUpdateGoal } from '@/hooks/useGoals';
 import { Loader2 } from 'lucide-react';
 import { GOAL_TYPE_LABELS, GOAL_TYPE_ICONS, GOAL_PRIORITY_LABELS, GOAL_RISK_LABELS } from '@/lib/constants';
-import { Goal, GoalType, GoalPriority, GoalRiskLevel, Account } from '@/types';
+import { Goal, GoalType, GoalPriority, Account } from '@/types';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
 

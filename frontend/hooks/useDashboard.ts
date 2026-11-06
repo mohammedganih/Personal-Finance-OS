@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import { DashboardOverview, CashflowData, CategoryBreakdown, QuickInsight, NetWorthTrendPoint, ApiResponse } from '@/types';
+import { DashboardOverview, QuickInsight, NetWorthTrendPoint, ApiResponse } from '@/types';
 import { usePeriodStore } from '@/stores/period.store';
 
 export function useDashboardOverview() {
@@ -24,30 +24,6 @@ export function useNetWorthTrend(days = 180) {
     queryKey: ['dashboard', 'net-worth-trend', days],
     queryFn: async () => {
       const res = await api.get<ApiResponse<NetWorthTrendPoint[]>>('/dashboard/net-worth-trend', { params: { days } });
-      return res.data.data;
-    },
-  });
-}
-
-export function useCashflowTrend(months = 6) {
-  const { month, year } = usePeriodStore();
-
-  return useQuery({
-    queryKey: ['dashboard', 'cashflow', months, month, year],
-    queryFn: async () => {
-      const res = await api.get<ApiResponse<CashflowData[]>>('/dashboard/cashflow', { params: { months, month, year } });
-      return res.data.data;
-    },
-  });
-}
-
-export function useExpenseBreakdown() {
-  const { month, year } = usePeriodStore();
-
-  return useQuery({
-    queryKey: ['dashboard', 'expense-breakdown', month, year],
-    queryFn: async () => {
-      const res = await api.get<ApiResponse<CategoryBreakdown[]>>('/dashboard/expense-breakdown', { params: { month, year } });
       return res.data.data;
     },
   });
