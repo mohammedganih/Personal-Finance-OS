@@ -3,7 +3,7 @@ import { resetDatabase, prisma } from '../test/db';
 import * as authService from './auth.service';
 import {
   calculateXIRR, buildCashflows, getAnnualizedReturn, getPortfolioAnnualizedReturn,
-  analyzeDiversification, getUpcomingMaturities, buildInvestmentCalendar,
+  analyzeDiversification, getUpcomingMaturities,
   getAnnualizedReturns, recordDailySnapshot, getPortfolioTrend,
   getInvestmentCalendar, getDiversification, getMaturityRadar,
   computeRiskProfile, computeHealthScore,
@@ -254,36 +254,6 @@ describe('getUpcomingMaturities (pure)', () => {
     ];
     const result = getUpcomingMaturities(portfolio, 6, now);
     expect(result.map((r) => r.investmentId)).toEqual(['b', 'a']);
-  });
-});
-
-describe('buildInvestmentCalendar (pure)', () => {
-  const now = new Date(2026, 5, 15);
-
-  it('projects SIP debits on their purchaseDate day-of-month', () => {
-    const entries = buildInvestmentCalendar(
-      [{ id: 'a', assetName: 'SIP A', assetType: 'SIP', purchaseDate: new Date(2024, 0, 5), monthlyAmount: 5000, accountName: null }],
-      3, now,
-    );
-    expect(entries.length).toBeGreaterThan(0);
-    expect(entries[0].date.getDate()).toBe(5);
-    expect(entries[0].date.getTime()).toBeGreaterThan(now.getTime());
-  });
-
-  it('skips lump-sum types entirely', () => {
-    const entries = buildInvestmentCalendar(
-      [{ id: 'a', assetName: 'Stock A', assetType: 'STOCK', purchaseDate: new Date(2024, 0, 5), monthlyAmount: null, accountName: null }],
-      3, now,
-    );
-    expect(entries).toHaveLength(0);
-  });
-
-  it('skips installment types with no monthlyAmount configured', () => {
-    const entries = buildInvestmentCalendar(
-      [{ id: 'a', assetName: 'SIP A', assetType: 'SIP', purchaseDate: new Date(2024, 0, 5), monthlyAmount: null, accountName: null }],
-      3, now,
-    );
-    expect(entries).toHaveLength(0);
   });
 });
 

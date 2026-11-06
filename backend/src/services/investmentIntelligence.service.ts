@@ -1,6 +1,7 @@
 import { Investment } from '@prisma/client';
+import { dueItems } from '../schedule/dueItems';
+import { indiaDateKey, shiftMonth } from '../lib/cardPaymentSchedule';
 import { prisma } from '../lib/prisma';
-import { addMonthsClamped } from '../lib/dateMath';
 import { computeInvestmentValue, getPortfolioSummary } from './investment.service';
 
 // ── XIRR (annualized return) ────────────────────────────────────────────────
@@ -177,46 +178,25 @@ export interface InvestmentCalendarEntry {
   accountName: string | null;
 }
 
-/**
- * Projects upcoming installment debits for SIP/RD/gold-scheme holdings,
- * mirroring the debt module's EMI Calendar. The day-of-month is inferred
- * from purchaseDate since there's no separate due-day field.
- */
-export function buildInvestmentCalendar(
-  investments: { id: string; assetName: string; assetType: string; purchaseDate: Date; monthlyAmount: number | null; accountName: string | null }[],
-  monthsAhead: number,
-  now: Date,
-): InvestmentCalendarEntry[] {
-  const entries: InvestmentCalendarEntry[] = [];
-  const horizonEnd = new Date(now.getFullYear(), now.getMonth() + monthsAhead, 0, 23, 59, 59);
-
-  for (const inv of investments) {
-    if (!INSTALLMENT_TYPES.has(inv.assetType) || !inv.monthlyAmount) continue;
-    const anchorDay = inv.purchaseDate.getDate();
-    let cursor = new Date(now.getFullYear(), now.getMonth(), Math.min(anchorDay, new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()));
-    if (cursor < now) cursor = addMonthsClamped(cursor, 1, anchorDay);
-    let count = 0;
-    while (cursor <= horizonEnd && count < monthsAhead) {
-      entries.push({ date: new Date(cursor), investmentId: inv.id, assetName: inv.assetName, assetType: inv.assetType, amount: inv.monthlyAmount, accountName: inv.accountName });
-      cursor = addMonthsClamped(cursor, 1, anchorDay);
-      count++;
-    }
-  }
-
-  entries.sort((a, b) => a.date.getTime() - b.date.getTime());
-  return entries;
-}
-
+/** SIP / RD / gold-scheme instalments still to pay from today to the end of `monthsAhead` months, from the schedule engine. */
 export async function getInvestmentCalendar(userId: string, monthsAhead = 3): Promise<InvestmentCalendarEntry[]> {
-  const investments = await prisma.investment.findMany({
-    where: { userId },
-    select: { id: true, assetName: true, assetType: true, purchaseDate: true, monthlyAmount: true, bankAccount: { select: { name: true } } },
-  });
-  return buildInvestmentCalendar(
-    investments.map((i) => ({ ...i, monthlyAmount: i.monthlyAmount ? Number(i.monthlyAmount) : null, accountName: i.bankAccount?.name ?? null })),
-    monthsAhead,
-    new Date(),
-  );
+  const today = indiaDateKey(new Date());
+  const [items, investments] = await Promise.all([
+    dueItems(userId, today.slice(0, 7), shiftMonth(today.slice(0, 7), monthsAhead - 1), { types: ['INVESTMENT'] }),
+    prisma.investment.findMany({ where: { userId }, select: { id: true, assetType: true, bankAccount: { select: { name: true } } } }),
+  ]);
+  const byId = new Map(investments.map((i) => [i.id, i]));
+  return items
+    .filter((i) => i.status === 'PENDING' && i.dueDate && i.dueDate >= today)
+    .map((i) => ({
+      date: new Date(`${i.dueDate}T00:00:00+05:30`),
+      investmentId: i.itemId,
+      assetName: i.name,
+      assetType: byId.get(i.itemId)?.assetType ?? 'SIP',
+      amount: i.amount,
+      accountName: byId.get(i.itemId)?.bankAccount?.name ?? null,
+    }))
+    .sort((a, b) => a.date.getTime() - b.date.getTime());
 }
 
 // ── Diversification & concentration ─────────────────────────────────────────

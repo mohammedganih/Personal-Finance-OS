@@ -5,7 +5,7 @@ vi.mock('../lib/prisma', () => ({ prisma: {
   creditCard: { findMany: mocks.cards }, cardEMI: { findMany: mocks.emis }, cardStatement: { findMany: vi.fn().mockResolvedValue([]) }, monthlyPayment: { findMany: mocks.events },
   ownershipSplit: { findMany: vi.fn().mockResolvedValue([]) },
 } }));
-vi.mock('./bill.service', () => ({ getBillsCalendar: vi.fn().mockResolvedValue([]) }));
+vi.mock('../schedule/bills', () => ({ billOccurrencesInRange: vi.fn().mockResolvedValue([]) }));
 import { getMonthlyPlan } from './monthlyPayments.service';
 const card = { id: 'card', isActive: true, cardName: 'Sapphiro', outstanding: 0, statementDate: new Date('2026-07-09'), dueDate: new Date('2026-07-29') };
 beforeEach(() => {

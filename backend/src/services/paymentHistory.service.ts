@@ -1,7 +1,8 @@
 import { prisma } from '../lib/prisma';
 import { createError } from '../middleware/error.middleware';
 import { indiaDateKey } from '../lib/cardPaymentSchedule';
-import { currentMonth, getMonthlyPlan, previousMonth } from './monthlyPayments.service';
+import { currentMonth, previousMonth, toPlanRow } from './monthlyPayments.service';
+import { dueItems } from '../schedule/dueItems';
 import { getBillReminders } from './bill.service';
 import { getLoanEvents } from './loanEvents.service';
 
@@ -66,14 +67,13 @@ const days = (from: string, to: string) => Math.round((Date.parse(`${to}T00:00:0
  */
 export async function getReminders(userId: string, soonDays = 3): Promise<Reminder[]> {
   const today = indiaDateKey(new Date());
-  const [current, previous, bills, maturing] = await Promise.all([
-    getMonthlyPlan(userId, currentMonth()),
-    getMonthlyPlan(userId, previousMonth()),
+  const [due, bills, maturing] = await Promise.all([
+    dueItems(userId, previousMonth(), currentMonth(), { types: ['LOAN', 'INVESTMENT', 'CARD_EMI', 'CARD_STATEMENT'] }),
     getBillReminders(userId),
     prisma.investment.findMany({ where: { userId, maturityDate: { not: null } }, select: { id: true, assetName: true, maturityDate: true, maturityAmount: true, memberId: true } }),
   ]);
   const out: Reminder[] = [];
-  for (const r of [...previous.rows, ...current.rows]) {
+  for (const r of due.map(toPlanRow)) {
     if (r.status !== 'PENDING' || r.type === 'BILL' || !r.dueDate) continue;
     const left = days(today, r.dueDate);
     if (left > soonDays) continue;
