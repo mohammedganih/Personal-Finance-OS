@@ -3,6 +3,7 @@ import { authenticate } from '../middleware/auth.middleware';
 import { AuthRequest } from '../types';
 import { getLoanRegister } from '../registers/loans';
 import { getCardRegister } from '../registers/cards';
+import { getBillRegister } from '../registers/bills';
 
 // Registers: one read per page (Loans, Credit cards, Bills, Savings &
 // investments), with the page's totals from the metrics module and the
@@ -16,6 +17,10 @@ router.get('/loans', async (req: AuthRequest, res) => {
 
 router.get('/cards', async (req: AuthRequest, res) => {
   res.json({ success: true, data: await getCardRegister(req.user!.userId) });
+});
+
+router.get('/bills', async (req: AuthRequest, res) => {
+  res.json({ success: true, data: await getBillRegister(req.user!.userId) });
 });
 
 export default router;

@@ -50,3 +50,23 @@ export function useCardRegister() {
     queryFn: async () => (await api.get<{ data: CardRegister }>('/registers/cards')).data.data,
   });
 }
+
+export interface BillRow {
+  id: string; name: string; vendor: string | null; category: string; frequency: string;
+  amount: number; monthlyEquivalent: number; setAsidePerMonth: number | null;
+  status: 'ACTIVE' | 'PAUSED'; autoDebit: boolean; payerMemberId: string | null;
+  paidFrom: { kind: 'ACCOUNT' | 'CARD'; id: string; name: string } | null;
+  subscription: boolean; utility: boolean; yearly: boolean;
+  next: DueRow | null;
+}
+export interface BillRegister {
+  totals: { monthlyTotal: number; dueThisMonthLeft: number; yearlyCosts: number; yearlySetAside: number };
+  bills: BillRow[];
+}
+
+export function useBillRegister() {
+  return useQuery({
+    queryKey: ['bills', 'register'],
+    queryFn: async () => (await api.get<{ data: BillRegister }>('/registers/bills')).data.data,
+  });
+}

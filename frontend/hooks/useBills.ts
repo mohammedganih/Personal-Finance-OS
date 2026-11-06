@@ -4,11 +4,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import {
   ApiResponse,
-  BillCalendarOccurrence,
   BillFilters,
   BillInsight,
   BillReminder,
-  BillsSummary,
   RecurringBill,
 } from '@/types';
 import { useToast } from '@/components/ui/use-toast';
@@ -29,28 +27,6 @@ export function useBills(filters: BillFilters = {}) {
     queryKey: ['bills', filters],
     queryFn: async () => {
       const res = await api.get<ApiResponse<RecurringBill[]>>('/bills', { params: filters });
-      return res.data.data;
-    },
-  });
-}
-
-export function useBillsSummary() {
-  return useQuery({
-    queryKey: ['bills-summary'],
-    queryFn: async () => {
-      const res = await api.get<ApiResponse<BillsSummary>>('/bills/summary');
-      return res.data.data;
-    },
-  });
-}
-
-export function useBillsCalendar(start?: string, end?: string) {
-  return useQuery({
-    queryKey: ['bills-calendar', start, end],
-    queryFn: async () => {
-      const res = await api.get<ApiResponse<BillCalendarOccurrence[]>>('/bills/calendar', {
-        params: { start, end },
-      });
       return res.data.data;
     },
   });
