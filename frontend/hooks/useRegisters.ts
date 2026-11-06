@@ -70,3 +70,23 @@ export function useBillRegister() {
     queryFn: async () => (await api.get<{ data: BillRegister }>('/registers/bills')).data.data,
   });
 }
+
+export interface HoldingRow {
+  id: string; name: string; assetType: string; platform: string | null;
+  value: number; invested: number; monthly: number | null;
+  memberId: string | null; split: { memberId: string; pct: number } | null;
+  maturityDate: string | null; maturityAmount: number | null; maturityBonus: number | null;
+  recurring: boolean; autoDebit: boolean; bankAccountId: string | null;
+  next: DueRow | null;
+}
+export interface InvestmentRegister {
+  totals: { totalValue: number; addedThisMonth: number; nextMaturity: { name: string; date: string; amount: number | null } | null };
+  holdings: HoldingRow[];
+}
+
+export function useInvestmentRegister() {
+  return useQuery({
+    queryKey: ['investments', 'register'],
+    queryFn: async () => (await api.get<{ data: InvestmentRegister }>('/registers/investments')).data.data,
+  });
+}

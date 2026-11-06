@@ -191,15 +191,6 @@ export interface NetWorthTrendPoint {
   totalLiabilities: number;
 }
 
-export interface InvestmentCalendarEntry {
-  date: string;
-  investmentId: string;
-  assetName: string;
-  assetType: AssetType;
-  amount: number;
-  accountName: string | null;
-}
-
 export type AssetClass = 'Equity' | 'Debt' | 'Gold' | 'Real Estate' | 'Crypto' | 'Other';
 
 export interface DiversificationWarning {

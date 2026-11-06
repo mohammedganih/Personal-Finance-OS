@@ -25,10 +25,6 @@ export function formatDate(date: string | Date, pattern = 'dd MMM yyyy'): string
   return format(d, pattern);
 }
 
-export function formatPercent(value: number, decimals = 1): string {
-  return `${value >= 0 ? '+' : ''}${value.toFixed(decimals)}%`;
-}
-
 export function getDaysUntil(date: string | Date): number {
   const d = typeof date === 'string' ? parseISO(date) : date;
   return Math.ceil((d.getTime() - Date.now()) / 86400000);

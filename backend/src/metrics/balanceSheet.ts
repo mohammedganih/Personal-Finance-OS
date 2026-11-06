@@ -1,6 +1,7 @@
 import { prisma } from '../lib/prisma';
 import { computeInvestmentValue } from '../services/investment.service';
 import { calcEMIOutstanding } from '../services/card-emi.service';
+import { paidInByInvestment } from '../schedule/paidIn';
 
 /** What the household owns and owes right now. Every net-worth and debt figure in the app comes from here. */
 export interface BalanceSheet {
@@ -39,7 +40,7 @@ export function unpaidStatements(
 }
 
 export async function getBalanceSheet(userId: string, now = new Date()): Promise<BalanceSheet> {
-  const [accounts, investments, p2p, loans, cardEmis, statements, cardPayments] = await Promise.all([
+  const [accounts, investments, p2p, loans, cardEmis, statements, cardPayments, paidIn] = await Promise.all([
     prisma.account.findMany({ where: { userId, type: { not: 'CREDIT_CARD' } }, select: { balance: true } }),
     prisma.investment.findMany({ where: { userId }, include: { collateral: { select: { ownershipPercent: true } } } }),
     prisma.p2PLoan.findMany({ where: { userId, isSettled: false }, select: { type: true, remainingAmount: true } }),
@@ -48,10 +49,11 @@ export async function getBalanceSheet(userId: string, now = new Date()): Promise
     prisma.cardStatement.findMany({ where: { userId }, select: { creditCardId: true, month: true, totalDue: true } }),
     prisma.dueStatus.findMany({ where: { userId, itemType: 'CARD_STATEMENT' }, select: { itemId: true, period: true, status: true, amount: true } })
       .then((rows) => rows.map((r) => ({ entityId: r.itemId, month: r.period, status: r.status, amount: r.amount }))),
+    paidInByInvestment(userId, now),
   ]);
 
   const bankBalance = sum(accounts, (a) => Number(a.balance));
-  const investmentValue = sum(investments, (inv) => computeInvestmentValue(inv, now).currentValue);
+  const investmentValue = sum(investments, (inv) => computeInvestmentValue(inv, now, paidIn.get(inv.id)).currentValue);
   const moneyLent = sum(p2p.filter((p) => p.type === 'LENT'), (p) => Number(p.remainingAmount));
   const loanDebt = sum(loans, (l) => Number(l.remainingBalance));
   const cardEmiDebt = sum(cardEmis, (e) => calcEMIOutstanding(e));

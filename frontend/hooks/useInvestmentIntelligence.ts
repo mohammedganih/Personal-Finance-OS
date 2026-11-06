@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import { AnnualizedReturns, TrendPoint, InvestmentCalendarEntry, DiversificationResult, MaturityEntry, ApiResponse } from '@/types';
+import { AnnualizedReturns, TrendPoint, DiversificationResult, MaturityEntry, ApiResponse } from '@/types';
 
 export function useAnnualizedReturns() {
   return useQuery({
@@ -19,16 +19,6 @@ export function usePortfolioTrend(days = 180) {
     queryKey: ['investments', 'trend', days],
     queryFn: async () => {
       const res = await api.get<ApiResponse<TrendPoint[]>>('/investments/trend', { params: { days } });
-      return res.data.data;
-    },
-  });
-}
-
-export function useInvestmentCalendar(monthsAhead = 3) {
-  return useQuery({
-    queryKey: ['investments', 'calendar', monthsAhead],
-    queryFn: async () => {
-      const res = await api.get<ApiResponse<InvestmentCalendarEntry[]>>('/investments/calendar', { params: { months: monthsAhead } });
       return res.data.data;
     },
   });

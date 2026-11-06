@@ -1,4 +1,5 @@
 import { decideMonthlyPayment } from './monthlyPayments.service';
+import { paidInByInvestment } from '../schedule/paidIn';
 import { monthOf } from '../lib/ledger';
 import { assertOwned } from '../lib/ownership';
 import { Investment, InvestmentCollateral, FamilyMember, Account, Loan } from '@prisma/client';
@@ -252,7 +253,9 @@ export async function setInvestmentSchedule(userId: string, id: string, input: S
  */
 export function computeInvestmentValue(
   inv: Investment & { collateral?: Pick<InvestmentCollateral, 'ownershipPercent'> | null },
-  now: Date
+  now: Date,
+  /** SIPs and gold schemes: money actually paid in (schedule/paidIn). Without it, monthly × months since start. */
+  paidIn?: number,
 ): { investedValue: number; currentValue: number } {
   const qty     = Number(inv.quantity);
   const buyPx   = Number(inv.buyPrice);
@@ -280,15 +283,17 @@ export function computeInvestmentValue(
     }
 
     case 'SIP': {
-      // monthlyAmount × months elapsed = total invested. qty × curPx = current value
-      const monthsElapsed = monthDiff(inv.purchaseDate, now);
-      return { investedValue: monthly * monthsElapsed, currentValue: qty * curPx };
+      // Invested = what was actually paid in; value = units × NAV when typed, else what was paid in.
+      const invested = paidIn ?? monthly * monthDiff(inv.purchaseDate, now);
+      return { investedValue: invested, currentValue: qty > 0 && curPx > 0 ? qty * curPx : invested };
     }
 
     case 'GOLD_SCHEME': {
-      // monthly × months running = total paid. qty (grams) × curPx = current value
-      const monthsElapsed = monthDiff(inv.purchaseDate, now);
-      return { investedValue: monthly * monthsElapsed, currentValue: qty * curPx };
+      // The grams typed never change as instalments are paid, so the scheme is
+      // worth what has been paid in until it matures (the maturity amount,
+      // bonus included, is shown separately).
+      const invested = paidIn ?? monthly * monthDiff(inv.purchaseDate, now);
+      return { investedValue: invested, currentValue: invested };
     }
 
     case 'REAL_ESTATE':
@@ -314,12 +319,11 @@ export async function getPortfolioSummary(userId: string) {
     where: { userId },
     include: INVESTMENT_INCLUDE,
   });
-  const splits = await fetchSplits('INVESTMENT', investments.map((i) => i.id));
-
   const now = new Date();
+  const [splits, paidIn] = await Promise.all([fetchSplits('INVESTMENT', investments.map((i) => i.id)), paidInByInvestment(userId, now)]);
 
   const portfolio = investments.map((inv) => {
-    const { investedValue, currentValue } = computeInvestmentValue(inv, now);
+    const { investedValue, currentValue } = computeInvestmentValue(inv, now, paidIn.get(inv.id));
     const pnl        = currentValue - investedValue;
     const pnlPercent = investedValue > 0 ? (pnl / investedValue) * 100 : 0;
 
