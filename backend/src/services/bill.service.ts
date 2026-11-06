@@ -1,4 +1,5 @@
 import { BillFrequency, Prisma, RecurringBill } from '@prisma/client';
+import { monthOf } from '../lib/ledger';
 import { prisma } from '../lib/prisma';
 import { assertOwnMembers, attachSplit, copySplitToTransactions, fetchSplits, saveSplit } from '../lib/ownershipSplit';
 import { assertOwned } from '../lib/ownership';
@@ -373,6 +374,10 @@ export async function payOccurrence(userId: string, billId: string, input: PayBi
           type: 'EXPENSE',
           amount,
           description: `Bill: ${bill.name}`,
+          kind: 'SPEND',
+          sourceType: 'BILL',
+          sourceId: bill.id,
+          period: monthOf(dueDate),
           date: paidDate,
           categoryId: categoryId ?? undefined,
           accountId: accountId ?? undefined,

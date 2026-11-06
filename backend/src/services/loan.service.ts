@@ -1,4 +1,5 @@
 import { Prisma, Loan, FamilyMember, Account, Investment } from '@prisma/client';
+import { monthOf } from '../lib/ledger';
 import { prisma } from '../lib/prisma';
 import { attachSplit, fetchSplits, saveSplit } from '../lib/ownershipSplit';
 import { assertOwned } from '../lib/ownership';
@@ -185,6 +186,10 @@ export async function payLoanEMI(userId: string, loanId: string, accountId?: str
         type:        'EXPENSE',
         amount:      interestPortion,
         description: `EMI Interest: ${loan.name}`,
+        kind:        'DEBT',
+        sourceType:  'LOAN',
+        sourceId:    loanId,
+        period:      monthOf(now),
         date:        now,
         categoryId:  emiCategoryId ?? undefined,
         accountId:   accountId ?? undefined,
@@ -200,6 +205,10 @@ export async function payLoanEMI(userId: string, loanId: string, accountId?: str
         type:        'EXPENSE',
         amount:      principalPortion,
         description: `EMI Principal: ${loan.name}`,
+        kind:        'DEBT',
+        sourceType:  'LOAN',
+        sourceId:    loanId,
+        period:      monthOf(now),
         date:        now,
         categoryId:  isLinked ? (wealthCategoryId ?? undefined) : (emiCategoryId ?? undefined),
         accountId:   accountId ?? undefined,

@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client';
+import { monthOf } from '../lib/ledger';
 import { prisma } from '../lib/prisma';
 import { createError } from '../middleware/error.middleware';
 import { findCategory } from '../lib/paymentCategory';
@@ -37,7 +38,7 @@ export async function prepayLoan(userId: string, loanId: string, input: { amount
     const after = Math.max(0, Math.round((before - input.amount) * 100) / 100);
     const closes = after < 1;
     const txn = await tx.transaction.create({ data: {
-      userId, type: 'EXPENSE', amount: input.amount, description: `Prepayment: ${loan.name}`, date,
+      userId, type: 'EXPENSE', kind: 'DEBT', sourceType: 'LOAN_EVENT', period: monthOf(date), amount: input.amount, description: `Prepayment: ${loan.name}`, date,
       categoryId: (loan.linkedInvestmentId ? wealthCategory : categoryId) ?? undefined, isWealthTransfer: !!loan.linkedInvestmentId,
       accountId: sourceAccount, memberId: loan.payerMemberId ?? loan.memberId ?? undefined,
     } });
@@ -48,6 +49,7 @@ export async function prepayLoan(userId: string, loanId: string, input: { amount
       userId, loanId, type: 'PREPAYMENT', date, amount: input.amount, balanceBefore: before, balanceAfter: after,
       accountId: sourceAccount ?? null, transactionId: txn.id, note: input.note ?? null,
     } });
+    await tx.transaction.update({ where: { id: txn.id }, data: { sourceId: event.id } });
     if (closes) await tx.loanEvent.create({ data: { userId, loanId, type: 'CLOSED', date, balanceBefore: before, balanceAfter: 0, note: 'Closed by prepayment' } });
     return { event: serialize(event), isPaidOff: closes };
   });

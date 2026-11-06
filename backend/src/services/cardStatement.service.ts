@@ -346,7 +346,7 @@ async function payExpense(tx: Prisma.TransactionClient, userId: string, expense:
   const amount = Number(expense.amount);
   const txn = await tx.transaction.create({
     data: {
-      userId, type: 'EXPENSE', amount, date: paidOn, accountId, categoryId,
+      userId, type: 'EXPENSE', kind: 'SPEND', sourceType: 'CARD_EXPENSE', sourceId: expense.id, period: expense.statementMonth, amount, date: paidOn, accountId, categoryId,
       description: `Card: ${expense.name} (${card.cardName}${card.lastFourDigits ? ` ···· ${card.lastFourDigits}` : ''})`,
       memberId: expense.memberId ?? card.memberId,
     },

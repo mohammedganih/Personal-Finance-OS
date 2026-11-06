@@ -1,4 +1,5 @@
 import { prisma } from '../lib/prisma';
+import { kindForType } from '../lib/ledger';
 import { createError } from '../middleware/error.middleware';
 import { signedDelta } from '../lib/accountBalance';
 import { writeSplit, fetchSplits, attachSplit } from '../lib/ownershipSplit';
@@ -63,6 +64,7 @@ export async function createTransaction(userId: string, input: CreateTransaction
       data: {
         userId,
         type: input.type,
+        kind: kindForType(input.type),
         amount: input.amount,
         description: input.description,
         notes:       input.notes,
@@ -100,7 +102,7 @@ export async function updateTransaction(userId: string, id: string, input: Updat
     const updated = await tx.transaction.update({
       where: { id },
       data: {
-        ...(input.type        !== undefined && { type: input.type }),
+        ...(input.type        !== undefined && { type: input.type, kind: kindForType(input.type) }),
         ...(input.amount      !== undefined && { amount: input.amount }),
         ...(input.description !== undefined && { description: input.description }),
         ...(input.notes       !== undefined && { notes: input.notes }),

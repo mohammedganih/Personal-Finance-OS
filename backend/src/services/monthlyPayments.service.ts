@@ -188,7 +188,7 @@ export async function decideMonthlyPayment(userId: string, type: 'LOAN' | 'INVES
         { amount: split.interestPortion, description: `EMI Interest: ${loan.name}`, categoryId: emiCategory, isWealthTransfer: false },
         { amount: split.principalPortion, description: `EMI Principal: ${loan.name}`, categoryId: loan.linkedInvestmentId ? wealthCategory : emiCategory, isWealthTransfer: !!loan.linkedInvestmentId },
       ] : [{ amount, description: `${inv!.assetType}: ${inv!.assetName}`, categoryId: emiCategory, isWealthTransfer: false }];
-      for (const portion of portions.filter(p => p.amount > 0)) transactions.push(await tx.transaction.create({ data: { userId, type: 'EXPENSE', ...portion, accountId: sourceAccount, memberId: loan?.payerMemberId ?? loan?.memberId ?? inv?.memberId, date: paidOn, isRecurring: true } }));
+      for (const portion of portions.filter(p => p.amount > 0)) transactions.push(await tx.transaction.create({ data: { userId, type: 'EXPENSE', kind: loan ? 'DEBT' : 'SAVE', sourceType: type, sourceId: id, period: month, ...portion, accountId: sourceAccount, memberId: loan?.payerMemberId ?? loan?.memberId ?? inv?.memberId, date: paidOn, isRecurring: true } }));
       if (loan && split) await tx.loan.update({ where: { id }, data: { remainingBalance: split.newBalance, isActive: !split.isPaidOff } });
       if (loan && split?.isPaidOff) await tx.loanEvent.create({ data: { userId, loanId: id, type: 'CLOSED', date: paidOn, balanceBefore: loan.remainingBalance, balanceAfter: 0, note: `Last EMI (${month})` } });
       if (inv?.assetType === 'RECURRING_DEPOSIT') await tx.investment.update({ where: { id }, data: { quantity: { increment: 1 } } });

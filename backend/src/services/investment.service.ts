@@ -1,4 +1,5 @@
 import { decideMonthlyPayment } from './monthlyPayments.service';
+import { monthOf } from '../lib/ledger';
 import { assertOwned } from '../lib/ownership';
 import { Investment, InvestmentCollateral, FamilyMember, Account, Loan } from '@prisma/client';
 import { prisma } from '../lib/prisma';
@@ -186,6 +187,10 @@ export async function payInvestment(userId: string, id: string, accountId?: stri
       data: {
         userId,
         type:        'EXPENSE',
+        kind:        'SAVE',
+        sourceType:  'INVESTMENT',
+        sourceId:    id,
+        period:      monthOf(new Date()),
         amount,
         description,
         date:        new Date(),
