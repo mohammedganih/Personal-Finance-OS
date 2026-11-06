@@ -12,6 +12,7 @@
     "prisma:studio": "prisma studio",
     "audit:balances": "ts-node src/scripts/auditAccountBalances.ts",
     "fix:bill-dates": "ts-node --transpile-only src/scripts/normalizeBillDates.ts",
+    "close:backfill": "ts-node --transpile-only src/scripts/backfillMonthCloses.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },

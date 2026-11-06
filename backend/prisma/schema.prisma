@@ -145,6 +145,7 @@ model User {
   monthlyPayments MonthlyPayment[]
   dueStatuses     DueStatus[]
   settings        UserSettings?
+  monthCloses     MonthClose[]
   id           String   @id @default(cuid())
   email        String   @unique
   name         String
@@ -732,6 +733,28 @@ model OwnershipSplit {
   @@unique([entityType, entityId])
   @@index([userId])
   @@map("ownership_splits")
+}
+
+// The month sheet frozen at month end: the paper sheet for every past month.
+model MonthClose {
+  id          String   @id @default(cuid())
+  userId      String
+  month       String // YYYY-MM
+  // Per person: salary, loans, investments, bills, card spending, left, free, spent so far, still free.
+  members     Json
+  combined    Json
+  netWorth    Decimal  @db.Decimal(16, 2)
+  totalDebt   Decimal  @db.Decimal(16, 2)
+  // Bank account balances at month end: [{ accountId, name, balance }].
+  balances    Json
+  // Worked out later from today's data (balances rolled back through the ledger), not frozen on the day.
+  approximate Boolean  @default(false)
+  closedAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, month])
+  @@map("month_close")
 }
 
 // Household preferences that are not about any one record.
