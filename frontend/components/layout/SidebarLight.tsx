@@ -1,5 +1,6 @@
 "use client";
 
+import { useNavStore } from '@/stores/nav.store';
 import { Fragment } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -20,12 +21,13 @@ import { ChevronDown, LogOut, Sparkles } from "lucide-react";
  * wired to anything real (no fake payment flow).
  */
 export function SidebarLight() {
+  const navOpen = useNavStore((st) => st.open);
   const pathname = usePathname();
   const logout = useLogout();
   const { user } = useAuthStore();
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-50 w-64 flex flex-col bg-paper-card border-r border-line">
+    <aside className={cn('fixed inset-y-0 left-0 z-50 w-64 flex flex-col bg-paper-card border-r border-line transition-transform duration-200 lg:translate-x-0', navOpen ? 'translate-x-0' : '-translate-x-full')}>
       {/* Logo */}
       <div className="flex items-center gap-3 px-6 py-5 border-b border-line">
         <div className="w-9 h-9 rounded-lg bg-mono flex items-center justify-center">

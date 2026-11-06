@@ -33,6 +33,17 @@ describe('month summary from saved records', () => {
     expect(s.unassigned.map(u => u.name)).toEqual(['Water']);
   });
 
+  it('confirming an expected salary keeps the numbers and drops the "expected" flag', async () => {
+    const { user, a } = await setup();
+    await saveSalary(user.id, { memberId: a.id, month: '2026-10', amount: 90000 });
+    const expected = (await getMonthSummary(user.id, '2026-11')).members[0];
+    expect(expected).toMatchObject({ salary: 90000, salaryIsEstimate: true });
+    // Home's Confirm saves last month's amount for this month.
+    await saveSalary(user.id, { memberId: a.id, month: '2026-11', amount: expected.salary });
+    const confirmed = (await getMonthSummary(user.id, '2026-11')).members[0];
+    expect(confirmed).toMatchObject({ salary: 90000, salaryIsEstimate: false, left: expected.left, free: expected.free });
+  });
+
   it('saves salary per month and only for the user\'s own members', async () => {
     const { user, a } = await setup();
     await saveSalary(user.id, { memberId: a.id, month: '2026-10', amount: 90000 });

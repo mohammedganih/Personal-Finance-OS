@@ -7,13 +7,7 @@ import { parsePeriod } from '../lib/period';
 export async function getOverview(req: AuthRequest, res: Response) {
   const { month, year } = parsePeriod(req);
   const overview = await dashboardService.getDashboardOverview(req.user!.userId, month, year);
-  // Record-on-read, same idempotent pattern as investment snapshots: net
-  // worth here reflects real account/investment/debt balances as of right
-  // now (not month-filtered), so it's safe to record under today's date
-  // regardless of which period the dashboard's selector is showing.
-  await netWorthService.recordNetWorthSnapshot(req.user!.userId, {
-    netWorth: overview.netWorth, totalAssets: overview.totalAssets, totalLiabilities: overview.totalLiabilities,
-  });
+  // Net worth history now comes from month closes; nothing is recorded on read.
   res.json({ success: true, data: overview });
 }
 

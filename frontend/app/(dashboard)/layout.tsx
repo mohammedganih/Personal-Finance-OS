@@ -8,13 +8,18 @@ import { Header } from '@/components/layout/Header';
 import { SidebarLight } from '@/components/layout/SidebarLight';
 import { HeaderLight } from '@/components/layout/HeaderLight';
 import { PeriodUrlSync } from '@/components/shared/PeriodUrlSync';
+import { QuickAdd } from '@/components/shared/QuickAdd';
 import { useAuthStore } from '@/stores/auth.store';
+import { useNavStore } from '@/stores/nav.store';
 import { cn } from '@/lib/utils';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isInitialized } = useAuthStore();
   const router = useRouter();
   const pathname = usePathname();
+  const { open: navOpen, setOpen: setNavOpen } = useNavStore();
+  // Following a link closes the drawer on narrow screens.
+  useEffect(() => { setNavOpen(false); }, [pathname, setNavOpen]);
   // Scoped light theme: rolled out page-by-page. Every other route keeps the
   // existing dark Sidebar/Header untouched -- see the design plan for why
   // this isn't a global theme toggle (no CSS-variable theme system exists in
@@ -50,11 +55,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <div className={cn('min-h-screen flex', isLightRoute ? 'bg-paper' : 'bg-bg')}>
       <Suspense fallback={null}><PeriodUrlSync /></Suspense>
       {isLightRoute ? <SidebarLight /> : <Sidebar />}
-      <div className="flex-1 ml-64 flex flex-col min-h-screen">
+      {navOpen && <div aria-hidden="true" className="fixed inset-0 z-40 bg-black/30 lg:hidden" onClick={() => setNavOpen(false)} />}
+      <div className="flex min-h-screen min-w-0 flex-1 flex-col lg:ml-64">
         {isLightRoute ? <HeaderLight /> : <Header />}
-        <main className="flex-1 p-6 overflow-auto">
+        <main className="flex-1 overflow-auto p-4 pb-24 sm:p-6 sm:pb-24">
           {children}
         </main>
+        <QuickAdd />
       </div>
     </div>
   );

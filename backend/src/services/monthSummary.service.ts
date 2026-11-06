@@ -5,9 +5,11 @@ import { findCategory } from '../lib/paymentCategory';
 import { createError } from '../middleware/error.middleware';
 import { currentMonth, getMonthlyPlan, monthWindow, MonthlyPlanRow, SPLIT_ENTITY } from './monthlyPayments.service';
 import { CardSpend, getCardSpendForMonth } from './cardStatement.service';
+import { getSpentSoFar, SpentEntry, spentShares } from './spentSoFar.service';
 
 // The home page "month sheet": per person, salary − loans − investments − bills
-// = left for the month; minus last month's card spending = free to spend.
+// = left for the month; minus last month's card spending = free to spend;
+// minus what has been spent so far this month = still free.
 
 export interface SummaryItem {
   id: string; type: string; name: string; amount: number; status: string;
@@ -39,6 +41,9 @@ export interface CardSplit {
 export interface Totals {
   salary: number; loans: Bucket; investments: Bucket; bills: Bucket;
   cards: CardSplit[]; cardSpending: number; left: number; free: number;
+  /** Everyday spending this month not already on the sheet (bank spending + card purchases not yet on a statement). */
+  spentSoFar: { total: number; items: SpentEntry[] };
+  stillFree: number;
 }
 export interface MemberSummary extends Totals {
   memberId: string; name: string; color: string | null; emoji: string | null; salaryIsEstimate: boolean;
@@ -57,6 +62,8 @@ export interface SummaryExtras {
   accountOwners?: Map<string, string | null>;
   /** One-off card purchases per card for this month's statement (cardStatement.service). */
   cardSpend?: CardSpend[];
+  /** Spent-so-far entries (whole, not split) and the splits on bank-spending entries. */
+  spent?: { entries: SpentEntry[]; splits: Map<string, { secondaryMemberId: string; ratio: number }> };
 }
 type SheetRow = MonthlyPlanRow & { fullAmount?: number | null; sharePct?: number | null; debitedFromMemberId?: string | null };
 
@@ -150,14 +157,16 @@ export function cardSplits(ownRows: MonthlyPlanRow[], allRows: MonthlyPlanRow[],
   return out;
 }
 
-function totals(rows: SheetRow[], allRows: MonthlyPlanRow[], salary: number, spend: CardSpend[] = []): Totals {
+function totals(rows: SheetRow[], allRows: MonthlyPlanRow[], salary: number, spend: CardSpend[] = [], spent: SpentEntry[] = []): Totals {
   const loans = bucket(rows.filter(r => r.type === 'LOAN' || r.type === 'CARD_EMI'));
   const investments = bucket(rows.filter(r => r.type === 'INVESTMENT'));
   const bills = bucket(rows.filter(r => r.type === 'BILL'));
   const cards = cardSplits(rows, allRows, spend);
   const cardSpending = round(cards.reduce((s, c) => s + c.spending, 0));
   const left = round(salary - loans.total - investments.total - bills.total);
-  return { salary, loans, investments, bills, cards, cardSpending, left, free: round(left - cardSpending) };
+  const free = round(left - cardSpending);
+  const spentTotal = round(spent.reduce((sum, e) => sum + e.amount, 0));
+  return { salary, loans, investments, bills, cards, cardSpending, left, free, spentSoFar: { total: spentTotal, items: spent }, stillFree: round(free - spentTotal) };
 }
 
 /** Pure bucket maths; `getMonthSummary` feeds it from the database. */
@@ -170,12 +179,14 @@ export function buildMonthSummary(month: string, planRows: MonthlyPlanRow[], mem
   };
   const rows = planRows.map(withDebit);
   const shares = shareRows(planRows, extras.splits).map(withDebit);
+  const spentEntries = extras.spent?.entries ?? [];
+  const spentSharesList = spentShares(spentEntries, extras.spent?.splits ?? new Map());
   const memberSummaries = members.map(m => {
     const { salary, salaryIsEstimate } = pickSalary(salaries, m.id, month);
-    return { memberId: m.id, name: m.name, color: m.color, emoji: m.emoji, salaryIsEstimate, ...totals(shares.filter(r => r.memberId === m.id), rows, salary, (extras.cardSpend ?? []).filter(c => c.memberId === m.id)) };
+    return { memberId: m.id, name: m.name, color: m.color, emoji: m.emoji, salaryIsEstimate, ...totals(shares.filter(r => r.memberId === m.id), rows, salary, (extras.cardSpend ?? []).filter(c => c.memberId === m.id), spentSharesList.filter(e => e.memberId === m.id)) };
   });
   // Combined is the whole household, so rows with no person still count here.
-  const combined = totals(rows, rows, round(memberSummaries.reduce((s, m) => s + m.salary, 0)), extras.cardSpend);
+  const combined = totals(rows, rows, round(memberSummaries.reduce((s, m) => s + m.salary, 0)), extras.cardSpend, spentEntries);
   const unassigned = rows
     .filter(r => !r.memberId || !known.has(r.memberId))
     .map(r => ({ id: r.id, type: r.type, name: r.name, amount: round(r.amount) }));
@@ -184,18 +195,20 @@ export function buildMonthSummary(month: string, planRows: MonthlyPlanRow[], mem
 
 export async function getMonthSummary(userId: string, month = currentMonth()): Promise<MonthSummary> {
   monthWindow(month); // validates the format
-  const [plan, members, salaries, splits, accounts, cardSpend] = await Promise.all([
+  const [plan, members, salaries, splits, accounts, cardSpend, spent] = await Promise.all([
     getMonthlyPlan(userId, month),
     prisma.familyMember.findMany({ where: { userId }, orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }] }),
     prisma.monthlySalary.findMany({ where: { userId, month: { lte: month } } }),
     prisma.ownershipSplit.findMany({ where: { userId, entityType: { in: Array.from(new Set(Object.values(SPLIT_ENTITY))) } } }),
     prisma.account.findMany({ where: { userId }, select: { id: true, memberId: true } }),
     getCardSpendForMonth(userId, month),
+    getSpentSoFar(userId, month),
   ]);
   return buildMonthSummary(month, plan.rows, members, salaries.map(s => ({ memberId: s.memberId, month: s.month, amount: Number(s.amount) })), {
     splits: splits.map(sp => ({ entityType: sp.entityType, entityId: sp.entityId, secondaryMemberId: sp.secondaryMemberId, ratio: Number(sp.ratio) })),
     accountOwners: new Map(accounts.map(a => [a.id, a.memberId])),
     cardSpend,
+    spent,
   });
 }
 

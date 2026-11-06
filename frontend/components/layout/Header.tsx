@@ -1,8 +1,9 @@
 'use client';
 
+import { useNavStore } from '@/stores/nav.store';
 import { usePathname } from 'next/navigation';
 import { NAV_ITEMS } from '@/lib/constants';
-import { Bell, Search } from 'lucide-react';
+import { Bell, Search, Menu } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth.store';
 import { format } from 'date-fns';
 import { PeriodSelector } from '@/components/shared/PeriodSelector';
@@ -14,6 +15,7 @@ import { PeriodSelector } from '@/components/shared/PeriodSelector';
 const PERIOD_SCOPED_ROUTES = ['/dashboard', '/analytics', '/budgets'];
 
 export function Header() {
+  const setNavOpen = useNavStore((st) => st.setOpen);
   const pathname = usePathname();
   const { user } = useAuthStore();
 
@@ -25,8 +27,16 @@ export function Header() {
   );
 
   return (
-    <header className="h-16 border-b border-border bg-bg-surface/80 backdrop-blur-md flex items-center justify-between px-6">
-      <div>
+    <header className="flex h-16 items-center justify-between gap-2 border-b border-border bg-bg-surface/80 px-4 backdrop-blur-md sm:px-6">
+      <button
+          type="button"
+          onClick={() => setNavOpen(true)}
+          aria-label="Open menu"
+          className="-ml-1 grid h-9 w-9 shrink-0 place-items-center rounded-full text-text-secondary hover:bg-bg-elevated lg:hidden"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
+      <div className="min-w-0 flex-1 truncate">
         <h1 className="text-base font-semibold text-text-primary">
           {currentPage?.label ?? 'Dashboard'}
         </h1>

@@ -1,8 +1,9 @@
 "use client";
 
+import { useNavStore } from '@/stores/nav.store';
 import { useState } from "react";
 import { usePathname } from "next/navigation";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, Menu } from "lucide-react";
 import { RemindersBell } from "@/components/layout/RemindersBell";
 import { useAuthStore } from "@/stores/auth.store";
 import { PeriodSelectorLight } from "@/components/shared/PeriodSelectorLight";
@@ -30,6 +31,7 @@ function greeting(hour: number): string {
  * second header file per page.
  */
 export function HeaderLight() {
+  const setNavOpen = useNavStore((st) => st.setOpen);
   const pathname = usePathname();
   const { user } = useAuthStore();
   const [showForm, setShowForm] = useState(false);
@@ -54,7 +56,16 @@ export function HeaderLight() {
 
   return (
     <>
-      <header className="h-16 border-b border-line bg-paper-card flex items-center justify-between px-6">
+      <header className="flex h-16 items-center justify-between gap-2 border-b border-line bg-paper-card px-4 sm:px-6">
+        <button
+          type="button"
+          onClick={() => setNavOpen(true)}
+          aria-label="Open menu"
+          className="-ml-1 grid h-9 w-9 shrink-0 place-items-center rounded-full text-ink-secondary hover:bg-paper-subtle lg:hidden"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
+        <div className="min-w-0 flex-1 truncate [&_p]:truncate">
         {isInvestments ? (
           <div>
             <h1 className="text-base font-semibold text-ink-primary">Investments</h1>
@@ -100,8 +111,9 @@ export function HeaderLight() {
             </p>
           </div>
         )}
+        </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex shrink-0 items-center gap-2 sm:gap-3">
           {/* Bills, Transactions and Budgets are genuinely month-scoped, so
               they keep the period selector -- unlike Investments/Loans/
               Goals/Accounts, where every figure shown is "as of now"
@@ -109,17 +121,17 @@ export function HeaderLight() {
           {!isInvestments && !isLoans && !isGoals && !isAccounts && <PeriodSelectorLight />}
           <button
             aria-label="Search"
-            className="w-9 h-9 flex items-center justify-center rounded-full bg-paper-card border border-line text-ink-secondary hover:text-ink-primary hover:border-line-strong transition-colors"
+            className="hidden sm:flex w-9 h-9 items-center justify-center rounded-full bg-paper-card border border-line text-ink-secondary hover:text-ink-primary hover:border-line-strong transition-colors"
           >
             <Search className="w-4 h-4" />
           </button>
           <RemindersBell />
           <button
             onClick={() => setShowForm(true)}
-            className="h-9 flex items-center gap-1.5 rounded-full bg-mono hover:bg-mono-hover text-white text-sm font-medium px-4 transition-colors"
+            className="h-9 flex items-center gap-1.5 rounded-full bg-mono hover:bg-mono-hover text-white text-sm font-medium px-3 sm:px-4 transition-colors"
           >
             <Plus className="w-4 h-4" />
-            {isInvestments ? "Add Investment" : isLoans ? "Add Loan" : isBills ? "Add New" : isGoals ? "Add Goal" : isTransactions ? "Add Transaction" : isBudgets ? "Create Budget" : isAccounts ? "Add Account" : "Add"}
+            <span className="hidden sm:inline">{isInvestments ? "Add Investment" : isLoans ? "Add Loan" : isBills ? "Add New" : isGoals ? "Add Goal" : isTransactions ? "Add Transaction" : isBudgets ? "Create Budget" : isAccounts ? "Add Account" : "Add"}</span>
           </button>
         </div>
       </header>

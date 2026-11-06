@@ -1,5 +1,6 @@
 'use client';
 
+import { useNavStore } from '@/stores/nav.store';
 import { Fragment } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -10,12 +11,13 @@ import { useAuthStore } from '@/stores/auth.store';
 import { LogOut, Wallet } from 'lucide-react';
 
 export function Sidebar() {
+  const navOpen = useNavStore((st) => st.open);
   const pathname = usePathname();
   const logout = useLogout();
   const { user } = useAuthStore();
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-50 w-64 flex flex-col bg-bg-surface border-r border-border">
+    <aside className={cn('fixed inset-y-0 left-0 z-50 w-64 flex flex-col bg-bg-surface border-r border-border transition-transform duration-200 lg:translate-x-0', navOpen ? 'translate-x-0' : '-translate-x-full')}>
       {/* Logo */}
       <div className="flex items-center gap-3 px-6 py-5 border-b border-border">
         <div className="w-8 h-8 rounded-lg bg-gradient-primary flex items-center justify-center shadow-glow-sm">
