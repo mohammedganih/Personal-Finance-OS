@@ -50,11 +50,12 @@ function SalaryInput({ member, month }: { member: MemberSummary; month: string }
     save.mutate({ memberId: member.memberId, month, amount });
   };
 
+  const expected = member.salaryIsEstimate;
   return (
     <div className="rounded-xl bg-paper-subtle px-3 py-2.5">
       <div className="flex items-center justify-between gap-2">
-        <label htmlFor={id} className="text-xs font-medium text-ink-secondary">Salary received</label>
-        <div className="flex items-center text-lg font-bold tabular-nums text-ink-primary">
+        <label htmlFor={id} className="text-xs font-medium text-ink-secondary">{expected ? 'Salary expected' : 'Salary received'}</label>
+        <div className={cn('flex items-center text-lg font-bold tabular-nums', expected ? 'italic text-ink-muted' : 'text-ink-primary')}>
           <span aria-hidden="true">₹</span>
           <input
             id={id}
@@ -68,7 +69,19 @@ function SalaryInput({ member, month }: { member: MemberSummary; month: string }
           />
         </div>
       </div>
-      {member.salaryIsEstimate && <p className="mt-1 text-[11px] text-ink-muted">Estimate, from last month. Press Enter to confirm.</p>}
+      {expected && (
+        <p className="mt-1 flex flex-wrap items-center justify-between gap-2 text-[11px] text-ink-muted">
+          <span>Last month&apos;s amount. Not received yet.</span>
+          <button
+            type="button"
+            disabled={save.isPending}
+            onClick={() => save.mutate({ memberId: member.memberId, month, amount: Number(value.replace(/[^\d.]/g, '')) || member.salary })}
+            className="rounded-full border border-line-strong bg-paper-card px-2.5 py-0.5 font-medium text-ink-primary hover:bg-paper-subtle disabled:opacity-50"
+          >
+            {save.isPending ? 'Saving…' : 'Confirm'}
+          </button>
+        </p>
+      )}
     </div>
   );
 }
@@ -235,9 +248,13 @@ function PaceBar({ month, free, spent }: { month: string; free: number; spent: n
   );
 }
 
-function Sheet({ title, subtitle, avatar, salary, totals, names, combined, month }: {
+const IfExpected = ({ show }: { show?: boolean }) => (show ? <span className="block text-[11px] font-normal italic text-ink-muted">if salary arrives as expected</span> : null);
+
+function Sheet({ title, subtitle, avatar, salary, totals, names, combined, month, expected }: {
   title: string; subtitle: string; avatar: React.ReactNode; salary: React.ReactNode;
   totals: SummaryTotals; names: Map<string, string>; combined?: boolean; month: string;
+  /** Salary not entered yet: last month's is used. */
+  expected?: boolean;
 }) {
   const base = Math.max(1, totals.salary);
   const w = (v: number) => `${(Math.max(0, v) / base) * 100}%`;
@@ -253,15 +270,15 @@ function Sheet({ title, subtitle, avatar, salary, totals, names, combined, month
       <Line label="Investments" bucket={totals.investments} names={names} showWho={combined} />
       <Line label="Bills" bucket={totals.bills} names={names} showWho={combined} />
       <div className="flex justify-between px-0.5 py-3 text-sm font-semibold text-ink-primary">
-        <span>Left for the month</span><span className="tabular-nums">{money(totals.left)}</span>
+        <span>Left for the month<IfExpected show={expected} /></span><span className="tabular-nums">{money(totals.left)}</span>
       </div>
       <CardLine cards={totals.cards} total={totals.cardSpending} names={names} showWho={combined} />
       <div className="flex justify-between border-b border-line px-0.5 py-3 text-sm font-semibold text-ink-primary">
-        <span>Free to spend &amp; buffer</span><span className={cn('tabular-nums', totals.free < 0 && 'text-updown-down')}>{money(totals.free)}</span>
+        <span>Free to spend &amp; buffer<IfExpected show={expected} /></span><span className={cn('tabular-nums', totals.free < 0 && 'text-updown-down')}>{money(totals.free)}</span>
       </div>
       <SpentLine spent={totals.spentSoFar} names={names} showWho={combined} />
       <div className={cn('mt-3 flex items-center justify-between gap-2 rounded-xl p-3.5', negative ? 'bg-updown-down-muted text-updown-down' : 'bg-updown-up-muted text-updown-up')}>
-        <span className="text-xs font-semibold">Still free</span>
+        <span className="text-xs font-semibold">Still free<IfExpected show={expected} /></span>
         <span className="text-2xl font-bold tabular-nums tracking-tight">{money(totals.stillFree)}</span>
       </div>
       <PaceBar month={month} free={totals.free} spent={totals.spentSoFar.total} />
@@ -330,6 +347,7 @@ export function MonthSheet() {
   }
 
   const names = new Map(data.members.map((m) => [m.memberId, m.name]));
+  const anyExpected = data.members.some((m) => m.salaryIsEstimate);
   return (
     <section className="space-y-3">
       {header}
@@ -344,6 +362,7 @@ export function MonthSheet() {
             salary={<SalaryInput member={m} month={data.month} />}
             totals={m}
             month={data.month}
+            expected={m.salaryIsEstimate}
             names={names}
           />
         ))}
@@ -354,12 +373,16 @@ export function MonthSheet() {
           avatar={<Avatar combined label={data.members.slice(0, 3).map((m) => initials(m.name)).join('+')} />}
           salary={
             <div className="flex items-center justify-between gap-2 rounded-xl bg-paper-card px-3 py-2.5">
-              <span className="text-xs font-medium text-ink-secondary">Salary received</span>
-              <span className="text-lg font-bold tabular-nums text-ink-primary">{money(data.combined.salary)}</span>
+              <span className="text-xs font-medium text-ink-secondary">
+                Salary received
+                {anyExpected && <span className="block text-[11px] italic text-ink-muted">includes expected salary</span>}
+              </span>
+              <span className={cn('text-lg font-bold tabular-nums', anyExpected ? 'italic text-ink-muted' : 'text-ink-primary')}>{money(data.combined.salary)}</span>
             </div>
           }
           totals={data.combined}
           month={data.month}
+          expected={anyExpected}
           names={names}
         />
       </div>
