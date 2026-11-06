@@ -1,4 +1,5 @@
 import { prisma } from '../lib/prisma';
+import { syncLoanBalance } from '../schedule/progress';
 import { createError } from '../middleware/error.middleware';
 import { calculateEMISplit } from './loan.service';
 import { findCategory } from '../lib/paymentCategory';
@@ -113,7 +114,10 @@ export async function decideMonthlyPayment(userId: string, type: 'LOAN' | 'INVES
         { amount: split.principalPortion, description: `EMI Principal: ${loan.name}`, categoryId: loan.linkedInvestmentId ? wealthCategory : emiCategory, isWealthTransfer: !!loan.linkedInvestmentId },
       ] : [{ amount, description: `${inv!.assetType}: ${inv!.assetName}`, categoryId: emiCategory, isWealthTransfer: false }];
       for (const portion of portions.filter(p => p.amount > 0)) transactions.push(await tx.transaction.create({ data: { userId, type: 'EXPENSE', kind: loan ? 'DEBT' : 'SAVE', sourceType: type, sourceId: id, period: month, ...portion, accountId: sourceAccount, memberId: loan?.payerMemberId ?? loan?.memberId ?? inv?.memberId, date: paidOn, isRecurring: true } }));
-      if (loan && split) await tx.loan.update({ where: { id }, data: { remainingBalance: split.newBalance, isActive: !split.isPaidOff } });
+      if (loan && split) {
+        await tx.loan.update({ where: { id }, data: { isActive: !split.isPaidOff } });
+        await syncLoanBalance(tx, id);
+      }
       if (loan && split?.isPaidOff) await tx.loanEvent.create({ data: { userId, loanId: id, type: 'CLOSED', date: paidOn, balanceBefore: loan.remainingBalance, balanceAfter: 0, note: `Last EMI (${month})` } });
       if (inv?.assetType === 'RECURRING_DEPOSIT') await tx.investment.update({ where: { id }, data: { quantity: { increment: 1 } } });
       if (sourceAccount) await tx.account.update({ where: { id: sourceAccount }, data: { balance: { decrement: amount } } });

@@ -1,5 +1,6 @@
 import { prisma } from '../lib/prisma';
-import { cardEMIAmountInMonth, dateInMonth, indiaDateKey, shiftMonth } from '../lib/cardPaymentSchedule';
+import { dateInMonth, indiaDateKey, shiftMonth } from '../lib/cardPaymentSchedule';
+import { cardEMIDueDateIn, cardEMIInstalmentIndex } from './progress';
 import { calculateEMISplit } from '../services/loan.service';
 import { parseDateOnly } from '../lib/billSchedule';
 import { billOccurrencesInRange } from './bills';
@@ -149,13 +150,13 @@ export async function dueItems(userId: string, fromMonth: string, toMonth: strin
     for (const emi of cardEmis) {
       if (!emi.creditCard.isActive) continue;
       const rec = record('CARD_EMI', emi.id, month);
-      const currentRec = record('CARD_EMI', emi.id, today);
-      const payment = cardEMIAmountInMonth(emi, emi.creditCard, month, today, currentRec?.status);
-      if (!rec && !payment) continue;
+      const k = cardEMIInstalmentIndex(emi, emi.creditCard, month);
+      // An archived EMI (paid off, or closed early) stops at what was already billed.
+      if (!rec && (k === null || (emi.isArchived && k >= emi.emisPaid))) continue;
       items.push({
         ...base(rec), itemType: 'CARD_EMI', itemId: emi.id, name: `${emi.itemName} (${emi.creditCard.cardName})`, period: month,
-        dueDate: payment?.dueDate ?? dateInMonth(month, Number(indiaDateKey(emi.creditCard.dueDate).slice(8))),
-        amount: rec ? rec.amount : payment!.amount, payerMemberId: emi.memberId ?? emi.creditCard.memberId,
+        dueDate: cardEMIDueDateIn(emi.creditCard, month),
+        amount: rec ? rec.amount : Number(emi.emiAmount), payerMemberId: emi.memberId ?? emi.creditCard.memberId,
         accountId: emi.creditCard.bankAccountId, creditCardId: emi.creditCardId, autoDebit: false,
       });
     }

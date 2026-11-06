@@ -178,17 +178,14 @@ export function CardEMIForm({ onClose, emi, defaultCardId }: CardEMIFormProps) {
             </div>
           )}
 
-          {/* EMIs paid + start date */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label>EMIs Already Paid</Label>
-              <Input type="number" step="1" placeholder="0" {...register('emisPaid')} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Purchase / Start Date</Label>
-              <Input type="date" {...register('startDate')} />
-              <p className="text-xs text-text-muted">Payments follow the statement and due days of the selected card. Purchases after the statement day are billed in the next cycle.</p>
-            </div>
+          {/* Start date: instalments billed so far are worked out from it */}
+          <div className="space-y-1.5">
+            <Label>Purchase / Start Date</Label>
+            <Input type="date" {...register('startDate')} />
+            <p className="text-xs text-text-muted">
+              Payments follow the statement and due days of the selected card. Purchases after the statement day are billed in the next cycle.
+              {' '}Instalments already billed are counted from this date{emi ? ` (${emi.emisPaid} of ${emi.tenureMonths} so far)` : ''}.
+            </p>
           </div>
 
           {/* Auto-calc hint */}

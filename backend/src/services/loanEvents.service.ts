@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client';
+import { syncLoanBalance } from '../schedule/progress';
 import { monthOf } from '../lib/ledger';
 import { prisma } from '../lib/prisma';
 import { createError } from '../middleware/error.middleware';
@@ -44,12 +45,13 @@ export async function prepayLoan(userId: string, loanId: string, input: { amount
     } });
     await copySplitToTransactions(tx, userId, 'LOAN', loanId, [txn.id]);
     if (sourceAccount) await tx.account.update({ where: { id: sourceAccount }, data: { balance: { decrement: input.amount } } });
-    await tx.loan.update({ where: { id: loanId }, data: { remainingBalance: after, isActive: !closes } });
+    await tx.loan.update({ where: { id: loanId }, data: { isActive: !closes } });
     const event = await tx.loanEvent.create({ data: {
       userId, loanId, type: 'PREPAYMENT', date, amount: input.amount, balanceBefore: before, balanceAfter: after,
       accountId: sourceAccount ?? null, transactionId: txn.id, note: input.note ?? null,
     } });
     await tx.transaction.update({ where: { id: txn.id }, data: { sourceId: event.id } });
+    await syncLoanBalance(tx, loanId);
     if (closes) await tx.loanEvent.create({ data: { userId, loanId, type: 'CLOSED', date, balanceBefore: before, balanceAfter: 0, note: 'Closed by prepayment' } });
     return { event: serialize(event), isPaidOff: closes };
   });
@@ -97,10 +99,11 @@ export async function undoLoanEvent(userId: string, loanId: string, eventId: str
           await tx.transaction.delete({ where: { id: txn.id } });
         }
       }
-      await tx.loan.update({ where: { id: loanId }, data: { remainingBalance: { increment: event.amount ?? 0 }, isActive: true } });
+      await tx.loan.update({ where: { id: loanId }, data: { isActive: true } });
       await tx.loanEvent.deleteMany({ where: { loanId, type: 'CLOSED', createdAt: { gte: event.createdAt } } });
     }
     await tx.loanEvent.delete({ where: { id: event.id } });
+    if (event.type === 'PREPAYMENT') await syncLoanBalance(tx, loanId);
     return { undone: true, type: event.type };
   });
 }

@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
+import { syncCardEMIProgress } from '../schedule/progress';
 import { resetDatabase, prisma } from '../test/db';
 import { decideMonthlyPayment, getMonthlyPlan } from './monthlyPayments.service';
 import { payCardEMI } from './card-emi.service';
@@ -80,14 +81,19 @@ describe('undo a recorded payment', () => {
     expect(await balance(account.id)).toBe(100000);
   });
 
-  it('reverses a card EMI instalment and reopens a completed EMI', async () => {
+  // Card EMI progress comes from the schedule's dates (billed once due), not from ticks.
+  it('reverses a card EMI tick; progress follows the due date, not the tick', async () => {
     const { user, account } = await setup();
     const card = await prisma.creditCard.create({ data: { userId: user.id, cardName: 'Card', creditLimit: 100000, outstanding: 0, statementDate: new Date('2026-07-09'), dueDate: new Date('2026-07-29') } });
     const emi = await prisma.cardEMI.create({ data: { userId: user.id, creditCardId: card.id, itemName: 'Phone', totalAmount: 3000, emiAmount: 3000, tenureMonths: 1, startDate: new Date('2026-09-20'), isNoCost: true } });
     await payCardEMI(user.id, emi.id, account.id);
-    expect(await prisma.cardEMI.findUniqueOrThrow({ where: { id: emi.id } })).toMatchObject({ emisPaid: 1, isArchived: true });
+    expect(await prisma.monthlyPayment.count({ where: { entityId: emi.id, status: 'PAID' } })).toBe(1);
+    expect(await prisma.cardEMI.findUniqueOrThrow({ where: { id: emi.id } })).toMatchObject({ emisPaid: 0, isArchived: false }); // due 29 Oct
     await undoPayment(user.id, { type: 'CARD_EMI', id: emi.id, month: '2026-10' });
-    expect(await prisma.cardEMI.findUniqueOrThrow({ where: { id: emi.id } })).toMatchObject({ emisPaid: 0, isArchived: false });
+    expect(await prisma.monthlyPayment.count({ where: { entityId: emi.id } })).toBe(0);
+    vi.setSystemTime(new Date('2026-10-30T06:00:00Z'));
+    await syncCardEMIProgress(prisma, user.id, emi.id);
+    expect(await prisma.cardEMI.findUniqueOrThrow({ where: { id: emi.id } })).toMatchObject({ emisPaid: 1, isArchived: true });
     expect(await balance(account.id)).toBe(100000);
     expect(await prisma.transaction.count({ where: { userId: user.id } })).toBe(0);
   });

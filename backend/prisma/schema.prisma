@@ -430,7 +430,9 @@ model Loan {
   principal        Decimal  @db.Decimal(14, 2)
   interestRate     Decimal  @db.Decimal(5, 2)
   emi              Decimal  @db.Decimal(14, 2)
-  remainingBalance Decimal  @db.Decimal(14, 2)
+  remainingBalance Decimal  @db.Decimal(14, 2) // cache: openingBalance less principal repaid through recorded payments (schedule/progress)
+  // Balance when the loan was entered (or last corrected by hand); recorded EMIs and prepayments come off it.
+  openingBalance   Decimal  @default(0) @db.Decimal(14, 2)
   tenureMonths     Int
   startDate        DateTime
   lender           String?

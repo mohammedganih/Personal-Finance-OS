@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client';
+import { syncLoanBalance } from '../schedule/progress';
 import { prisma } from '../lib/prisma';
 import { createError } from '../middleware/error.middleware';
 import { currentMonth, monthWindow } from './monthlyPayments.service';
@@ -47,6 +48,7 @@ export async function undoPayment(userId: string, input: UndoInput) {
       if (txns.length) await tx.transaction.deleteMany({ where: { id: { in: txns.map(t => t.id) }, userId } });
     }
     await tx.monthlyPayment.delete({ where: { id: event.id } });
+    if (input.type === 'LOAN') await syncLoanBalance(tx, input.id);
     if (input.type === 'CREDIT_CARD') await syncCardFromStatements(tx, userId, input.id);
     return { type: input.type, id: input.id, month, undone: true, previousStatus: event.status };
   });
@@ -58,9 +60,8 @@ async function reverseEntity(tx: Prisma.TransactionClient, userId: string, type:
   if (type === 'LOAN') {
     const loan = await tx.loan.findFirst({ where: { id, userId } });
     if (!loan) throw createError('Loan not found', 404);
-    // Interest never reduced the balance; only the principal portion did.
-    const principal = txns.filter(t => !(t.description ?? '').startsWith('EMI Interest:')).reduce((s, t) => s + Number(t.amount), 0);
-    await tx.loan.update({ where: { id }, data: { remainingBalance: { increment: principal }, isActive: true } });
+    // The balance is re-derived from the remaining payments once this one is gone.
+    await tx.loan.update({ where: { id }, data: { isActive: true } });
     if (!loan.isActive) await tx.loanEvent.deleteMany({ where: { loanId: id, type: 'CLOSED' } });
   } else if (type === 'INVESTMENT') {
     const inv = await tx.investment.findFirst({ where: { id, userId } });
@@ -78,6 +79,7 @@ async function reverseEntity(tx: Prisma.TransactionClient, userId: string, type:
   } else if (type === 'CARD_EMI') {
     const emi = await tx.cardEMI.findFirst({ where: { id, userId } });
     if (!emi) throw createError('Card EMI not found', 404);
-    await tx.cardEMI.update({ where: { id }, data: { emisPaid: Math.max(0, emi.emisPaid - 1), isArchived: false } });
+    // Its billed count comes from the schedule, so only an archived EMI needs reopening.
+    if (emi.isArchived && emi.emisPaid < emi.tenureMonths) await tx.cardEMI.update({ where: { id }, data: { isArchived: false } });
   }
 }

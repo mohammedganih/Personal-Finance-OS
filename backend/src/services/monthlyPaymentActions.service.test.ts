@@ -8,6 +8,8 @@ const { tx } = vi.hoisted(() => ({ tx: {
 } }));
 vi.mock('../lib/prisma', () => ({ prisma: { $transaction: (fn: (client: typeof tx) => unknown) => fn(tx) } }));
 vi.mock('../lib/paymentCategory', () => ({ findCategory: vi.fn().mockResolvedValue('category') }));
+// The loan balance is re-derived from recorded payments (covered by the integration tests).
+vi.mock('../schedule/progress', () => ({ syncLoanBalance: vi.fn() }));
 import { decideMonthlyPayment } from './monthlyPayments.service';
 beforeEach(() => {
   vi.resetAllMocks();
