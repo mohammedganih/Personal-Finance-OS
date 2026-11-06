@@ -93,7 +93,7 @@ export default function SpendingPage() {
   const top = data?.categories.find((c) => c.total > 0);
 
   return (
-    <div className="mx-auto max-w-6xl space-y-4">
+    <div className="mx-auto max-w-6xl space-y-4 text-ink-primary">
       <RegisterHeader
         totals={[
           { label: `Spent in ${formatDate(`${month}-01`, 'MMMM')}`, value: data ? formatCurrency(data.total) : '—', note: 'bank and card, everyday spending' },

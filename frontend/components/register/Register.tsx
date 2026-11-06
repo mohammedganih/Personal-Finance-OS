@@ -19,7 +19,7 @@ export interface RegisterTotal {
 /** The page: header totals, then the register itself, then anything below (e.g. closed items). */
 export function RegisterPage({ totals, actions, children }: { totals: RegisterTotal[]; actions?: ReactNode; children: ReactNode }) {
   return (
-    <div className="mx-auto max-w-6xl space-y-4">
+    <div className="mx-auto max-w-6xl space-y-4 text-ink-primary">
       <RegisterHeader totals={totals} actions={actions} />
       {children}
     </div>
@@ -28,7 +28,7 @@ export function RegisterPage({ totals, actions, children }: { totals: RegisterTo
 
 export function RegisterHeader({ totals, actions }: { totals: RegisterTotal[]; actions?: ReactNode }) {
   return (
-    <section className="card-light flex flex-wrap items-end justify-between gap-x-8 gap-y-3 px-5 py-4">
+    <section className="card-light flex flex-wrap items-end justify-between gap-x-8 gap-y-3 px-5 py-4 text-ink-primary">
       <dl className="grid flex-1 grid-cols-2 gap-x-8 gap-y-3 sm:flex sm:flex-wrap">
         {totals.map((t) => (
           <div key={t.label} className="min-w-0">
@@ -70,7 +70,7 @@ export function RegisterTable<T>({ title, columns, rows, rowKey, onOpen, empty, 
       {rows.length === 0 ? (
         <p className="px-5 py-8 text-center text-sm text-ink-muted">{empty ?? 'Nothing here yet.'}</p>
       ) : (
-        <table className="w-full table-fixed text-sm">
+        <table className="w-full table-fixed text-sm text-ink-primary">
           <thead>
             <tr className="border-b border-line text-left text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
               {columns.map((c) => (
@@ -122,7 +122,7 @@ export function DetailDrawer({ open, onClose, title, subtitle, children }: { ope
         role="dialog"
         aria-modal="true"
         onClick={(e) => e.stopPropagation()}
-        className="flex h-full w-full flex-col bg-paper-card shadow-soft-hover focus:outline-none sm:max-w-lg"
+        className="flex h-full w-full flex-col bg-paper-card text-ink-primary shadow-soft-hover focus:outline-none sm:max-w-lg"
       >
         <div className="flex items-start justify-between gap-3 border-b border-line px-5 py-4">
           <div className="min-w-0">
