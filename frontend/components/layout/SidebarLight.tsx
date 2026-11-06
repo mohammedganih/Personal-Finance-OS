@@ -53,8 +53,8 @@ export function SidebarLight() {
           return (
             <Fragment key={item.href}>
               {item.group !== (NAV_ITEMS[index - 1]?.group ?? '') && (
-                <p aria-hidden={item.group === 'spacer'} className="px-3 pb-1 pt-4 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
-                  {item.group === 'spacer' ? ' ' : item.group}
+                <p className="px-3 pb-1 pt-4 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
+                  {item.group}
                 </p>
               )}
               <Link
