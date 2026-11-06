@@ -224,6 +224,7 @@ model Account {
   goalsFunded    Goal[]          @relation("GoalFundingAccount")
   recurringBills RecurringBill[] @relation("BillAccount")
   paymentCards CreditCard[] @relation("CardPaymentAccount")
+  salaries     MonthlySalary[] @relation("SalaryAccount")
 
   @@index([userId])
   @@index([memberId])
@@ -742,11 +743,15 @@ model MonthlySalary {
   month     String
   amount    Decimal  @db.Decimal(14, 2)
   note      String?
+  // The bank account the salary landed in. Its INCOME ledger entry
+  // (sourceType SALARY, sourceId = this id) credits this account.
+  accountId String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  member FamilyMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  user    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  member  FamilyMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  account Account?     @relation("SalaryAccount", fields: [accountId], references: [id], onDelete: SetNull)
 
   @@unique([userId, memberId, month])
   @@map("monthly_salaries")

@@ -4,9 +4,9 @@ import { prisma } from './prisma';
  * Finds the category by name for a user. Returns null if not found.
  * Used when auto-creating transactions from EMI/bill payments.
  */
-export async function findCategory(userId: string, name: string): Promise<string | null> {
+export async function findCategory(userId: string, name: string, type: 'INCOME' | 'EXPENSE' = 'EXPENSE'): Promise<string | null> {
   const cat = await prisma.category.findFirst({
-    where: { userId, name, type: 'EXPENSE' },
+    where: { userId, name, type },
     select: { id: true },
   });
   return cat?.id ?? null;
