@@ -5,6 +5,7 @@ import { getPaymentHistory, getReminders } from '../services/paymentHistory.serv
 import { decideMonthlyPayment, getPlanAround } from '../services/monthlyPayments.service';
 import { autoConfirm } from '../schedule/autoConfirm';
 import { getBuffer, saveBufferSettings } from '../services/buffer.service';
+import { getWhereWeStand } from '../services/whereWeStand.service';
 import { z } from 'zod';
 import { validate } from '../middleware/validate.middleware';
 import { AuthRequest } from '../types';
@@ -41,6 +42,10 @@ const historyQuery = z.object({ type: z.enum(['LOAN', 'INVESTMENT', 'CARD_EMI', 
 router.get('/payment-history', async (req: AuthRequest, res) => {
   const { type, id } = historyQuery.parse(req.query);
   res.json({ success: true, data: await getPaymentHistory(req.user!.userId, type, id) });
+});
+// Home's Where we stand card: net worth vs last month close, buffer vs target, debt left and when it ends.
+router.get('/where-we-stand', async (req: AuthRequest, res) => {
+  res.json({ success: true, data: await getWhereWeStand(req.user!.userId) });
 });
 router.get('/buffer', async (req: AuthRequest, res) => {
   res.json({ success: true, data: await getBuffer(req.user!.userId) });

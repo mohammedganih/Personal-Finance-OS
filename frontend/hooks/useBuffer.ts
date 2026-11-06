@@ -29,3 +29,18 @@ export function useSaveBufferSettings() {
     onError: () => toast({ title: 'Could not save the buffer', variant: 'destructive' }),
   });
 }
+
+export interface WhereWeStand {
+  netWorth: number;
+  /** Change since the last month close; null before any month is closed. */
+  netWorthChange: { amount: number; sinceMonth: string; approximate: boolean } | null;
+  buffer: Buffer;
+  debt: { total: number; lastEndsMonth: string | null; lastEndsName: string | null };
+}
+
+export function useWhereWeStand() {
+  return useQuery({
+    queryKey: ['dashboard', 'where-we-stand'],
+    queryFn: async () => (await api.get<{ data: WhereWeStand }>('/dashboard/where-we-stand')).data.data,
+  });
+}
