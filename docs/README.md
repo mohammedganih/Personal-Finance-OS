@@ -10,10 +10,11 @@ Every number comes from one ledger. Each transaction carries a **kind** (`INCOME
 - [Credit cards](features/credit-cards.md): monthly statements, card expenses, pay / undo, Home card spending.
 - [Account funding plan](features/account-funding-plan.md): how much to move into each bank account before payments go out.
 - [Ledger kinds, transfers, salary income and metrics](features/ledger-and-metrics.md): redesign foundation part 1.
+- [Schedule engine, due status and auto-debit](features/schedule-and-auto-debit.md): redesign foundation part 2.
 
 ## Design references
 - [Home redesign spec](design/home-redesign-spec.md): the brief the Home page was built from.
 - [Home redesign mockup](design/home-redesign-mockup.html): open in a browser for the visual reference.
 
 ## Database changes
-Schema changes are Prisma migrations in `backend/prisma/migrations/` (baseline `0_init`, then one folder per change). Older installs got hand-applied SQL patches, kept in `backend/prisma/patches/` for reference; they are already part of the `0_init` baseline.
+Schema changes are Prisma migrations in `backend/prisma/migrations/` (baseline `0_init`, then one folder per change). Payment statuses live in `due_status`; the old `monthly_payments` and `bill_occurrences` tables are read-only and due for removal (see the schedule doc). Older installs got hand-applied SQL patches, kept in `backend/prisma/patches/` for reference; they are already part of the `0_init` baseline.
