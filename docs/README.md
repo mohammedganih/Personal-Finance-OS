@@ -12,6 +12,7 @@ Every number comes from one ledger. Each transaction carries a **kind** (`INCOME
 - [Ledger kinds, transfers, salary income and metrics](features/ledger-and-metrics.md): redesign foundation part 1.
 - [Schedule engine, due status and auto-debit](features/schedule-and-auto-debit.md): redesign foundation part 2.
 - [Home v2](features/home-v2.md): spent so far, expected salary, buffer, Where we stand, month close, quick add, phone layout.
+- [Registers and Spending](features/registers.md): Loans, Credit cards, Bills, Savings & investments as registers; Spending; one category list; five nav groups.
 
 ## Design references
 - [Home redesign spec](design/home-redesign-spec.md): the brief the Home page was built from.
