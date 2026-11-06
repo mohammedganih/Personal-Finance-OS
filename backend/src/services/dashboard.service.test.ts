@@ -59,18 +59,18 @@ describe('dashboard.service month scoping', () => {
     expect(overview.investmentValue).toBeGreaterThan(100000); // 4 * 30000 deposited, plus interest
   });
 
-  it('investmentValue matches a simple SIP\'s quantity*currentPrice (the one case where the old formula was coincidentally right)', async () => {
+  it('investmentValue counts a SIP at the value entered for it', async () => {
     const userId = await setupUser();
     await prisma.investment.create({
       data: {
         userId, assetName: 'Test SIP', assetType: 'SIP',
-        quantity: 100, currentPrice: 50, monthlyAmount: 5000,
-        purchaseDate: new Date(),
+        quantity: 100, currentPrice: 50, monthlyAmount: 5000, enteredValue: 5000,
+        purchaseDate: new Date(), priceUpdatedAt: new Date(),
       },
     });
 
     const overview = await dashboardService.getDashboardOverview(userId);
-    expect(overview.investmentValue).toBe(5000); // 100 * 50
+    expect(overview.investmentValue).toBe(5000);
   });
 });
 

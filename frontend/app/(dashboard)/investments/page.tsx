@@ -11,6 +11,7 @@ import { RegisterPage, RegisterTable, RegisterColumn, DetailDrawer, DrawerSectio
 import { PaymentActions } from '@/components/shared/PaymentActions';
 import { PaymentHistoryList } from '@/components/shared/PaymentHistoryList';
 import { InvestmentForm } from '@/components/investments/InvestmentForm';
+import { UpdateValue, ValueHint } from '@/components/investments/UpdateValue';
 import { InvestmentScheduleDialog, scheduleSummary } from '@/components/investments/InvestmentScheduleDialog';
 import { Investment } from '@/types';
 
@@ -51,6 +52,7 @@ export default function InvestmentsPage() {
           <span>
             <b className="text-ink-primary">{formatCurrency(h.value)}</b>
             {h.invested > 0 && Math.abs(gain) >= 1 && <span className={cn('block text-xs', gain >= 0 ? 'text-updown-up' : 'text-updown-down')}>{gain >= 0 ? '+' : '−'}{formatCurrency(Math.abs(gain))}</span>}
+            <ValueHint h={h} />
           </span>
         );
       },
@@ -112,6 +114,11 @@ export default function InvestmentsPage() {
               )}
               {full && open.recurring && scheduleSummary(full) && <p className="mt-2 text-xs text-ink-muted">{scheduleSummary(full)}</p>}
             </DrawerSection>
+            {open.valuation && (
+              <DrawerSection title="Update value">
+                <UpdateValue key={open.id} h={open} />
+              </DrawerSection>
+            )}
             {full && (
               <div className="flex flex-wrap gap-2">
                 <button type="button" className={btn} onClick={() => setDialog('edit')}>Edit</button>

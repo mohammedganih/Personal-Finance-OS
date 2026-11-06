@@ -41,7 +41,8 @@ export function useUpdateInvestment() {
   const { toast } = useToast();
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) => api.put(`/investments/${id}`, data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['investments'] }); qc.invalidateQueries({ queryKey: ['dashboard', 'monthly-plan'] });
+    // Values feed net worth, Home and the Health check too.
+    onSuccess: () => { ['investments', 'dashboard', 'wealth', 'lookback'].forEach((key) => qc.invalidateQueries({ queryKey: [key] }));
       toast({ title: 'Investment updated' }); },
     onError: () => toast({ title: 'Failed to update investment', variant: 'destructive' }),
   });

@@ -10,6 +10,7 @@ import { getDebtStrategy, getRecommendations } from './debtIntelligence.service'
 import { getDiversification, getMaturityRadar } from './investmentIntelligence.service';
 import { getFundingOpportunities } from './fundingIntelligence.service';
 import { getAssetLoanInsights } from './assetLoanIntelligence.service';
+import { STALE_VALUE_DAYS, valueStatus } from './investment.service';
 
 // The Health check page: a few plain checks (buffer, debt to income, savings
 // rate, maturities, out-of-date data), each with a level, plus the advice the
@@ -20,8 +21,8 @@ export type Level = 'good' | 'watch' | 'act';
 const DAY = 24 * 60 * 60 * 1000;
 const round = (n: number) => Math.round(n * 100) / 100;
 /** Holdings valued by units × price, which go stale when the price isn't updated. */
-const PRICED_TYPES = new Set(['SIP', 'MUTUAL_FUND', 'STOCK', 'ETF', 'CRYPTO']);
-export const STALE_PRICE_DAYS = 60;
+const PRICED_TYPES = new Set(['STOCK', 'ETF', 'CRYPTO']);
+export const STALE_PRICE_DAYS = STALE_VALUE_DAYS;
 export const STALE_BALANCE_DAYS = 30;
 
 export interface StaleItem {
@@ -44,20 +45,29 @@ export function savingsRateLevel(pct: number | null): Level {
   return pct >= 10 ? 'watch' : 'act';
 }
 
-/** Pure: priced holdings whose units or price haven't changed in STALE_PRICE_DAYS. */
+/**
+ * Pure: SIPs and mutual funds with no value entered (valued at what was paid
+ * in) or one older than STALE_VALUE_DAYS, and priced holdings (stocks, ETFs,
+ * crypto) whose units or price haven't changed in that time.
+ */
 export function stalePrices(
-  investments: { id: string; assetName: string; assetType: string; quantity: unknown; priceUpdatedAt: Date | null; updatedAt: Date }[],
+  investments: { id: string; assetName: string; assetType: string; quantity: unknown; enteredValue: unknown; priceUpdatedAt: Date | null; updatedAt: Date }[],
   now: Date,
 ): StaleItem[] {
-  return investments
-    .filter((i) => PRICED_TYPES.has(i.assetType) && Number(i.quantity) > 0)
-    .map((i) => ({ i, days: Math.floor((now.getTime() - (i.priceUpdatedAt ?? i.updatedAt).getTime()) / DAY) }))
-    .filter(({ days }) => days >= STALE_PRICE_DAYS)
-    .sort((a, b) => b.days - a.days)
-    .map(({ i, days }) => ({
-      kind: 'PRICE' as const, id: i.id, name: i.assetName, level: 'watch' as const, href: '/investments',
-      detail: `Units or NAV last updated ${days} days ago, so its value may be off.`,
-    }));
+  const out: (StaleItem & { order: number })[] = [];
+  for (const i of investments) {
+    const base = { kind: 'PRICE' as const, id: i.id, name: i.assetName, level: 'watch' as const, href: '/investments' };
+    const status = valueStatus(i, undefined, now);
+    if (status) {
+      if (status.atPaidIn) out.push({ ...base, order: 1e6, detail: 'Valued at the amount paid in. Enter its value (units × NAV, or the value) to see how it is doing.' });
+      else if (status.needsUpdate) out.push({ ...base, order: status.daysSinceValued!, detail: `Value last entered ${status.daysSinceValued} days ago; instalments since are added on top.` });
+      continue;
+    }
+    if (!PRICED_TYPES.has(i.assetType) || Number(i.quantity) <= 0) continue;
+    const days = Math.floor((now.getTime() - (i.priceUpdatedAt ?? i.updatedAt).getTime()) / DAY);
+    if (days >= STALE_PRICE_DAYS) out.push({ ...base, order: days, detail: `Units or price last updated ${days} days ago, so its value may be off.` });
+  }
+  return out.sort((a, b) => b.order - a.order).map(({ order: _order, ...s }) => s);
 }
 
 /** Pure: the latest statement date that has passed for each card, where no statement was entered for it. */
@@ -98,7 +108,7 @@ export async function getHealthCheck(userId: string, now = new Date()) {
     getMonthFlowsRange(userId, lastMonth, 3),
     prisma.loan.findMany({ where: { userId, isActive: true }, select: { emi: true } }),
     prisma.cardEMI.findMany({ where: { userId, isArchived: false }, select: { emiAmount: true, emisPaid: true, tenureMonths: true } }),
-    prisma.investment.findMany({ where: { userId }, select: { id: true, assetName: true, assetType: true, quantity: true, priceUpdatedAt: true, updatedAt: true } }),
+    prisma.investment.findMany({ where: { userId }, select: { id: true, assetName: true, assetType: true, quantity: true, enteredValue: true, priceUpdatedAt: true, updatedAt: true } }),
     prisma.creditCard.findMany({ where: { userId, isActive: true }, select: { id: true, cardName: true, statementDate: true, dueDate: true } }),
     prisma.cardStatement.findMany({ where: { userId }, select: { creditCardId: true, month: true } }),
     prisma.monthClose.findUnique({ where: { userId_month: { userId, month: lastMonth } }, select: { month: true } }),

@@ -83,7 +83,7 @@ describe('buildCashflows (pure)', () => {
 
   it('builds one outflow per elapsed month for an installment holding', () => {
     const inv = makeInvestment({
-      assetType: 'SIP', quantity: 50 as any, currentPrice: 25 as any,
+      assetType: 'SIP', quantity: 50 as any, currentPrice: 25 as any, enteredValue: 1250 as any,
       monthlyAmount: 1000 as any, purchaseDate: new Date(2025, 0, 15),
     });
     const now = new Date(2025, 3, 20); // 3 full months elapsed (Jan->Apr)
@@ -91,7 +91,7 @@ describe('buildCashflows (pure)', () => {
     // 3 outflows + 1 final inflow
     expect(cfs).toHaveLength(4);
     expect(cfs.slice(0, 3).every((c) => c.amount === -1000)).toBe(true);
-    expect(cfs[3].amount).toBe(50 * 25);
+    expect(cfs[3].amount).toBe(1250); // the value entered
   });
 
   it('returns an empty array when there is no elapsed month yet', () => {

@@ -337,8 +337,11 @@ model Investment {
 
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
-  // When units or the price (NAV) were last changed; the Health check flags old ones.
+  // When units, the price (NAV) or the value were last entered; the Health check flags old ones.
   priceUpdatedAt DateTime?
+  // SIPs and mutual funds: the value as last entered (units x NAV, or typed),
+  // as of priceUpdatedAt. Null = never entered, so valued at what was paid in.
+  enteredValue   Decimal?  @db.Decimal(14, 2)
 
   user        User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   member      FamilyMember?         @relation("InvPrimary", fields: [memberId],      references: [id], onDelete: SetNull)

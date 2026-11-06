@@ -18,15 +18,19 @@ describe('health check', () => {
     expect([savingsRateLevel(25), savingsRateLevel(15), savingsRateLevel(5)]).toEqual(['good', 'watch', 'act']);
   });
 
-  it('flags priced holdings not updated in 60 days', () => {
+  it('flags funds valued at paid in, values entered 60+ days ago, and old stock prices', () => {
     const old = new Date('2026-08-01T00:00:00Z');
     const rows = [
-      { id: 'a', assetName: 'Old SIP', assetType: 'SIP', quantity: 10, priceUpdatedAt: old, updatedAt: NOW },
-      { id: 'b', assetName: 'Fresh SIP', assetType: 'SIP', quantity: 10, priceUpdatedAt: new Date('2026-10-20'), updatedAt: NOW },
-      { id: 'c', assetName: 'No units yet', assetType: 'SIP', quantity: 0, priceUpdatedAt: old, updatedAt: old },
-      { id: 'd', assetName: 'FD', assetType: 'FIXED_DEPOSIT', quantity: 1, priceUpdatedAt: old, updatedAt: old },
+      { id: 'a', assetName: 'Old value', assetType: 'SIP', quantity: 10, enteredValue: 1000, priceUpdatedAt: old, updatedAt: NOW },
+      { id: 'b', assetName: 'Fresh value', assetType: 'SIP', quantity: 10, enteredValue: 1000, priceUpdatedAt: new Date('2026-10-20'), updatedAt: NOW },
+      { id: 'c', assetName: 'Paid in only', assetType: 'SIP', quantity: 0, enteredValue: null, priceUpdatedAt: old, updatedAt: old },
+      { id: 'd', assetName: 'Lump sum', assetType: 'MUTUAL_FUND', quantity: 5, enteredValue: null, priceUpdatedAt: NOW, updatedAt: NOW },
+      { id: 'e', assetName: 'FD', assetType: 'FIXED_DEPOSIT', quantity: 1, enteredValue: null, priceUpdatedAt: old, updatedAt: old },
+      { id: 'f', assetName: 'Old share', assetType: 'STOCK', quantity: 3, enteredValue: null, priceUpdatedAt: old, updatedAt: old },
     ];
-    expect(stalePrices(rows, NOW).map((s) => s.name)).toEqual(['Old SIP']);
+    const stale = stalePrices(rows, NOW);
+    expect(stale.map((s) => s.name)).toEqual(['Paid in only', 'Lump sum', 'Old value', 'Old share']);
+    expect(stale[0].detail).toMatch(/paid in/);
   });
 
   it('flags a card whose last statement date passed without a statement', () => {
@@ -43,6 +47,7 @@ describe('health check', () => {
     const bank = await prisma.account.create({ data: { userId: user.id, memberId: a.id, name: 'Bank', type: 'SAVINGS', balance: 50000 } });
     await saveSalary(user.id, { memberId: a.id, month: '2026-11', amount: 100000, accountId: bank.id });
     await createLoan(user.id, { name: 'Car', loanType: 'CAR', principal: 300000, interestRate: 9, emi: 35000, remainingBalance: 300000, tenureMonths: 10, startDate: '2026-01-05', autoDebit: false } as never);
+    // Units and NAV typed long ago, but no value entered: valued at paid in.
     const sip = await prisma.investment.create({ data: { userId: user.id, assetName: 'Flexi SIP', assetType: 'SIP', quantity: 100, buyPrice: 10, currentPrice: 12, monthlyAmount: 1000, purchaseDate: new Date('2026-01-01'), priceUpdatedAt: new Date('2026-07-01') } });
 
     let h = await getHealthCheck(user.id);
@@ -53,7 +58,7 @@ describe('health check', () => {
     expect(h.stale.map((s) => s.kind).sort()).toEqual(['BALANCES', 'MONTH_CLOSE', 'PRICE']);
     expect(h.advice.strategy?.order).toEqual(['Car']);
 
-    // Updating the NAV and checking in the balances clears those flags.
+    // Entering the NAV and checking in the balances clears those flags.
     await updateInvestment(user.id, sip.id, { currentPrice: 13 } as never);
     await checkInBalances(user.id, [{ accountId: bank.id, balance: 150000 }]);
     h = await getHealthCheck(user.id);

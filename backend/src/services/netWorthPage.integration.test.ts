@@ -29,7 +29,7 @@ describe('net worth page', () => {
 
   it('lists assets and debts line by line, adding up to the balance sheet, with the trend from month closes', async () => {
     const { user, bank } = await household();
-    await prisma.investment.create({ data: { userId: user.id, assetName: 'Index fund', assetType: 'MUTUAL_FUND', quantity: 10, buyPrice: 100, currentPrice: 150, purchaseDate: new Date('2026-01-01') } });
+    await prisma.investment.create({ data: { userId: user.id, assetName: 'Index fund', assetType: 'MUTUAL_FUND', quantity: 10, buyPrice: 100, currentPrice: 150, enteredValue: 1500, purchaseDate: new Date('2026-01-01') } });
     await prisma.investment.create({ data: { userId: user.id, assetName: 'Gold coin', assetType: 'GOLD', quantity: 2, buyPrice: 6000, currentPrice: 7000, purchaseDate: new Date('2026-01-01') } });
     await prisma.p2PLoan.create({ data: { userId: user.id, personName: 'Ali', type: 'LENT', amount: 5000, remainingAmount: 3000, date: new Date('2026-09-01') } });
     await prisma.p2PLoan.create({ data: { userId: user.id, personName: 'Sara', type: 'BORROWED', amount: 1000, remainingAmount: 1000, date: new Date('2026-09-01') } });
