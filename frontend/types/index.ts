@@ -44,6 +44,8 @@ export interface Category {
 // ─── Transaction ─────────────────────────────────────────────────────────────
 
 export type TransactionType = 'INCOME' | 'EXPENSE';
+/** What the money was for; TRANSFER entries move money between our own accounts. */
+export type TransactionKind = 'INCOME' | 'SPEND' | 'TRANSFER' | 'SAVE' | 'DEBT' | 'ADJUST';
 
 export interface Transaction {
   id: string;
@@ -55,6 +57,8 @@ export interface Transaction {
   date: string;
   isRecurring: boolean;
   isWealthTransfer: boolean;
+  kind?: TransactionKind;
+  transferGroupId?: string | null;
   memberId: string | null;
   splitMemberId: string | null;
   splitRatio: number | null;

@@ -1,2 +1,2 @@
-export { createTransactionSchema, updateTransactionSchema, transactionQuerySchema } from '@shazah/shared';
-export type { CreateTransactionInput, UpdateTransactionInput, TransactionQuery } from '@shazah/shared';
+export { createTransactionSchema, createTransferSchema, updateTransactionSchema, transactionQuerySchema } from '@shazah/shared';
+export type { CreateTransactionInput, CreateTransferInput, UpdateTransactionInput, TransactionQuery } from '@shazah/shared';

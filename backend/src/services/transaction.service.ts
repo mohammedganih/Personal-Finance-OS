@@ -1,3 +1,5 @@
+import { randomUUID } from 'crypto';
+import type { Transaction } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { kindForType } from '../lib/ledger';
 import { createError } from '../middleware/error.middleware';
@@ -6,6 +8,7 @@ import { writeSplit, fetchSplits, attachSplit } from '../lib/ownershipSplit';
 import { assertOwned } from '../lib/ownership';
 import {
   CreateTransactionInput,
+  CreateTransferInput,
   UpdateTransactionInput,
   TransactionQuery,
 } from '../validators/transaction.validator';
@@ -93,9 +96,39 @@ export async function createTransaction(userId: string, input: CreateTransaction
   return serializeTransaction(attachSplit(transaction, splits.get(transaction.id)));
 }
 
+/**
+ * Moves money between two of the user's own accounts: one TRANSFER leg out of
+ * `from` and one into `to`, sharing a transferGroupId, so it never counts as
+ * income or spending. Both balances move in the same DB transaction.
+ */
+export async function createTransfer(userId: string, input: CreateTransferInput) {
+  if (input.fromAccountId === input.toAccountId) throw createError('Pick two different accounts', 400);
+  await assertOwned(userId, { accounts: [input.fromAccountId, input.toAccountId] });
+  const [from, to] = await Promise.all([input.fromAccountId, input.toAccountId].map((id) => prisma.account.findUniqueOrThrow({ where: { id }, select: { name: true } })));
+  const transferGroupId = randomUUID();
+  const date = new Date(input.date);
+  const common = { userId, amount: input.amount, date, kind: 'TRANSFER' as const, transferGroupId, notes: input.note };
+
+  const legs = await prisma.$transaction(async (tx) => {
+    const out = await tx.transaction.create({
+      data: { ...common, type: 'EXPENSE', accountId: input.fromAccountId, description: `Transfer to ${to.name}` },
+      include: TRANSACTION_INCLUDE,
+    });
+    const into = await tx.transaction.create({
+      data: { ...common, type: 'INCOME', accountId: input.toAccountId, description: `Transfer from ${from.name}` },
+      include: TRANSACTION_INCLUDE,
+    });
+    await tx.account.update({ where: { id: input.fromAccountId }, data: { balance: { decrement: input.amount } } });
+    await tx.account.update({ where: { id: input.toAccountId }, data: { balance: { increment: input.amount } } });
+    return [out, into];
+  });
+  return { transferGroupId, legs: legs.map(serializeTransaction) };
+}
+
 export async function updateTransaction(userId: string, id: string, input: UpdateTransactionInput) {
   const existing = await prisma.transaction.findFirst({ where: { id, userId } });
   if (!existing) throw createError('Transaction not found', 404);
+  if (existing.transferGroupId) return updateTransferLeg(userId, existing, input);
   await assertOwned(userId, { accounts: [input.accountId], categories: [input.categoryId], members: [input.memberId, input.splitMemberId] });
 
   const transaction = await prisma.$transaction(async (tx) => {
@@ -145,9 +178,48 @@ export async function updateTransaction(userId: string, id: string, input: Updat
   return serializeTransaction(attachSplit(transaction, splits.get(id)));
 }
 
+/**
+ * A transfer leg can change its date, description and notes (the date and notes
+ * apply to both legs). Anything that would unbalance the pair is refused: delete
+ * the transfer and add it again instead.
+ */
+async function updateTransferLeg(userId: string, existing: Transaction, input: UpdateTransactionInput) {
+  const changed = (value: unknown, current: unknown) => value !== undefined && value !== null && value !== current;
+  if (changed(input.type, existing.type) || changed(input.amount, Number(existing.amount)) || changed(input.accountId, existing.accountId)
+    || changed(input.categoryId, existing.categoryId) || changed(input.memberId, existing.memberId) || input.splitMemberId) {
+    throw createError('To change the amount or accounts of a transfer, delete it and add it again', 400);
+  }
+  await prisma.$transaction(async (tx) => {
+    if (input.description !== undefined) await tx.transaction.update({ where: { id: existing.id }, data: { description: input.description } });
+    await tx.transaction.updateMany({
+      where: { userId, transferGroupId: existing.transferGroupId },
+      data: {
+        ...(input.date  !== undefined && { date: new Date(input.date) }),
+        ...(input.notes !== undefined && { notes: input.notes }),
+      },
+    });
+  });
+  const updated = await prisma.transaction.findUniqueOrThrow({ where: { id: existing.id }, include: TRANSACTION_INCLUDE });
+  return serializeTransaction(updated);
+}
+
 export async function deleteTransaction(userId: string, id: string) {
   const existing = await prisma.transaction.findFirst({ where: { id, userId } });
   if (!existing) throw createError('Transaction not found', 404);
+
+  // A transfer goes as a pair: remove both legs and undo both balance moves.
+  if (existing.transferGroupId) {
+    const legs = await prisma.transaction.findMany({ where: { userId, transferGroupId: existing.transferGroupId } });
+    await prisma.$transaction(async (tx) => {
+      for (const leg of legs) {
+        await tx.transaction.delete({ where: { id: leg.id } });
+        if (leg.accountId) {
+          await tx.account.update({ where: { id: leg.accountId }, data: { balance: { increment: -signedDelta(leg.type, Number(leg.amount)) } } });
+        }
+      }
+    });
+    return;
+  }
 
   await prisma.$transaction(async (tx) => {
     await tx.transaction.delete({ where: { id } });

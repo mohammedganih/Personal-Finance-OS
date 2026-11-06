@@ -72,7 +72,7 @@ export function useUpdateTransaction() {
       qc.invalidateQueries({ queryKey: ['dashboard'] });
       toast({ title: 'Transaction updated' });
     },
-    onError: () => toast({ title: 'Failed to update transaction', variant: 'destructive' }),
+    onError: (err) => toast({ title: 'Failed to update transaction', description: errorMessage(err), variant: 'destructive' }),
   });
 }
 
@@ -88,5 +88,25 @@ export function useDeleteTransaction() {
       toast({ title: 'Transaction deleted' });
     },
     onError: () => toast({ title: 'Failed to delete transaction', variant: 'destructive' }),
+  });
+}
+
+const errorMessage = (err: unknown) => (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+
+/** Moves money between two of our own accounts (POST /transactions/transfer). */
+export function useCreateTransfer() {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: (data: { fromAccountId: string; toAccountId: string; amount: number; date: string; note?: string }) =>
+      api.post('/transactions/transfer', data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['transactions'] });
+      qc.invalidateQueries({ queryKey: ['accounts'] });
+      qc.invalidateQueries({ queryKey: ['dashboard'] });
+      toast({ title: 'Transfer recorded' });
+    },
+    onError: (err) => toast({ title: 'Failed to record transfer', description: errorMessage(err), variant: 'destructive' }),
   });
 }
