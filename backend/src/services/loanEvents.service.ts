@@ -89,8 +89,8 @@ export async function undoLoanEvent(userId: string, loanId: string, eventId: str
       await tx.loan.update({ where: { id: loanId }, data: { interestRate: event.oldRate ?? loan.interestRate, emi: event.oldEmi ?? loan.emi } });
     } else {
       // A later EMI was worked out from the reduced balance, so it must be undone first.
-      const laterEmi = await tx.monthlyPayment.findFirst({ where: { userId, entityType: 'LOAN', entityId: loanId, status: 'PAID', createdAt: { gt: event.createdAt } } });
-      if (laterEmi) throw createError(`Undo the ${laterEmi.month} EMI first`, 409);
+      const laterEmi = await tx.dueStatus.findFirst({ where: { userId, itemType: 'LOAN', itemId: loanId, status: { in: ['PAID', 'AUTO'] }, createdAt: { gt: event.createdAt } } });
+      if (laterEmi) throw createError(`Undo the ${laterEmi.period} EMI first`, 409);
       if (event.transactionId) {
         const txn = await tx.transaction.findFirst({ where: { id: event.transactionId, userId } });
         if (txn) {

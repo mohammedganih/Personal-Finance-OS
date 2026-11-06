@@ -36,13 +36,11 @@ export function instalmentFor(inv: { monthlyAmount: unknown; pauseFrom?: string 
 /** A recorded paid/skipped/auto instalment, as the engine reads it. */
 export interface StatusRecord { itemType: ItemType; itemId: string; period: string; status: Exclude<DueStatus, 'PENDING'>; amount: number; paidDate: Date | null }
 
-const ENTITY_TO_ITEM: Record<string, ItemType> = { LOAN: 'LOAN', INVESTMENT: 'INVESTMENT', CARD_EMI: 'CARD_EMI', CREDIT_CARD: 'CARD_STATEMENT' };
-
 async function loadStatusRecords(userId: string, periods: string[]): Promise<StatusRecord[]> {
-  const rows = await prisma.monthlyPayment.findMany({ where: { userId, month: { in: periods } } });
-  return rows.filter((r) => ENTITY_TO_ITEM[r.entityType]).map((r) => ({
-    itemType: ENTITY_TO_ITEM[r.entityType], itemId: r.entityId, period: r.month,
-    status: r.status as StatusRecord['status'], amount: Number(r.amount), paidDate: r.createdAt,
+  const rows = await prisma.dueStatus.findMany({ where: { userId, period: { in: periods }, itemType: { in: ['LOAN', 'INVESTMENT', 'CARD_EMI', 'CARD_STATEMENT'] } } });
+  return rows.map((r) => ({
+    itemType: r.itemType as ItemType, itemId: r.itemId, period: r.period,
+    status: r.status, amount: Number(r.amount ?? 0), paidDate: r.paidDate ?? r.createdAt,
   }));
 }
 

@@ -36,7 +36,7 @@ describe('card bill is where card money moves', () => {
     const plan = await getMonthlyPlan(user.id, '2026-10');
     expect(plan.paid).toBe(5000);
     expect(plan.creditCards).toBe(5000);
-    const event = await prisma.monthlyPayment.findFirstOrThrow({ where: { entityType: 'CREDIT_CARD' } });
+    const event = await prisma.dueStatus.findFirstOrThrow({ where: { itemType: 'CARD_STATEMENT' } });
     expect(event.transactionIds).toHaveLength(2);
   });
 
@@ -73,6 +73,6 @@ describe('card bill is where card money moves', () => {
     await payOccurrence(user.id, fromBank.id, { dueDate: '2026-10-09', createTransaction: true });
     expect(await prisma.transaction.count()).toBe(1);
     expect(await balance(account.id)).toBe(48800);
-    expect(await prisma.billOccurrence.count({ where: { status: 'PAID' } })).toBe(2);
+    expect(await prisma.dueStatus.count({ where: { itemType: 'BILL', status: 'PAID' } })).toBe(2);
   });
 });

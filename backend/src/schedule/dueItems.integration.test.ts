@@ -45,7 +45,7 @@ describe('schedule engine', () => {
     await decideMonthlyPayment(user.id, 'LOAN', loan.id, 'PAID');
     await payOccurrence(user.id, bill.id, { dueDate: '2026-11-10', createTransaction: true });
     const items = await dueItems(user.id, '2026-11', '2026-11');
-    expect(items.find((i) => i.itemType === 'LOAN')).toMatchObject({ status: 'PAID', paidAmount: 10000, paidDate: expect.any(String) });
+    expect(items.find((i) => i.itemType === 'LOAN')).toMatchObject({ status: 'PAID', paidAmount: 10000, paidDate: '2026-11-04' });
     expect(items.find((i) => i.itemType === 'BILL')).toMatchObject({ status: 'PAID', paidAmount: 20000 });
 
     const plan = await getMonthlyPlan(user.id, '2026-11');

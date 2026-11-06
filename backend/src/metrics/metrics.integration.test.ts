@@ -49,7 +49,7 @@ async function household() {
   const card = await prisma.creditCard.create({ data: { userId: user.id, cardName: 'Card', creditLimit: 100000, outstanding: 99999, dueDate: new Date('2026-11-29') } });
   await prisma.cardEMI.create({ data: { userId: user.id, creditCardId: card.id, itemName: 'Phone', totalAmount: 24000, emiAmount: 2000, tenureMonths: 12, emisPaid: 6, isNoCost: true, startDate: new Date('2026-05-01') } });
   await prisma.cardStatement.create({ data: { userId: user.id, creditCardId: card.id, month: '2026-11', totalDue: 20000, dueDate: new Date('2026-11-29'), statementDate: new Date('2026-11-11'), periodStart: new Date('2026-10-12') } });
-  await prisma.monthlyPayment.create({ data: { userId: user.id, entityType: 'CREDIT_CARD', entityId: card.id, month: '2026-11', status: 'PAID', amount: 5000 } });
+  await prisma.dueStatus.create({ data: { userId: user.id, itemType: 'CARD_STATEMENT', itemId: card.id, period: '2026-11', status: 'PAID', amount: 5000 } });
   await prisma.p2PLoan.createMany({ data: [
     { userId: user.id, personName: 'Sam', type: 'LENT', amount: 10000, remainingAmount: 10000, date: new Date('2026-09-01') },
     { userId: user.id, personName: 'Uncle', type: 'BORROWED', amount: 50000, remainingAmount: 40000, date: new Date('2026-08-01') },

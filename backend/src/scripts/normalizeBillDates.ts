@@ -18,6 +18,7 @@ import { prisma } from '../lib/prisma';
 const IST_OFFSET_MS = 330 * 60 * 1000;
 const isUtcMidnight = (d: Date | null): d is Date => !!d && d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0 && d.getUTCMilliseconds() === 0;
 const toIstMidnight = (d: Date) => new Date(d.getTime() - IST_OFFSET_MS);
+const istDay = (d: Date) => new Date(d.getTime() + IST_OFFSET_MS).toISOString().slice(0, 10);
 
 async function main() {
   const apply = process.argv.includes('--apply');
@@ -26,13 +27,14 @@ async function main() {
     .filter(f => isUtcMidnight(b[f]))
     .map(f => ({ table: 'recurring_bills', id: b.id, name: b.name, field: f, before: b[f]!.toISOString(), after: toIstMidnight(b[f]!).toISOString() })));
 
-  const occurrences = await prisma.billOccurrence.findMany({ select: { id: true, billId: true, dueDate: true } });
+  const occurrences = (await prisma.dueStatus.findMany({ where: { itemType: 'BILL' }, select: { id: true, itemId: true, dueDate: true } }))
+    .filter((o): o is { id: string; itemId: string; dueDate: Date } => !!o.dueDate).map(o => ({ id: o.id, billId: o.itemId, dueDate: o.dueDate }));
   const taken = new Set(occurrences.map(o => `${o.billId}:${o.dueDate.toISOString()}`));
   const skipped: string[] = [];
   const occChanges = occurrences.filter(o => isUtcMidnight(o.dueDate)).flatMap(o => {
     const after = toIstMidnight(o.dueDate).toISOString();
     if (taken.has(`${o.billId}:${after}`)) { skipped.push(`${o.id} (bill ${o.billId}): a record for that day already exists`); return []; }
-    return [{ table: 'bill_occurrences', id: o.id, name: o.billId, field: 'dueDate' as const, before: o.dueDate.toISOString(), after }];
+    return [{ table: 'due_status', id: o.id, name: o.billId, field: 'dueDate' as const, before: o.dueDate.toISOString(), after }];
   });
 
   const changes = [...billChanges, ...occChanges];
@@ -46,7 +48,7 @@ async function main() {
   console.log(`Saved old values to ${backup}`);
   await prisma.$transaction(changes.map(c => c.table === 'recurring_bills'
     ? prisma.recurringBill.update({ where: { id: c.id }, data: { [c.field]: new Date(c.after) } })
-    : prisma.billOccurrence.update({ where: { id: c.id }, data: { dueDate: new Date(c.after) } })));
+    : prisma.dueStatus.update({ where: { id: c.id }, data: { dueDate: new Date(c.after), dueKey: istDay(new Date(c.after)), period: istDay(new Date(c.after)).slice(0, 7) } })));
   console.log(`Updated ${changes.length} date(s).`);
 }
 

@@ -108,7 +108,7 @@ export async function syncCardFromStatements(db: Db, userId: string, cardId: str
   const card = await db.creditCard.findFirst({ where: { id: cardId, userId } });
   const latest = await db.cardStatement.findFirst({ where: { creditCardId: cardId, userId }, orderBy: { month: 'desc' } });
   if (!card || !latest || latest.month < indiaDateKey(card.dueDate).slice(0, 7)) return;
-  const event = await db.monthlyPayment.findUnique({ where: { userId_entityType_entityId_month: { userId, entityType: 'CREDIT_CARD', entityId: cardId, month: latest.month } } });
+  const event = await db.dueStatus.findUnique({ where: { userId_itemType_itemId_period_dueKey: { userId, itemType: 'CARD_STATEMENT', itemId: cardId, period: latest.month, dueKey: '' } } });
   const paid = event?.status === 'PAID' ? Number(event.amount) : 0;
   await db.creditCard.update({
     where: { id: cardId },
@@ -173,7 +173,7 @@ export async function getCardStatements(userId: string, cardId: string) {
   const today = indiaDateKey(new Date());
   const [saved, events, emis, expenses, accounts] = await Promise.all([
     prisma.cardStatement.findMany({ where: { userId, creditCardId: cardId }, orderBy: { month: 'desc' } }),
-    prisma.monthlyPayment.findMany({ where: { userId, entityType: 'CREDIT_CARD', entityId: cardId } }),
+    prisma.dueStatus.findMany({ where: { userId, itemType: 'CARD_STATEMENT', itemId: cardId } }).then((rows) => rows.map((r) => ({ ...r, month: r.period, amount: r.amount ?? 0 }))),
     prisma.cardEMI.findMany({ where: { userId, creditCardId: cardId } }),
     prisma.cardExpense.findMany({ where: { userId, creditCardId: cardId } }),
     prisma.account.findMany({ where: { userId }, select: { id: true, name: true } }),
@@ -193,7 +193,7 @@ export async function getCardStatements(userId: string, cardId: string) {
 
   const statements: StatementView[] = saved.map((s, i) => {
     const cycle = cycles[i];
-    const event = events.find(e => e.month === s.month && e.status === 'PAID');
+    const event = events.find(e => e.month === s.month && e.status !== 'SKIPPED');
     const payments = (event?.transactionIds ?? []).map(id => txns.find(t => t.id === id)).filter(Boolean).map(t => ({
       transactionId: t!.id, amount: round(Number(t!.amount)), date: indiaDateKey(t!.date), accountId: t!.accountId, accountName: t!.accountId ? accountName.get(t!.accountId) ?? null : null,
     })).sort((a, z) => a.date.localeCompare(z.date));
@@ -243,8 +243,8 @@ export async function saveCardStatement(userId: string, cardId: string, input: S
 export async function deleteCardStatement(userId: string, statementId: string) {
   const st = await prisma.cardStatement.findFirst({ where: { id: statementId, userId } });
   if (!st) throw createError('Statement not found', 404);
-  const event = await prisma.monthlyPayment.findUnique({ where: { userId_entityType_entityId_month: { userId, entityType: 'CREDIT_CARD', entityId: st.creditCardId, month: st.month } } });
-  if (event?.status === 'PAID') throw createError('Undo the payments on this statement first', 409);
+  const event = await prisma.dueStatus.findUnique({ where: { userId_itemType_itemId_period_dueKey: { userId, itemType: 'CARD_STATEMENT', itemId: st.creditCardId, period: st.month, dueKey: '' } } });
+  if (event && event.status !== 'SKIPPED') throw createError('Undo the payments on this statement first', 409);
   await prisma.cardStatement.delete({ where: { id: st.id } });
 }
 

@@ -31,7 +31,7 @@ export function unpaidStatements(
 ): number {
   const paid = new Map<string, number>();
   for (const p of payments) {
-    if (p.status !== 'PAID') continue;
+    if (p.status === 'SKIPPED') continue; // PAID and AUTO both count
     const key = `${p.entityId}|${p.month}`;
     paid.set(key, (paid.get(key) ?? 0) + Number(p.amount));
   }
@@ -46,7 +46,8 @@ export async function getBalanceSheet(userId: string, now = new Date()): Promise
     prisma.loan.findMany({ where: { userId, isActive: true }, select: { remainingBalance: true } }),
     prisma.cardEMI.findMany({ where: { userId, isArchived: false } }),
     prisma.cardStatement.findMany({ where: { userId }, select: { creditCardId: true, month: true, totalDue: true } }),
-    prisma.monthlyPayment.findMany({ where: { userId, entityType: 'CREDIT_CARD' }, select: { entityId: true, month: true, status: true, amount: true } }),
+    prisma.dueStatus.findMany({ where: { userId, itemType: 'CARD_STATEMENT' }, select: { itemId: true, period: true, status: true, amount: true } })
+      .then((rows) => rows.map((r) => ({ entityId: r.itemId, month: r.period, status: r.status, amount: r.amount }))),
   ]);
 
   const bankBalance = sum(accounts, (a) => Number(a.balance));

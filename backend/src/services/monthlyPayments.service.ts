@@ -100,13 +100,13 @@ export async function decideMonthlyPayment(userId: string, type: 'LOAN' | 'INVES
       if (amount <= 0) throw createError('No payment amount configured', 400);
       const sourceAccount = accountId || loan?.bankAccountId || inv?.bankAccountId;
       if (sourceAccount && !await tx.account.findFirst({ where: { id: sourceAccount, userId } })) throw createError('Account not found', 404);
-      const key = { userId, entityType: type, entityId: id, month };
-      const existing = await tx.monthlyPayment.findUnique({ where: { userId_entityType_entityId_month: key } });
-      if (existing?.status === 'PAID') throw createError('Already paid this month', 409);
+      const key = { userId, itemType: type, itemId: id, period: month, dueKey: '' };
+      const existing = await tx.dueStatus.findUnique({ where: { userId_itemType_itemId_period_dueKey: key } });
+      if (existing && existing.status !== 'SKIPPED') throw createError('Already paid this month', 409);
       if (existing?.status === 'SKIPPED' && status === 'SKIPPED') return existing;
       // Reserve the unique monthly slot before any money is moved.
-      if (existing) await tx.monthlyPayment.delete({ where: { id: existing.id } });
-      const event = await tx.monthlyPayment.create({ data: { ...key, status, amount } });
+      if (existing) await tx.dueStatus.delete({ where: { id: existing.id } });
+      const event = await tx.dueStatus.create({ data: { ...key, status, amount, ...(status === 'PAID' && { paidDate: paidOn, accountId: sourceAccount ?? null }) } });
       if (status === 'SKIPPED') return event;
       const transactions = [];
       const portions = loan && split ? [
@@ -122,7 +122,7 @@ export async function decideMonthlyPayment(userId: string, type: 'LOAN' | 'INVES
       if (inv?.assetType === 'RECURRING_DEPOSIT') await tx.investment.update({ where: { id }, data: { quantity: { increment: 1 } } });
       if (sourceAccount) await tx.account.update({ where: { id: sourceAccount }, data: { balance: { decrement: amount } } });
       await copySplitToTransactions(tx, userId, loan ? 'LOAN' : 'INVESTMENT', id, transactions.map(t => t.id));
-      await tx.monthlyPayment.update({ where: { id: event.id }, data: { transactionIds: transactions.map(t => t.id) } });
+      await tx.dueStatus.update({ where: { id: event.id }, data: { transactionIds: transactions.map(t => t.id) } });
       return { ...event, amount, transactions, transaction: transactions[0], isPaidOff: split?.isPaidOff ?? false };
     });
   } catch (error) {

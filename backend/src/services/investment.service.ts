@@ -175,8 +175,8 @@ export async function payInvestment(userId: string, id: string, accountId?: stri
 
   // A lump-sum purchase is a one-off: the reserved record below makes a second
   // press fail instead of logging the full amount again.
-  const once = { userId, entityType: 'INVESTMENT_PURCHASE', entityId: id, month: 'ONCE' };
-  if (await prisma.monthlyPayment.findUnique({ where: { userId_entityType_entityId_month: once } })) {
+  const once = { userId, itemType: 'INVESTMENT_PURCHASE', itemId: id, period: 'ONCE', dueKey: '' };
+  if (await prisma.dueStatus.findUnique({ where: { userId_itemType_itemId_period_dueKey: once } })) {
     throw createError('This purchase is already recorded', 409);
   }
 
@@ -202,7 +202,7 @@ export async function payInvestment(userId: string, id: string, accountId?: stri
     ...(rdIncrement
       ? [prisma.investment.update({ where: { id }, data: { quantity: { increment: 1 } } })]
       : []),
-    prisma.monthlyPayment.create({ data: { ...once, status: 'PAID', amount } }),
+    prisma.dueStatus.create({ data: { ...once, status: 'PAID', amount, paidDate: new Date(), accountId: accountId ?? null } }),
   ]);
   } catch (error) {
     if ((error as { code?: string }).code === 'P2002') throw createError('This purchase is already recorded', 409);

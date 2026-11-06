@@ -1,4 +1,5 @@
 import { prisma } from '../lib/prisma';
+import { loadOccurrenceRows } from '../schedule/bills';
 import { createError } from '../middleware/error.middleware';
 import { indiaDateKey } from '../lib/cardPaymentSchedule';
 import { currentMonth, previousMonth, toPlanRow } from './monthlyPayments.service';
@@ -27,18 +28,18 @@ async function assertOwned(userId: string, type: HistoryType, id: string) {
 export async function getPaymentHistory(userId: string, type: HistoryType, id: string): Promise<HistoryEntry[]> {
   await assertOwned(userId, type, id);
   if (type === 'BILL') {
-    const rows = await prisma.billOccurrence.findMany({ where: { userId, billId: id }, orderBy: { dueDate: 'desc' } });
+    const rows = (await loadOccurrenceRows(userId, { billIds: [id] })).sort((a, b) => b.dueDate.getTime() - a.dueDate.getTime());
     return rows.map(o => ({
       key: o.id, kind: o.status === 'SKIPPED' ? 'SKIPPED' : 'PAID', month: indiaDateKey(o.dueDate).slice(0, 7), dueDate: indiaDateKey(o.dueDate),
       date: (o.paidDate ?? o.createdAt).toISOString(), amount: o.amount != null ? Number(o.amount) : null, canUndo: true, note: o.notes,
     }));
   }
-  const records = await prisma.monthlyPayment.findMany({ where: { userId, entityType: type, entityId: id }, orderBy: { month: 'desc' } });
+  const records = await prisma.dueStatus.findMany({ where: { userId, itemType: type === 'CREDIT_CARD' ? 'CARD_STATEMENT' : type, itemId: id }, orderBy: { period: 'desc' } });
   // Loans, card EMIs and card bills move a running balance, so only the latest payment can be undone.
-  const latestPaid = records.find(r => r.status === 'PAID')?.month;
+  const latestPaid = records.find(r => r.status !== 'SKIPPED')?.period;
   const entries: HistoryEntry[] = records.map(r => ({
-    key: r.id, kind: r.status === 'SKIPPED' ? 'SKIPPED' : 'PAID', month: r.month, dueDate: null, date: r.createdAt.toISOString(), amount: Number(r.amount),
-    canUndo: r.status === 'SKIPPED' || type === 'INVESTMENT' || r.month === latestPaid,
+    key: r.id, kind: r.status === 'SKIPPED' ? 'SKIPPED' : 'PAID', month: r.period, dueDate: null, date: (r.paidDate ?? r.createdAt).toISOString(), amount: Number(r.amount ?? 0),
+    canUndo: r.status === 'SKIPPED' || type === 'INVESTMENT' || r.period === latestPaid,
   }));
   if (type === 'LOAN') {
     const events = await getLoanEvents(userId, id);

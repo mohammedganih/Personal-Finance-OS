@@ -73,8 +73,40 @@ export function buildEventMaps(occurrences: OccurrenceRow[]): Map<string, EventM
   return byBill;
 }
 
-export async function loadOccurrenceRows(userId: string, where: { billId?: { in: string[] }; dueDate?: { gte: Date; lte: Date } } = {}): Promise<OccurrenceRow[]> {
-  return (await prisma.billOccurrence.findMany({ where: { userId, ...where } })) as OccurrenceRow[];
+type Client = Prisma.TransactionClient | typeof prisma;
+type DueStatusRow = Prisma.DueStatusGetPayload<object>;
+
+/** due_status key of one bill occurrence (bills keep the day, as one can fall twice in a month). */
+export function billStatusKey(userId: string, billId: string, dueDate: Date) {
+  const dueKey = toDateKey(dueDate);
+  return { userId, itemType: 'BILL', itemId: billId, period: dueKey.slice(0, 7), dueKey };
+}
+export const billStatusWhere = (userId: string, billId: string, dueDate: Date) => ({ userId_itemType_itemId_period_dueKey: billStatusKey(userId, billId, dueDate) });
+
+/** A bill's due_status row in the occurrence shape the bill pages use (AUTO counts as paid, flagged `auto`). */
+export function toOccurrenceRow(r: DueStatusRow): OccurrenceRow & { auto: boolean; createdAt: Date } {
+  return {
+    id: r.id, billId: r.itemId, dueDate: r.dueDate ?? new Date(`${r.dueKey}T00:00:00+05:30`),
+    status: r.status === 'SKIPPED' ? 'SKIPPED' : 'PAID', auto: r.status === 'AUTO',
+    amount: r.amount, paidDate: r.paidDate, transactionId: r.transactionIds[0] ?? null, notes: r.notes, createdAt: r.createdAt,
+  };
+}
+
+export async function findBillStatus(client: Client, userId: string, billId: string, dueDate: Date) {
+  const row = await client.dueStatus.findUnique({ where: billStatusWhere(userId, billId, dueDate) });
+  return row ? toOccurrenceRow(row) : null;
+}
+
+export async function loadOccurrenceRows(userId: string, filter: { billIds?: string[]; from?: Date; to?: Date; paidOnly?: boolean } = {}): Promise<(OccurrenceRow & { auto: boolean; createdAt: Date })[]> {
+  const rows = await prisma.dueStatus.findMany({
+    where: {
+      userId, itemType: 'BILL',
+      ...(filter.billIds && { itemId: { in: filter.billIds } }),
+      ...(filter.paidOnly && { status: { in: ['PAID', 'AUTO'] } }),
+      ...((filter.from || filter.to) && { dueDate: { ...(filter.from && { gte: filter.from }), ...(filter.to && { lte: filter.to }) } }),
+    },
+  });
+  return rows.map(toOccurrenceRow);
 }
 
 export async function loadBillsWithEvents(userId: string) {
@@ -114,7 +146,7 @@ export async function billOccurrencesInRange(userId: string, start: Date, end: D
   const archivedIds = bills.filter((b) => b.status === 'ARCHIVED').map((b) => b.id);
   if (archivedIds.length > 0) {
     const billById = new Map(bills.map((b) => [b.id, b]));
-    for (const row of await loadOccurrenceRows(userId, { billId: { in: archivedIds }, dueDate: { gte: start, lte: end } })) {
+    for (const row of await loadOccurrenceRows(userId, { billIds: archivedIds, from: start, to: end })) {
       const bill = billById.get(row.billId)!;
       flat.push({ bill, dueDate: row.dueDate, dueKey: toDateKey(row.dueDate), status: row.status, amount: row.amount != null ? Number(row.amount) : Number(bill.amount) });
     }

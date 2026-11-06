@@ -7,8 +7,8 @@ import { assertOwned } from '../lib/ownership';
 import { createError } from '../middleware/error.middleware';
 import { findCategory } from '../lib/paymentCategory';
 import {
-  BILL_INCLUDE, BillWithRelations, EMPTY_EVENTS, EventMap, OccurrenceRow, FlatOccurrence,
-  billOccurrencesInRange, buildEventMaps, loadBillsWithEvents, projectAll, toSchedule,
+  BILL_INCLUDE, BillWithRelations, EMPTY_EVENTS, EventMap, FlatOccurrence,
+  billOccurrencesInRange, billStatusKey, billStatusWhere, buildEventMaps, findBillStatus, loadBillsWithEvents, loadOccurrenceRows, projectAll, toOccurrenceRow, toSchedule,
 } from '../schedule/bills';
 import {
   ProjectedStatus,
@@ -112,10 +112,7 @@ export async function getBills(userId: string, filters: BillFilters = {}) {
 
 export async function getBill(userId: string, id: string) {
   const bill = await getOwnedBill(userId, id);
-  const occurrences = (await prisma.billOccurrence.findMany({
-    where: { billId: id },
-    orderBy: { dueDate: 'desc' },
-  })) as OccurrenceRow[];
+  const occurrences = (await loadOccurrenceRows(userId, { billIds: [id] })).sort((a, b) => b.dueDate.getTime() - a.dueDate.getTime());
   const events = buildEventMaps(occurrences).get(id) ?? EMPTY_EVENTS;
   const splits = await fetchSplits('BILL', [id]);
   return {
@@ -284,9 +281,7 @@ export async function payOccurrence(userId: string, billId: string, input: PayBi
   const dueDate = parseDateOnly(input.dueDate);
   assertScheduledDate(bill, dueDate);
 
-  const existing = await prisma.billOccurrence.findUnique({
-    where: { billId_dueDate: { billId, dueDate } },
-  });
+  const existing = await findBillStatus(prisma, userId, billId, dueDate);
   if (existing?.status === 'PAID') throw createError('This occurrence is already marked as paid', 409);
 
   const amount = input.amount ?? Number(bill.amount);
@@ -333,20 +328,13 @@ export async function payOccurrence(userId: string, billId: string, input: PayBi
       }
     }
 
-    const occurrence = await tx.billOccurrence.upsert({
-      where: { billId_dueDate: { billId, dueDate } },
-      create: {
-        billId,
-        userId,
-        dueDate,
-        status: 'PAID',
-        amount,
-        paidDate,
-        transactionId,
-        notes: input.notes ?? null,
-      },
-      update: { status: 'PAID', amount, paidDate, transactionId, notes: input.notes ?? null },
+    const record = { status: 'PAID' as const, amount, paidDate, accountId: transactionId ? accountId ?? null : null, transactionIds: transactionId ? [transactionId] : [], notes: input.notes ?? null };
+    const row = await tx.dueStatus.upsert({
+      where: billStatusWhere(userId, billId, dueDate),
+      create: { ...billStatusKey(userId, billId, dueDate), dueDate, ...record },
+      update: record,
     });
+    const occurrence = toOccurrenceRow(row);
     return { ...occurrence, amount: Number(occurrence.amount) };
   });
 }
@@ -356,18 +344,17 @@ export async function skipOccurrence(userId: string, billId: string, input: Skip
   const dueDate = parseDateOnly(input.dueDate);
   assertScheduledDate(bill, dueDate);
 
-  const existing = await prisma.billOccurrence.findUnique({
-    where: { billId_dueDate: { billId, dueDate } },
-  });
+  const existing = await findBillStatus(prisma, userId, billId, dueDate);
   if (existing?.status === 'PAID') {
     throw createError('This occurrence is already paid — undo the payment first', 409);
   }
 
-  const occurrence = await prisma.billOccurrence.upsert({
-    where: { billId_dueDate: { billId, dueDate } },
-    create: { billId, userId, dueDate, status: 'SKIPPED', notes: input.notes ?? null },
+  const row = await prisma.dueStatus.upsert({
+    where: billStatusWhere(userId, billId, dueDate),
+    create: { ...billStatusKey(userId, billId, dueDate), dueDate, status: 'SKIPPED', notes: input.notes ?? null },
     update: { status: 'SKIPPED', notes: input.notes ?? null },
   });
+  const occurrence = toOccurrenceRow(row);
   return { ...occurrence, amount: occurrence.amount != null ? Number(occurrence.amount) : null };
 }
 
@@ -379,9 +366,7 @@ export async function skipOccurrence(userId: string, billId: string, input: Skip
 export async function undoOccurrence(userId: string, billId: string, dueDateInput: string) {
   await getOwnedBill(userId, billId);
   const dueDate = parseDateOnly(dueDateInput);
-  const occurrence = await prisma.billOccurrence.findFirst({
-    where: { billId, userId, dueDate },
-  });
+  const occurrence = await findBillStatus(prisma, userId, billId, dueDate);
   if (!occurrence) throw createError('No paid/skipped record found for this occurrence', 404);
 
   await prisma.$transaction(async (tx) => {
@@ -398,7 +383,7 @@ export async function undoOccurrence(userId: string, billId: string, dueDateInpu
         await tx.transaction.delete({ where: { id: txn.id } });
       }
     }
-    await tx.billOccurrence.delete({ where: { id: occurrence.id } });
+    await tx.dueStatus.delete({ where: { id: occurrence.id } });
   });
 }
 
@@ -711,13 +696,7 @@ export async function getBillsAnalytics(userId: string) {
   // Trend: 6 months of real payments (occurrence ledger), then 6 months of
   // projection -- the seam between history and forecast is the current month.
   const trend = [];
-  const paidRows = (await prisma.billOccurrence.findMany({
-    where: {
-      userId,
-      status: 'PAID',
-      dueDate: { gte: new Date(today.getFullYear(), today.getMonth() - 5, 1) },
-    },
-  })) as OccurrenceRow[];
+  const paidRows = await loadOccurrenceRows(userId, { paidOnly: true, from: new Date(today.getFullYear(), today.getMonth() - 5, 1) });
   const paidByMonth = new Map<string, number>();
   for (const row of paidRows) {
     const d = row.paidDate ?? row.dueDate;

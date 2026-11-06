@@ -87,6 +87,14 @@ enum BillOccurrenceStatus {
   SKIPPED
 }
 
+// How a scheduled instalment was settled. AUTO = confirmed automatically on its
+// due date (auto-debit); it is undone exactly like PAID.
+enum DuePaymentStatus {
+  PAID
+  SKIPPED
+  AUTO
+}
+
 enum GoalType {
   FARM_HOUSE
   EMERGENCY_FUND
@@ -135,6 +143,7 @@ enum SplitEntityType {
 
 model User {
   monthlyPayments MonthlyPayment[]
+  dueStatuses     DueStatus[]
   id           String   @id @default(cuid())
   email        String   @unique
   name         String
@@ -512,6 +521,7 @@ model RecurringBill {
   @@map("recurring_bills")
 }
 
+// Read-only since due_status (2026-11): kept for one round, then to be dropped.
 model BillOccurrence {
   id     String @id @default(cuid())
   billId String
@@ -720,6 +730,36 @@ model OwnershipSplit {
   @@map("ownership_splits")
 }
 
+// What happened to one scheduled instalment (schedule engine, backend/src/schedule).
+// Replaces monthly_payments and bill_occurrences, which are kept read-only for now.
+model DueStatus {
+  id             String           @id @default(cuid())
+  userId         String
+  // LOAN | CARD_EMI | INVESTMENT | BILL | CARD_STATEMENT, or INVESTMENT_PURCHASE (period ONCE) for a one-off buy
+  itemType       String
+  itemId         String
+  period         String // YYYY-MM the instalment belongs to
+  // Bills: the occurrence's date (YYYY-MM-DD), as a bill can fall more than once a month. Empty otherwise.
+  dueKey         String           @default("")
+  dueDate        DateTime? // bills: the scheduled occurrence date
+  status         DuePaymentStatus
+  amount         Decimal?         @db.Decimal(14, 2)
+  paidDate       DateTime?
+  accountId      String?
+  transactionIds String[]         @default([])
+  notes          String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, itemType, itemId, period, dueKey])
+  @@index([userId, period])
+  @@index([itemType, itemId])
+  @@map("due_status")
+}
+
+// Read-only since due_status (2026-11): kept for one round, then to be dropped.
 // One monthly decision; unique key prevents duplicate ledger payments.
 model MonthlyPayment {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)

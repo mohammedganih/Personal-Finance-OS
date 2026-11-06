@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const mocks = vi.hoisted(() => ({ cards: vi.fn(), emis: vi.fn(), events: vi.fn() }));
 vi.mock('../lib/prisma', () => ({ prisma: {
   loan: { findMany: vi.fn().mockResolvedValue([]) }, loanEvent: { findMany: vi.fn().mockResolvedValue([]) }, investment: { findMany: vi.fn().mockResolvedValue([]) },
-  creditCard: { findMany: mocks.cards }, cardEMI: { findMany: mocks.emis }, cardStatement: { findMany: vi.fn().mockResolvedValue([]) }, monthlyPayment: { findMany: mocks.events },
+  creditCard: { findMany: mocks.cards }, cardEMI: { findMany: mocks.emis }, cardStatement: { findMany: vi.fn().mockResolvedValue([]) }, dueStatus: { findMany: mocks.events },
   ownershipSplit: { findMany: vi.fn().mockResolvedValue([]) },
 } }));
 vi.mock('../schedule/bills', () => ({ billOccurrencesInRange: vi.fn().mockResolvedValue([]) }));
@@ -40,7 +40,7 @@ describe('monthly card forecast', () => {
   it('shows paid final installments while removing them from remaining cash required', async () => {
     const rows = await mocks.emis();
     rows[2].emisPaid = 1; rows[2].isArchived = true;
-    mocks.events.mockResolvedValue([{ entityType: 'CARD_EMI', entityId: 'lenses', month: '2026-10', status: 'PAID', amount: 7799 }]);
+    mocks.events.mockResolvedValue([{ itemType: 'CARD_EMI', itemId: 'lenses', period: '2026-10', status: 'PAID', amount: 7799 }]);
     const plan = await getMonthlyPlan('user', '2026-10');
     expect(plan.paid).toBe(7799);
     expect(plan.creditCards).toBe(17887);

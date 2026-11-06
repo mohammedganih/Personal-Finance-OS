@@ -26,28 +26,28 @@ export async function undoPayment(userId: string, input: UndoInput) {
   monthWindow(month);
 
   return prisma.$transaction(async tx => {
-    const key = { userId, entityType: input.type, entityId: input.id, month };
-    const event = await tx.monthlyPayment.findUnique({ where: { userId_entityType_entityId_month: key } });
+    const key = { userId, itemType: input.type === 'CREDIT_CARD' ? 'CARD_STATEMENT' : input.type, itemId: input.id, period: month, dueKey: '' };
+    const event = await tx.dueStatus.findUnique({ where: { userId_itemType_itemId_period_dueKey: key } });
     if (!event) throw createError('No payment recorded for this month', 404);
 
-    if (event.status === 'PAID') {
+    if (event.status !== 'SKIPPED') { // PAID or AUTO
       // Loans and card EMIs move a running balance/count forward, so only the
       // most recent payment can be reversed cleanly.
       if (input.type !== 'INVESTMENT') {
-        const later = await tx.monthlyPayment.findFirst({ where: { userId, entityType: input.type, entityId: input.id, status: 'PAID', month: { gt: month } } });
-        if (later) throw createError(`Undo the ${later.month} payment first`, 409);
+        const later = await tx.dueStatus.findFirst({ where: { userId, itemType: key.itemType, itemId: input.id, status: { in: ['PAID', 'AUTO'] }, period: { gt: month } } });
+        if (later) throw createError(`Undo the ${later.period} payment first`, 409);
       }
       const txns = event.transactionIds.length
         ? await tx.transaction.findMany({ where: { id: { in: event.transactionIds }, userId } })
         : [];
-      await reverseEntity(tx, userId, input.type, input.id, txns, Number(event.amount), month);
+      await reverseEntity(tx, userId, input.type, input.id, txns, Number(event.amount ?? 0), month);
       for (const t of txns) {
         if (t.accountId) await tx.account.update({ where: { id: t.accountId }, data: { balance: { increment: t.amount } } });
       }
       await deleteTransactionSplits(tx, txns.map(t => t.id));
       if (txns.length) await tx.transaction.deleteMany({ where: { id: { in: txns.map(t => t.id) }, userId } });
     }
-    await tx.monthlyPayment.delete({ where: { id: event.id } });
+    await tx.dueStatus.delete({ where: { id: event.id } });
     if (input.type === 'LOAN') await syncLoanBalance(tx, input.id);
     if (input.type === 'CREDIT_CARD') await syncCardFromStatements(tx, userId, input.id);
     return { type: input.type, id: input.id, month, undone: true, previousStatus: event.status };

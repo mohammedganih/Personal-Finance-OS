@@ -5,7 +5,6 @@ import { prisma } from '../lib/prisma';
 import { assertOwnMembers, attachSplit, fetchSplits, saveSplit } from '../lib/ownershipSplit';
 import { createError } from '../middleware/error.middleware';
 import { CreateCardEMIInput, UpdateCardEMIInput } from '../validators/card-emi.validator';
-import { findCategory } from '../lib/paymentCategory';
 
 // ── Core calculation ──────────────────────────────────────────────────────────
 export function calcEMIOutstanding(emi: {
@@ -147,9 +146,9 @@ export async function payCardEMI(userId: string, emiId: string, _accountId?: str
         const first = firstCardEMIDueDate({ ...emi, emisPaid: 0 }, emi.creditCard).slice(0, 7);
         throw createError(month < first ? 'Next installment is not due this month' : 'All instalments for this EMI are already paid', 400);
       }
-      const key = { userId, entityType: 'CARD_EMI', entityId: emiId, month };
-      if (await tx.monthlyPayment.findUnique({ where: { userId_entityType_entityId_month: key } })) throw createError('This due-month installment is already recorded', 409);
-      await tx.monthlyPayment.create({ data: { ...key, amount: Number(emi.emiAmount), status: 'PAID' } });
+      const key = { userId, itemType: 'CARD_EMI', itemId: emiId, period: month, dueKey: '' };
+      if (await tx.dueStatus.findUnique({ where: { userId_itemType_itemId_period_dueKey: key } })) throw createError('This due-month installment is already recorded', 409);
+      await tx.dueStatus.create({ data: { ...key, amount: Number(emi.emiAmount), status: 'PAID', paidDate: new Date() } });
       await syncCardEMIProgress(tx, userId, emiId);
       const updatedEMI = await tx.cardEMI.findUniqueOrThrow({ where: { id: emiId } });
       return { emi: serializeWithStats(updatedEMI), transaction: null, isComplete: k === emi.tenureMonths - 1, billedToCard: true };
