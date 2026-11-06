@@ -23,6 +23,17 @@ enum TransactionType {
   EXPENSE
 }
 
+// What a ledger entry means for the household's money. `type` still says which
+// way the account balance moved; `kind` says what the money was for.
+enum TransactionKind {
+  INCOME   // salary, bonus, interest, refunds
+  SPEND    // everyday spending, bills, the card bill
+  TRANSFER // between our own accounts (two legs, one transferGroupId)
+  SAVE     // SIP, RD, gold scheme and other investment payments
+  DEBT     // loan and card EMIs, prepayments
+  ADJUST   // balance corrections
+}
+
 enum AssetType {
   STOCK
   MUTUAL_FUND
@@ -253,6 +264,16 @@ model Transaction {
   // still real cash leaving the account (kept as type EXPENSE for balance
   // accounting), but excluded from expense analytics: it builds equity, not spend.
   isWealthTransfer Boolean @default(false)
+  // What the money did, for every total in the app (see backend/src/metrics).
+  kind            TransactionKind @default(SPEND)
+  // What created this entry (LOAN, INVESTMENT, BILL, CREDIT_CARD, CARD_EXPENSE,
+  // LOAN_EVENT, SALARY, ...) and that record's id; null for hand-typed entries.
+  sourceType      String?
+  sourceId        String?
+  // The month (YYYY-MM) a scheduled payment belongs to, which can differ from `date`.
+  period          String?
+  // Both legs of a transfer between own accounts share this id.
+  transferGroupId String?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
@@ -266,6 +287,9 @@ model Transaction {
   @@index([userId, type])
   @@index([categoryId])
   @@index([memberId])
+  @@index([userId, kind, date])
+  @@index([sourceType, sourceId])
+  @@index([transferGroupId])
   @@map("transactions")
 }
 
