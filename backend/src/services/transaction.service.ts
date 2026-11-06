@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto';
+import { NOT_MOVES } from '../metrics';
 import type { Transaction } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { kindForType } from '../lib/ledger';
@@ -237,7 +238,7 @@ export async function deleteTransaction(userId: string, id: string) {
 
 export async function getTransactionSummary(userId: string, startDate: Date, endDate: Date) {
   const transactions = await prisma.transaction.findMany({
-    where: { userId, date: { gte: startDate, lte: endDate } },
+    where: { userId, ...NOT_MOVES, date: { gte: startDate, lte: endDate } },
     select: { type: true, amount: true },
   });
 

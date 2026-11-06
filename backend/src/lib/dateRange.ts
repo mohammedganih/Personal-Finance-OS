@@ -13,3 +13,9 @@ export function resolveMonthRange(month?: number, year?: number) {
     end: new Date(y, m + 1, 0, 23, 59, 59),
   };
 }
+
+/** The same month as resolveMonthRange, as `YYYY-MM` (defaults to the current month). */
+export function monthKey(month?: number, year?: number): string {
+  const now = new Date();
+  return `${year ?? now.getFullYear()}-${String(month ?? now.getMonth() + 1).padStart(2, '0')}`;
+}

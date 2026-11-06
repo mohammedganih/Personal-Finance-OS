@@ -25,7 +25,8 @@ async function getMonthlySpendByCategory(userId: string, categoryIds: string[], 
     by: ['categoryId'],
     where: {
       userId,
-      type: 'EXPENSE',
+      // Only everyday spending counts against a budget (not saving, EMIs or transfers).
+      kind: 'SPEND',
       categoryId: { in: categoryIds },
       date: { gte: startOfMonth, lte: endOfMonth },
     },

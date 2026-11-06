@@ -138,7 +138,8 @@ describe('dashboard.service P2P debt in Net Worth', () => {
     expect(overview.totalLiabilities).toBeCloseTo(baseline.totalLiabilities + 20000, 2);
   });
 
-  it('a LENT P2P loan does not change netWorth (it is a receivable, not a liability)', async () => {
+  // Money lent out is still ours: it counts as an asset (redesign plan, bug 3), never as a liability.
+  it('a LENT P2P loan adds to assets and net worth, not to liabilities', async () => {
     const userId = await setupUser();
     await prisma.account.create({ data: { userId, name: 'Bank', type: 'SAVINGS', balance: 100000 } });
 
@@ -149,7 +150,9 @@ describe('dashboard.service P2P debt in Net Worth', () => {
     });
 
     const overview = await dashboardService.getDashboardOverview(userId);
-    expect(overview.netWorth).toBeCloseTo(baseline.netWorth, 2);
+    expect(overview.netWorth).toBeCloseTo(baseline.netWorth + 15000, 2);
+    expect(overview.totalAssets).toBeCloseTo(baseline.totalAssets + 15000, 2);
+    expect(overview.totalLiabilities).toBeCloseTo(baseline.totalLiabilities, 2);
   });
 
   it('a settled BORROWED P2P loan is excluded from totalLiabilities', async () => {

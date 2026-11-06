@@ -1,7 +1,7 @@
 import { prisma } from '../lib/prisma';
 import { QuickInsight } from '../types';
-import { resolveMonthRange } from '../lib/dateRange';
-import { computeInvestmentValue } from './investment.service';
+import { monthKey, resolveMonthRange } from '../lib/dateRange';
+import { getBalanceSheet, getMonthFlows, getMonthFlowsRange, NOT_MOVES, outgoings, savingsRate } from '../metrics';
 import { effectiveStatus, monthlyEquivalent } from '../lib/billSchedule';
 
 /** Monthly cash-flow impact of all currently-active recurring bills. */
@@ -16,111 +16,54 @@ function monthlyBillCommitment(
 
 export async function getDashboardOverview(userId: string, month?: number, year?: number) {
   const { start: startOfMonth, end: endOfMonth } = resolveMonthRange(month, year);
+  const now = new Date();
 
-  const [transactions, investments, loans, accounts, recurringBills, cardEmis, p2pBorrowed] = await Promise.all([
-    prisma.transaction.findMany({
-      where: { userId, date: { gte: startOfMonth, lte: endOfMonth } },
-      select: { type: true, amount: true, isWealthTransfer: true, category: { select: { name: true } } },
+  // Net worth, debt and the month's flows all come from the metrics module, so
+  // every page shows the same figures.
+  const [sheet, flows, subscriptionRows, wealthRows, investments, loans, recurringBills, cardEmis] = await Promise.all([
+    getBalanceSheet(userId, now),
+    getMonthFlows(userId, monthKey(month, year)),
+    prisma.transaction.aggregate({
+      where: { userId, kind: 'SPEND', category: { name: 'Subscriptions' }, date: { gte: startOfMonth, lte: endOfMonth } },
+      _sum: { amount: true },
     }),
-    prisma.investment.findMany({ where: { userId }, include: { collateral: { select: { ownershipPercent: true } } } }),
-    prisma.loan.findMany({
-      where: { userId, isActive: true },
-      select: { remainingBalance: true, emi: true },
+    prisma.transaction.aggregate({
+      where: { userId, kind: 'DEBT', isWealthTransfer: true, date: { gte: startOfMonth, lte: endOfMonth } },
+      _sum: { amount: true },
     }),
-    prisma.account.findMany({
-      where: { userId },
-      select: { balance: true },
-    }),
+    prisma.investment.findMany({ where: { userId, assetType: { in: ['SIP', 'RECURRING_DEPOSIT', 'GOLD_SCHEME'] } }, select: { monthlyAmount: true } }),
+    prisma.loan.findMany({ where: { userId, isActive: true }, select: { emi: true } }),
     prisma.recurringBill.findMany({
       where: { userId, status: { not: 'ARCHIVED' } },
       select: { amount: true, frequency: true, customIntervalDays: true, status: true, pausedUntil: true },
     }),
-    prisma.cardEMI.findMany({
-      where: { userId, isArchived: false },
-      select: { emiAmount: true, totalAmount: true, tenureMonths: true, emisPaid: true, isNoCost: true, interestRate: true },
-    }),
-    prisma.p2PLoan.findMany({
-      where: { userId, type: 'BORROWED', isSettled: false },
-      select: { remainingAmount: true },
-    }),
+    prisma.cardEMI.findMany({ where: { userId, isArchived: false }, select: { emiAmount: true } }),
   ]);
 
-  const monthlyIncome = transactions
-    .filter((t) => t.type === 'INCOME')
-    .reduce((s, t) => s + Number(t.amount), 0);
-
-  // Excludes wealth-transfer transactions (EMI principal on an asset-linked
-  // loan) -- that cash built equity, it wasn't spent, so it shouldn't count
-  // as a true expense even though the account balance did decrease.
-  const monthlyExpenses = transactions
-    .filter((t) => t.type === 'EXPENSE' && !t.isWealthTransfer)
-    .reduce((s, t) => s + Number(t.amount), 0);
-
-  const monthlyWealthCreation = transactions
-    .filter((t) => t.type === 'EXPENSE' && t.isWealthTransfer)
-    .reduce((s, t) => s + Number(t.amount), 0);
-
-  // Reuses the same per-type valuation as the Investments page (a Recurring
-  // Deposit's value is deposits + accrued interest, not quantity*currentPrice
-  // -- that field isn't even collected for RDs/FDs, so the naive formula
-  // this used to use silently valued them at ₹0).
-  const now = new Date();
-  const investmentValue = investments.reduce((s, inv) => s + computeInvestmentValue(inv, now).currentValue, 0);
-
-  const loanDebt = loans.reduce((s, l) => s + Number(l.remainingBalance), 0);
-  const monthlyLoanEMI = loans.reduce((s, l) => s + Number(l.emi), 0);
-
-  // Card EMIs: monthly burden + outstanding
-  const monthlyCardEMI = cardEmis.reduce((s, e) => s + Number(e.emiAmount), 0);
-  const cardEMIDebt = cardEmis.reduce((s, e) => {
-    const remaining = Math.max(0, e.tenureMonths - e.emisPaid);
-    if (e.isNoCost || !e.interestRate) return s + Number(e.emiAmount) * remaining;
-    const r = Number(e.interestRate) / 100 / 12;
-    const P = Number(e.totalAmount);
-    const n = e.emisPaid;
-    const E = Number(e.emiAmount);
-    if (r <= 0) return s + E * remaining;
-    const outstanding = P * Math.pow(1 + r, n) - E * (Math.pow(1 + r, n) - 1) / r;
-    return s + Math.max(0, outstanding);
-  }, 0);
-
-  // Money borrowed from an individual is a real liability, just like a bank
-  // loan -- money lent OUT (P2PType.LENT) is a receivable/asset and correctly
-  // never enters this figure.
-  const p2pBorrowedDebt = p2pBorrowed.reduce((s, p) => s + Number(p.remainingAmount), 0);
-
-  const totalDebt = loanDebt + cardEMIDebt + p2pBorrowedDebt;
-  const bankBalance = accounts.reduce((s, a) => s + Number(a.balance), 0);
-  const totalAssets = bankBalance + investmentValue;
-  const netWorth = totalAssets - totalDebt;
-
+  const { netWorth, totalAssets, totalDebt, bankBalance, investmentValue } = sheet;
+  const monthlyIncome = flows.income;
+  // Money that left for good: spending plus debt repayments. Saving (SIP, RD,
+  // gold) is kept, so it is not an expense.
+  const monthlyExpenses = outgoings(flows);
+  // Built wealth: investment payments plus EMI principal on an asset-linked loan.
+  const monthlyWealthCreation = flows.save + Number(wealthRows._sum.amount ?? 0);
   const monthlySavings = monthlyIncome - monthlyExpenses;
-  const savingsRate = monthlyIncome > 0 ? (monthlySavings / monthlyIncome) * 100 : 0;
+  const savingsRatePct = savingsRate(flows);
   const debtRatio = totalAssets > 0 ? (totalDebt / totalAssets) * 100 : 0;
 
+  const monthlyLoanEMI = loans.reduce((s, l) => s + Number(l.emi), 0);
+  const monthlyCardEMI = cardEmis.reduce((s, e) => s + Number(e.emiAmount), 0);
   const totalSubscriptionCost = monthlyBillCommitment(recurringBills, now);
-
   const totalMonthlyEMI = monthlyLoanEMI + monthlyCardEMI;
 
-  // Actual spent on these specific categories this month
-  const actualInvestmentSpent = transactions
-    .filter((t) => t.type === 'EXPENSE' && t.category?.name === 'Investment')
-    .reduce((s, t) => s + Number(t.amount), 0);
+  // Actual this month, by what the money was for.
+  const actualInvestmentSpent = flows.save;
+  const actualSubscriptionSpent = Number(subscriptionRows._sum.amount ?? 0);
+  const actualEMISpent = flows.debt;
+  const otherExpenses = Math.max(0, flows.spend - actualSubscriptionSpent);
 
-  const actualSubscriptionSpent = transactions
-    .filter((t) => t.type === 'EXPENSE' && t.category?.name === 'Subscriptions')
-    .reduce((s, t) => s + Number(t.amount), 0);
-
-  const actualEMISpent = transactions
-    .filter((t) => t.type === 'EXPENSE' && (t.category?.name === 'Loan EMI' || t.category?.name === 'Card EMI'))
-    .reduce((s, t) => s + Number(t.amount), 0);
-
-  const otherExpenses = Math.max(0, monthlyExpenses - actualInvestmentSpent - actualSubscriptionSpent - actualEMISpent);
-
-  // Monthly investment SIP / recurring commitments from investments table
-  const monthlyInvestmentCommitment = investments
-    .filter((inv) => ['SIP', 'RECURRING_DEPOSIT', 'GOLD_SCHEME'].includes(inv.assetType))
-    .reduce((s, inv) => s + Number(inv.monthlyAmount || 0), 0);
+  // Monthly SIP / RD / gold-scheme commitments.
+  const monthlyInvestmentCommitment = investments.reduce((s, inv) => s + Number(inv.monthlyAmount || 0), 0);
 
   // Effective spent (takes max of actual logged spent vs commitment to ensure we cover unpaid/committed bills)
   const effectiveSubscriptionSpent = Math.max(actualSubscriptionSpent, totalSubscriptionCost);
@@ -138,7 +81,7 @@ export async function getDashboardOverview(userId: string, month?: number, year?
     monthlyExpenses,
     monthlyWealthCreation,
     monthlySavings,
-    savingsRate,
+    savingsRate: savingsRatePct,
     investmentValue,
     debtRatio,
     totalSubscriptionCost,
@@ -159,39 +102,19 @@ export async function getDashboardOverview(userId: string, month?: number, year?
 }
 
 export async function getCashflowTrend(userId: string, months = 6, month?: number, year?: number) {
-  const { start: anchorStart, end: rangeEnd } = resolveMonthRange(month, year);
-  const rangeStart = new Date(anchorStart.getFullYear(), anchorStart.getMonth() - (months - 1), 1);
-
-  // One query for the whole window instead of `months` sequential round-trips,
-  // then bucket in memory -- this was previously the single slowest call on
-  // the dashboard (6-12 serial DB queries per request).
-  const transactions = await prisma.transaction.findMany({
-    where: { userId, date: { gte: rangeStart, lte: rangeEnd } },
-    select: { type: true, amount: true, date: true },
+  // Expenses = spending + debt repayments; savings = what is left of income
+  // (the same rule as the overview's savings rate). Transfers are not flows.
+  const flows = await getMonthFlowsRange(userId, monthKey(month, year), months);
+  return flows.map((f) => {
+    const [y, m] = f.month.split('-').map(Number);
+    const expenses = outgoings(f);
+    return {
+      month: new Date(y, m - 1, 1).toLocaleString('default', { month: 'short', year: '2-digit' }),
+      income: f.income,
+      expenses,
+      savings: f.income - expenses,
+    };
   });
-
-  const buckets = new Map<string, { income: number; expenses: number }>();
-  for (const t of transactions) {
-    const key = `${t.date.getFullYear()}-${t.date.getMonth()}`;
-    const bucket = buckets.get(key) ?? { income: 0, expenses: 0 };
-    if (t.type === 'INCOME') bucket.income += Number(t.amount);
-    else bucket.expenses += Number(t.amount);
-    buckets.set(key, bucket);
-  }
-
-  const result = [];
-  for (let i = months - 1; i >= 0; i--) {
-    const date = new Date(anchorStart.getFullYear(), anchorStart.getMonth() - i, 1);
-    const bucket = buckets.get(`${date.getFullYear()}-${date.getMonth()}`) ?? { income: 0, expenses: 0 };
-    result.push({
-      month: date.toLocaleString('default', { month: 'short', year: '2-digit' }),
-      income: bucket.income,
-      expenses: bucket.expenses,
-      savings: bucket.income - bucket.expenses,
-    });
-  }
-
-  return result;
 }
 
 export async function getExpenseBreakdown(userId: string, month?: number, year?: number) {
@@ -199,7 +122,7 @@ export async function getExpenseBreakdown(userId: string, month?: number, year?:
 
   const expenses = await prisma.transaction.groupBy({
     by: ['categoryId'],
-    where: { userId, type: 'EXPENSE', date: { gte: startOfMonth, lte: endOfMonth } },
+    where: { userId, type: 'EXPENSE', ...NOT_MOVES, date: { gte: startOfMonth, lte: endOfMonth } },
     _sum: { amount: true },
     _count: true,
   });
@@ -230,23 +153,13 @@ export async function getExpenseBreakdown(userId: string, month?: number, year?:
 
 export async function getQuickInsights(userId: string, month?: number, year?: number): Promise<QuickInsight[]> {
   const insights: QuickInsight[] = [];
-  const { start: thisMonthStart, end: thisMonthEnd } = resolveMonthRange(month, year);
-  const lastMonthStart = new Date(thisMonthStart.getFullYear(), thisMonthStart.getMonth() - 1, 1);
-  const lastMonthEnd = new Date(thisMonthStart.getFullYear(), thisMonthStart.getMonth(), 0, 23, 59, 59);
-
-  const [thisMonth, lastMonth] = await Promise.all([
-    prisma.transaction.findMany({ where: { userId, date: { gte: thisMonthStart, lte: thisMonthEnd } } }),
-    prisma.transaction.findMany({
-      where: { userId, date: { gte: lastMonthStart, lte: lastMonthEnd } },
-    }),
-  ]);
-
-  const thisIncome = thisMonth.filter((t) => t.type === 'INCOME').reduce((s, t) => s + Number(t.amount), 0);
-  const thisExpenses = thisMonth.filter((t) => t.type === 'EXPENSE').reduce((s, t) => s + Number(t.amount), 0);
-  const lastExpenses = lastMonth.filter((t) => t.type === 'EXPENSE').reduce((s, t) => s + Number(t.amount), 0);
+  const [lastMonth, thisMonth] = await getMonthFlowsRange(userId, monthKey(month, year), 2);
+  const thisIncome = thisMonth.income;
+  const thisExpenses = outgoings(thisMonth);
+  const lastExpenses = outgoings(lastMonth);
 
   if (thisIncome > 0) {
-    const rate = ((thisIncome - thisExpenses) / thisIncome) * 100;
+    const rate = savingsRate(thisMonth);
     insights.push({
       type: rate >= 30 ? 'positive' : 'neutral',
       message: `You saved ${rate.toFixed(0)}% of your income this month.`,

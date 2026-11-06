@@ -1,4 +1,5 @@
 import { prisma } from '../lib/prisma';
+import { NOT_MOVES } from '../metrics';
 import { getDiversification, getInvestmentHealth } from './investmentIntelligence.service';
 import { getHealthScore, bandFor, HealthScoreBand } from './debtIntelligence.service';
 import { getDashboardOverview } from './dashboard.service';
@@ -61,7 +62,7 @@ export function computeSpendingRhythm(transactions: { date: Date; amount: number
 
 export async function getSpendingRhythm(userId: string): Promise<SpendingRhythm> {
   const transactions = await prisma.transaction.findMany({
-    where: { userId, type: 'EXPENSE', isWealthTransfer: false },
+    where: { userId, type: 'EXPENSE', isWealthTransfer: false, ...NOT_MOVES },
     select: { date: true, amount: true },
   });
 
