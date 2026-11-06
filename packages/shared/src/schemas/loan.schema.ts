@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 export const createLoanSchema = z.object({
   paymentDay: z.number().int().min(1).max(31).optional().nullable(),
+  autoDebit:  z.boolean().optional(), // the bank takes the EMI itself (default true)
   name:             z.string().min(1).max(255),
   loanType:         z.enum(['HOME', 'CAR', 'PERSONAL', 'EDUCATION', 'BUSINESS', 'OTHER']),
   principal:        z.number().positive(),

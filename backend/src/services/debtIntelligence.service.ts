@@ -1,10 +1,11 @@
-import { nextCardEMIDueDate, indiaDateKey, dateInMonth, shiftMonth } from '../lib/cardPaymentSchedule';
+import { nextCardEMIDueDate, indiaDateKey, shiftMonth } from '../lib/cardPaymentSchedule';
 import { prisma } from '../lib/prisma';
 import { calcEMIOutstanding } from './card-emi.service';
 import { simulatePayoff } from './family.service';
 import { createError } from '../middleware/error.middleware';
-import { addMonthsClamped } from '../lib/dateMath';
 import { recordDebtSnapshot } from './debtSnapshot.service';
+import { dueItems } from '../schedule/dueItems';
+import type { ItemType } from '../schedule/types';
 import { getTotalDebt, NOT_MOVES } from '../metrics';
 
 export type DebtSourceType = 'LOAN' | 'CREDIT_CARD' | 'CARD_EMI';
@@ -420,67 +421,26 @@ export interface CalendarEntry {
   amount: number;
 }
 
+const CALENDAR_SOURCE: Partial<Record<ItemType, DebtSourceType>> = { LOAN: 'LOAN', CARD_EMI: 'CARD_EMI', CARD_STATEMENT: 'CREDIT_CARD' };
+const CALENDAR_PREFIX: Partial<Record<ItemType, string>> = { LOAN: 'loan', CARD_EMI: 'emi', CARD_STATEMENT: 'card' };
+
 /**
- * Pure function: projects upcoming due dates across every debt instrument
- * over the next `monthsAhead` months. Loans infer payment day from startDate;
- * card EMIs use the linked card billing cycle and unpaid installment count.
- * Credit cards
- * carry an explicit dueDate that's rolled forward monthly. Loan/EMI
- * occurrences are also capped by monthsToPayoff so a nearly-finished debt
- * doesn't show phantom installments past its payoff.
+ * Loan EMIs, card EMIs and card statements still to pay from today to the end
+ * of `monthsAhead` months, from the schedule engine (so it agrees with Home).
  */
-export function buildEMICalendar(debts: DebtWithStats[], monthsAhead: number, now: Date): CalendarEntry[] {
-  const entries: CalendarEntry[] = [];
-  const horizonEnd = new Date(now.getFullYear(), now.getMonth() + monthsAhead, 0, 23, 59, 59);
-
-  for (const debt of debts) {
-    if (debt.sourceType === 'CARD_EMI' && debt.dueDate && debt.installmentsRemaining !== undefined) {
-      const anchorDay = debt.paymentDay ?? Number(indiaDateKey(debt.dueDate).slice(8));
-      let occurrence = new Date(debt.dueDate);
-      for (let i = 0; i < debt.installmentsRemaining && occurrence <= horizonEnd; i++) {
-        if (occurrence >= now) entries.push({ date: new Date(occurrence), debtId: debt.id, sourceType: debt.sourceType, name: debt.name, amount: debt.emi });
-        const nextKey = dateInMonth(shiftMonth(indiaDateKey(occurrence).slice(0, 7), 1), anchorDay);
-        occurrence = new Date(`${nextKey}T00:00:00+05:30`);
-      }
-    } else if (debt.sourceType === 'CREDIT_CARD') {
-      if (!debt.dueDate) continue;
-      const anchorDay = debt.dueDate.getDate();
-      let occurrence = new Date(debt.dueDate);
-      let guard = 0;
-      while (occurrence < now && guard < 24) { occurrence = addMonthsClamped(occurrence, 1, anchorDay); guard++; }
-      while (occurrence <= horizonEnd) {
-        entries.push({ date: new Date(occurrence), debtId: debt.id, sourceType: debt.sourceType, name: debt.name, amount: debt.emi });
-        occurrence = addMonthsClamped(occurrence, 1, anchorDay);
-      }
-    } else {
-      if (!debt.startDate || debt.monthsToPayoff <= 0) continue;
-      const anchorDay = debt.startDate.getDate();
-      const maxOccurrences = Math.min(monthsAhead, debt.monthsToPayoff);
-      let cursor = new Date(now.getFullYear(), now.getMonth(), Math.min(anchorDay, new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()));
-      if (cursor < now) cursor = addMonthsClamped(cursor, 1, anchorDay);
-      for (let i = 0; i < maxOccurrences && cursor <= horizonEnd; i++) {
-        entries.push({ date: new Date(cursor), debtId: debt.id, sourceType: debt.sourceType, name: debt.name, amount: debt.emi });
-        cursor = addMonthsClamped(cursor, 1, anchorDay);
-      }
-    }
-  }
-
-  entries.sort((a, b) => a.date.getTime() - b.date.getTime());
-  return entries;
-}
-
 export async function getEMICalendar(userId: string, monthsAhead = 3): Promise<CalendarEntry[]> {
-  const debts = await getUnifiedDebtsWithStats(userId);
-  const month = indiaDateKey(new Date()).slice(0, 7);
-  const payments = await prisma.monthlyPayment.findMany({ where: { userId, entityType: 'CARD_EMI', month, status: 'PAID' } });
-  for (const debt of debts) {
-    if (debt.sourceType !== 'CARD_EMI' || !debt.dueDate) continue;
-    if (indiaDateKey(debt.dueDate).slice(0, 7) <= month && payments.some(p => p.entityId === debt.sourceId)) {
-      const date = dateInMonth(shiftMonth(month, 1), debt.paymentDay ?? Number(indiaDateKey(debt.dueDate).slice(8)));
-      debt.dueDate = new Date(`${date}T00:00:00+05:30`);
-    }
-  }
-  return buildEMICalendar(debts, monthsAhead, new Date());
+  const today = indiaDateKey(new Date());
+  const items = await dueItems(userId, today.slice(0, 7), shiftMonth(today.slice(0, 7), monthsAhead - 1), { types: ['LOAN', 'CARD_EMI', 'CARD_STATEMENT'] });
+  return items
+    .filter((i) => i.status === 'PENDING' && i.dueDate && i.dueDate >= today)
+    .map((i) => ({
+      date: new Date(`${i.dueDate}T00:00:00+05:30`),
+      debtId: `${CALENDAR_PREFIX[i.itemType]}:${i.itemId}`,
+      sourceType: CALENDAR_SOURCE[i.itemType]!,
+      name: i.name.replace(/ - statement balance$/, ''),
+      amount: i.itemType === 'CARD_STATEMENT' ? i.remaining ?? i.amount : i.amount,
+    }))
+    .sort((a, b) => a.date.getTime() - b.date.getTime());
 }
 
 // ── Structured recommendations ──────────────────────────────────────────────

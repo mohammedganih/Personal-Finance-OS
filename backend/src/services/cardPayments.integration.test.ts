@@ -26,13 +26,13 @@ describe('card payments and monthly planning integration', () => {
     const plan = await getMonthlyPlan(user.id, '2026-10');
     expect(plan.paid).toBe(3000); expect(plan.remaining).toBe(0);
     expect(await prisma.transaction.count({ where: { userId: user.id } })).toBe(0);
-    expect((await prisma.monthlyPayment.findFirstOrThrow({ where: { userId: user.id } })).month).toBe('2026-10');
+    expect((await prisma.dueStatus.findFirstOrThrow({ where: { userId: user.id } })).period).toBe('2026-10');
   });
   it('does not record a second payment in the same month for a late installment', async () => {
     const { user, account, emi } = await setup(12, '2026-03-01');
     await payCardEMI(user.id, emi.id, account.id);
     await expect(payCardEMI(user.id, emi.id, account.id)).rejects.toThrow('already recorded');
-    expect(await prisma.monthlyPayment.count({ where: { userId: user.id } })).toBe(1);
+    expect(await prisma.dueStatus.count({ where: { userId: user.id } })).toBe(1);
     const calendar = await getEMICalendar(user.id, 3);
     expect(calendar.filter(e => e.sourceType === 'CARD_EMI').map(e => indiaDateKey(e.date))).toEqual(['2026-11-29', '2026-12-29']);
     expect((await getMonthlyPlan(user.id, '2026-11')).creditCards).toBe(3000);

@@ -2,30 +2,32 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const { tx } = vi.hoisted(() => ({ tx: {
   loan: { findFirst: vi.fn(), update: vi.fn() }, investment: { findFirst: vi.fn(), update: vi.fn() },
   account: { findFirst: vi.fn(), update: vi.fn() },
-  monthlyPayment: { findUnique: vi.fn(), create: vi.fn(), delete: vi.fn(), update: vi.fn() },
+  dueStatus: { findUnique: vi.fn(), create: vi.fn(), delete: vi.fn(), update: vi.fn() },
   transaction: { create: vi.fn() },
   ownershipSplit: { findUnique: vi.fn(), upsert: vi.fn() }, loanEvent: { create: vi.fn() },
 } }));
 vi.mock('../lib/prisma', () => ({ prisma: { $transaction: (fn: (client: typeof tx) => unknown) => fn(tx) } }));
 vi.mock('../lib/paymentCategory', () => ({ findCategory: vi.fn().mockResolvedValue('category') }));
+// The loan balance is re-derived from recorded payments (covered by the integration tests).
+vi.mock('../schedule/progress', () => ({ syncLoanBalance: vi.fn() }));
 import { decideMonthlyPayment } from './monthlyPayments.service';
 beforeEach(() => {
   vi.resetAllMocks();
   tx.loan.findFirst.mockResolvedValue({ id: 'loan', name: 'Home', remainingBalance: 3000, emi: 5000, interestRate: 12, startDate: new Date('2020-01-01'), bankAccountId: 'account' });
   tx.account.findFirst.mockResolvedValue({ id: 'account' });
-  tx.monthlyPayment.create.mockResolvedValue({ id: 'event' });
+  tx.dueStatus.create.mockResolvedValue({ id: 'event' });
   tx.transaction.create.mockImplementation(async ({ data }) => ({ id: 'txn', ...data }));
 });
 describe('monthly payment decisions', () => {
   it('rejects a duplicate payment before moving money', async () => {
-    tx.monthlyPayment.findUnique.mockResolvedValue({ status: 'PAID' });
+    tx.dueStatus.findUnique.mockResolvedValue({ status: 'PAID' });
     await expect(decideMonthlyPayment('user', 'LOAN', 'loan', 'PAID')).rejects.toThrow('Already paid');
     expect(tx.transaction.create).not.toHaveBeenCalled();
     expect(tx.account.update).not.toHaveBeenCalled();
   });
   it('records skip without creating a transaction or changing the loan', async () => {
     await decideMonthlyPayment('user', 'LOAN', 'loan', 'SKIPPED');
-    expect(tx.monthlyPayment.create).toHaveBeenCalled();
+    expect(tx.dueStatus.create).toHaveBeenCalled();
     expect(tx.transaction.create).not.toHaveBeenCalled();
     expect(tx.loan.update).not.toHaveBeenCalled();
   });

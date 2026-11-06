@@ -17,7 +17,7 @@ describe('funding plan from saved records', () => {
   it('links bills, includes prior arrears, ignores paid/paused and card charges', async () => {
     const { user, account } = await setup();
     const bill = await prisma.recurringBill.create({ data: { userId: user.id, name: 'Monthly utility', amount: 1000, startDate: new Date('2026-08-07'), accountId: account.id } });
-    await prisma.billOccurrence.create({ data: { userId: user.id, billId: bill.id, dueDate: new Date('2026-08-07'), status: 'PAID', amount: 1000 } });
+    await prisma.dueStatus.create({ data: { userId: user.id, itemType: 'BILL', itemId: bill.id, period: '2026-08', dueKey: '2026-08-07', dueDate: new Date('2026-08-07'), status: 'PAID', amount: 1000 } });
     await prisma.recurringBill.create({ data: { userId: user.id, name: 'Paused', amount: 900, status: 'PAUSED', startDate: new Date('2026-09-01'), accountId: account.id } });
     const card = await prisma.creditCard.create({ data: { userId: user.id, cardName: 'Test card', creditLimit: 10000, dueDate: new Date('2026-10-09'), outstanding: 500, bankAccountId: account.id } });
     await prisma.recurringBill.create({ data: { userId: user.id, name: 'Card subscription', amount: 200, startDate: new Date('2026-10-07'), creditCardId: card.id } });

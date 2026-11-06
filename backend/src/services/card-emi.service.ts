@@ -1,10 +1,10 @@
-import { nextCardEMIDueDate, indiaDateKey } from '../lib/cardPaymentSchedule';
+import { firstCardEMIDueDate, indiaDateKey } from '../lib/cardPaymentSchedule';
+import { cardEMIInstalmentIndex, syncCardEMIProgress } from '../schedule/progress';
 import { CardEMI } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { assertOwnMembers, attachSplit, fetchSplits, saveSplit } from '../lib/ownershipSplit';
 import { createError } from '../middleware/error.middleware';
 import { CreateCardEMIInput, UpdateCardEMIInput } from '../validators/card-emi.validator';
-import { findCategory } from '../lib/paymentCategory';
 
 // ── Core calculation ──────────────────────────────────────────────────────────
 export function calcEMIOutstanding(emi: {
@@ -39,6 +39,7 @@ export function calcEMIOutstanding(emi: {
 
 // ── CRUD ──────────────────────────────────────────────────────────────────────
 export async function getCardEMIs(userId: string, includeArchived = false) {
+  await syncCardEMIProgress(prisma, userId);
   const emis = await prisma.cardEMI.findMany({
     where: { userId, ...(includeArchived ? {} : { isArchived: false }) },
     include: { creditCard: { select: { id: true, cardName: true, bank: true, lastFourDigits: true } } },
@@ -49,6 +50,7 @@ export async function getCardEMIs(userId: string, includeArchived = false) {
 }
 
 export async function getCardEMIsForCard(userId: string, creditCardId: string) {
+  await syncCardEMIProgress(prisma, userId);
   const emis = await prisma.cardEMI.findMany({
     where: { userId, creditCardId, isArchived: false },
     orderBy: { startDate: 'desc' },
@@ -73,6 +75,7 @@ export async function createCardEMI(userId: string, input: CreateCardEMIInput) {
       tenureMonths: input.tenureMonths,
       emisPaid:     input.emisPaid ?? 0,
       isNoCost:     input.isNoCost ?? true,
+      ...(input.autoDebit !== undefined && { autoDebit: input.autoDebit }),
       interestRate: input.interestRate,
       startDate:    new Date(input.startDate),
       notes:        input.notes,
@@ -81,7 +84,10 @@ export async function createCardEMI(userId: string, input: CreateCardEMIInput) {
     include: { creditCard: { select: { id: true, cardName: true, bank: true, lastFourDigits: true } } },
   });
   await saveSplit(userId, 'CARD_EMI', emi.id, input);
-  return attachSplit(serializeWithStats(emi), (await fetchSplits('CARD_EMI', [emi.id])).get(emi.id));
+  // Instalments billed so far come from the start date, whatever count was typed.
+  await syncCardEMIProgress(prisma, userId, emi.id);
+  const fresh = await prisma.cardEMI.findUniqueOrThrow({ where: { id: emi.id }, include: { creditCard: { select: { id: true, cardName: true, bank: true, lastFourDigits: true } } } });
+  return attachSplit(serializeWithStats(fresh), (await fetchSplits('CARD_EMI', [emi.id])).get(emi.id));
 }
 
 export async function updateCardEMI(userId: string, id: string, input: UpdateCardEMIInput) {
@@ -104,6 +110,7 @@ export async function updateCardEMI(userId: string, id: string, input: UpdateCar
       ...(input.tenureMonths !== undefined && { tenureMonths: input.tenureMonths }),
       ...(input.emisPaid     !== undefined && { emisPaid: input.emisPaid }),
       ...(input.isNoCost     !== undefined && { isNoCost: input.isNoCost }),
+      ...(input.autoDebit    !== undefined && { autoDebit: input.autoDebit }),
       ...(input.interestRate !== undefined && { interestRate: input.interestRate }),
       ...(input.startDate    !== undefined && { startDate: new Date(input.startDate) }),
       ...(input.notes        !== undefined && { notes: input.notes }),
@@ -112,7 +119,9 @@ export async function updateCardEMI(userId: string, id: string, input: UpdateCar
     },
     include: { creditCard: { select: { id: true, cardName: true, bank: true, lastFourDigits: true } } },
   });
-  return attachSplit(serializeWithStats(emi), (await fetchSplits('CARD_EMI', [id])).get(id));
+  await syncCardEMIProgress(prisma, userId, id);
+  const fresh = await prisma.cardEMI.findUniqueOrThrow({ where: { id }, include: { creditCard: { select: { id: true, cardName: true, bank: true, lastFourDigits: true } } } });
+  return attachSplit(serializeWithStats(fresh ?? emi), (await fetchSplits('CARD_EMI', [id])).get(id));
 }
 
 export async function deleteCardEMI(userId: string, id: string) {
@@ -127,23 +136,24 @@ export async function deleteCardEMI(userId: string, id: string) {
  * when the card bill itself is paid (credit-card.service payCreditCardBill).
  * `accountId` is accepted for older clients and ignored.
  */
-export async function payCardEMI(userId: string, emiId: string, _accountId?: string) {
+export async function payCardEMI(userId: string, emiId: string, _accountId?: string, options: { auto?: boolean } = {}) {
   try {
     return await prisma.$transaction(async tx => {
-      const emi = await tx.cardEMI.findFirst({ where: { id: emiId, userId, isArchived: false }, include: { creditCard: true } });
-      if (!emi || !emi.creditCard.isActive) throw createError('Card EMI not found or already completed', 404);
+      const emi = await tx.cardEMI.findFirst({ where: { id: emiId, userId }, include: { creditCard: true } });
+      if (!emi || !emi.creditCard.isActive) throw createError('Card EMI not found', 404);
+      // This month's instalment, by the schedule's dates.
       const month = indiaDateKey(new Date()).slice(0, 7);
-      const dueDate = nextCardEMIDueDate(emi, emi.creditCard, month);
-      if (!dueDate) throw createError('All instalments for this EMI are already paid', 400);
-      if (dueDate.slice(0, 7) > month) throw createError('Next installment is not due this month', 400);
-      const key = { userId, entityType: 'CARD_EMI', entityId: emiId, month: dueDate.slice(0, 7) };
-      if (await tx.monthlyPayment.findUnique({ where: { userId_entityType_entityId_month: key } })) throw createError('This due-month installment is already recorded', 409);
-      const amount = Number(emi.emiAmount);
-      await tx.monthlyPayment.create({ data: { ...key, amount, status: 'PAID' } });
-      const newEmisPaid = emi.emisPaid + 1;
-      const isComplete = newEmisPaid >= emi.tenureMonths;
-      const updatedEMI = await tx.cardEMI.update({ where: { id: emiId }, data: { emisPaid: newEmisPaid, isArchived: isComplete } });
-      return { emi: serializeWithStats(updatedEMI), transaction: null, isComplete, billedToCard: true };
+      const k = cardEMIInstalmentIndex(emi, emi.creditCard, month);
+      if (k === null) {
+        const first = firstCardEMIDueDate({ ...emi, emisPaid: 0 }, emi.creditCard).slice(0, 7);
+        throw createError(month < first ? 'Next installment is not due this month' : 'All instalments for this EMI are already paid', 400);
+      }
+      const key = { userId, itemType: 'CARD_EMI', itemId: emiId, period: month, dueKey: '' };
+      if (await tx.dueStatus.findUnique({ where: { userId_itemType_itemId_period_dueKey: key } })) throw createError('This due-month installment is already recorded', 409);
+      await tx.dueStatus.create({ data: { ...key, amount: Number(emi.emiAmount), status: options.auto ? 'AUTO' : 'PAID', paidDate: new Date() } });
+      await syncCardEMIProgress(tx, userId, emiId);
+      const updatedEMI = await tx.cardEMI.findUniqueOrThrow({ where: { id: emiId } });
+      return { emi: serializeWithStats(updatedEMI), transaction: null, isComplete: k === emi.tenureMonths - 1, billedToCard: true };
     });
   } catch (error) {
     if ((error as { code?: string }).code === 'P2002') throw createError('This due-month installment is already recorded', 409);

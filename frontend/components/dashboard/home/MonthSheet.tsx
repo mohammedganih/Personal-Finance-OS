@@ -89,7 +89,7 @@ function Line({ label, bucket, names, showWho }: { label: string; bucket: Summar
       ) : (
         <ul className="mb-2.5 grid gap-1.5 pl-[22px] pr-0.5 text-[13px]">
           {bucket.items.map((item) => {
-            const paid = item.status === 'PAID';
+            const paid = item.status === 'PAID' || item.status === 'AUTO';
             const skipped = item.status === 'SKIPPED';
             const who = showWho && item.memberId ? names.get(item.memberId) : undefined;
             const debitedFrom = item.debitedFromMemberId ? names.get(item.debitedFromMemberId) : undefined;

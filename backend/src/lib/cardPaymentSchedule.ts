@@ -34,16 +34,3 @@ export function nextCardEMIDueDate(emi: Installment, card: CardCycle, currentMon
   // Unpaid old installments remain due; don't erase debt just because time passed.
   return dateInMonth(scheduledMonth < currentMonth ? currentMonth : scheduledMonth, Number(indiaDateKey(card.dueDate).slice(8)));
 }
-export function cardEMIAmountInMonth(emi: Installment & { emiAmount: unknown; isArchived: boolean }, card: CardCycle, month: string, currentMonth: string, currentStatus?: string): { amount: number; dueDate: string } | null {
-  if (emi.isArchived) return null;
-  let next = nextCardEMIDueDate(emi, card, currentMonth);
-  if (next && currentStatus === 'PAID' && next.slice(0, 7) === currentMonth) next = dateInMonth(shiftMonth(currentMonth, 1), Number(indiaDateKey(card.dueDate).slice(8)));
-  if (!next || month < next.slice(0, 7)) return null;
-  const [y, m] = month.split('-').map(Number);
-  const [ny, nm] = next.slice(0, 7).split('-').map(Number);
-  let offset = (y - ny) * 12 + m - nm;
-  // A skipped current installment is deferred, so the final payment moves out.
-  if (currentStatus === 'SKIPPED' && next.slice(0, 7) === currentMonth && month > currentMonth) offset--;
-  if (offset >= emi.tenureMonths - emi.emisPaid) return null;
-  return { amount: Number(emi.emiAmount), dueDate: dateInMonth(month, Number(indiaDateKey(card.dueDate).slice(8))) };
-}

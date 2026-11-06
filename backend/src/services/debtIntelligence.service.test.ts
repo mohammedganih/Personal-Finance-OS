@@ -4,7 +4,7 @@ import * as authService from './auth.service';
 import {
   computeDebtStats, calculateHealthScore, getUnifiedDebtsWithStats,
   getHealthScore, getDebtStrategy, UnifiedDebt, DebtWithStats,
-  simulatePrepayment, buildEMICalendar, generateRecommendations,
+  simulatePrepayment, generateRecommendations,
   getPrepayment, getEMICalendar, getRecommendations,
 } from './debtIntelligence.service';
 
@@ -96,65 +96,6 @@ describe('simulatePrepayment (pure)', () => {
     const result = simulatePrepayment(debt, 0);
     expect(result.newMonths).toBe(result.baselineMonths);
     expect(result.interestSaved).toBe(0);
-  });
-});
-
-describe('buildEMICalendar (pure)', () => {
-  const now = new Date(2026, 5, 15); // June 15, 2026
-
-  it('projects a loan occurrence on its startDate day-of-month, rolled into the future', () => {
-    const loan: DebtWithStats = {
-      id: 'loan:a', sourceType: 'LOAN', sourceId: 'a', name: 'Car Loan',
-      remainingBalance: 100000, emi: 5000, interestRate: 9, memberId: null,
-      startDate: new Date(2024, 0, 5), tenureMonths: 60,
-      monthlyInterest: 750, monthlyPrincipal: 4250, monthsToPayoff: 24,
-    };
-    const entries = buildEMICalendar([loan], 3, now);
-    expect(entries.length).toBeGreaterThan(0);
-    expect(entries[0].date.getDate()).toBe(5);
-    expect(entries[0].date.getTime()).toBeGreaterThan(now.getTime());
-  });
-
-  it('caps loan/EMI occurrences at monthsToPayoff', () => {
-    const loan: DebtWithStats = {
-      id: 'loan:b', sourceType: 'LOAN', sourceId: 'b', name: 'Almost Done',
-      remainingBalance: 5000, emi: 5000, interestRate: 9, memberId: null,
-      startDate: new Date(2024, 0, 5), tenureMonths: 60,
-      monthlyInterest: 37.5, monthlyPrincipal: 4962.5, monthsToPayoff: 1,
-    };
-    const entries = buildEMICalendar([loan], 6, now);
-    expect(entries).toHaveLength(1);
-  });
-
-  it('rolls a credit card dueDate forward monthly within the horizon', () => {
-    const card: DebtWithStats = {
-      id: 'card:c', sourceType: 'CREDIT_CARD', sourceId: 'c', name: 'Visa',
-      remainingBalance: 20000, emi: 2000, interestRate: 36, memberId: null,
-      dueDate: new Date(2026, 4, 10), // May 10 -- in the past relative to `now`
-      monthlyInterest: 600, monthlyPrincipal: 1400, monthsToPayoff: 12,
-    };
-    const entries = buildEMICalendar([card], 2, now);
-    expect(entries.every((e) => e.date.getTime() >= now.getTime())).toBe(true);
-    expect(entries.every((e) => e.date.getDate() === 10)).toBe(true);
-  });
-
-  it('sorts all entries chronologically across mixed debt types', () => {
-    const loan: DebtWithStats = {
-      id: 'loan:d', sourceType: 'LOAN', sourceId: 'd', name: 'Loan',
-      remainingBalance: 100000, emi: 5000, interestRate: 9, memberId: null,
-      startDate: new Date(2024, 0, 25), tenureMonths: 60,
-      monthlyInterest: 750, monthlyPrincipal: 4250, monthsToPayoff: 24,
-    };
-    const card: DebtWithStats = {
-      id: 'card:e', sourceType: 'CREDIT_CARD', sourceId: 'e', name: 'Card',
-      remainingBalance: 20000, emi: 2000, interestRate: 36, memberId: null,
-      dueDate: new Date(2026, 5, 3),
-      monthlyInterest: 600, monthlyPrincipal: 1400, monthsToPayoff: 12,
-    };
-    const entries = buildEMICalendar([loan, card], 2, now);
-    for (let i = 1; i < entries.length; i++) {
-      expect(entries[i].date.getTime()).toBeGreaterThanOrEqual(entries[i - 1].date.getTime());
-    }
   });
 });
 

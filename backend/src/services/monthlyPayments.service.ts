@@ -1,16 +1,14 @@
-import { cardEMIAmountInMonth, indiaDateKey, dateInMonth } from '../lib/cardPaymentSchedule';
 import { prisma } from '../lib/prisma';
+import { syncLoanBalance } from '../schedule/progress';
 import { createError } from '../middleware/error.middleware';
 import { calculateEMISplit } from './loan.service';
 import { findCategory } from '../lib/paymentCategory';
-import { getBillsCalendar } from './bill.service';
+import { currentMonth, dueItems, instalmentFor, RECURRING_INVESTMENT_TYPES } from '../schedule/dueItems';
+import type { DueItem } from '../schedule/types';
 import { copySplitToTransactions } from '../lib/ownershipSplit';
 
-export const recurringTypes = ['SIP', 'RECURRING_DEPOSIT', 'GOLD_SCHEME'];
-export function currentMonth(now = new Date()) {
-  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit' }).formatToParts(now);
-  return `${parts.find(p => p.type === 'year')!.value}-${parts.find(p => p.type === 'month')!.value}`;
-}
+export const recurringTypes = RECURRING_INVESTMENT_TYPES;
+export { currentMonth, instalmentFor };
 export function monthWindow(month: string) {
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw createError('Invalid month', 400);
   const [year, m] = month.split('-').map(Number);
@@ -33,106 +31,34 @@ export interface MonthlyPlanRow {
 }
 // Plan row type → OwnershipSplit entity type, for every type the split model covers.
 export const SPLIT_ENTITY: Record<string, 'INVESTMENT' | 'LOAN' | 'BILL' | 'CARD_EMI'> = { INVESTMENT: 'INVESTMENT', LOAN: 'LOAN', BILL: 'BILL', CARD_EMI: 'CARD_EMI' };
+
+/** A due item as a month-plan row (the API shape Home and the payment lists use). */
+export function toPlanRow(i: DueItem): MonthlyPlanRow {
+  const statement = i.itemType === 'CARD_STATEMENT';
+  return {
+    id: i.itemId, type: statement ? 'CREDIT_CARD' : i.itemType, name: i.name, amount: i.amount, status: i.status,
+    dueDate: i.dueDate ?? undefined, accountId: i.accountId, creditCardId: i.creditCardId ?? undefined, memberId: i.payerMemberId,
+    ...(i.shared !== undefined && { shared: i.shared }),
+    ...(statement && { paidAmount: i.paidAmount, remaining: i.remaining }),
+    ...(i.split && { split: i.split }),
+    ...(i.statementId && { statementId: i.statementId }),
+  };
+}
+
+/** Everything due in one month, from the schedule engine. */
 export async function getMonthlyPlan(userId: string, month = currentMonth()) {
-  const window = monthWindow(month);
-  const [loans, investments, events, bills, cards, cardEmis, statements, closeEvents] = await Promise.all([
-    prisma.loan.findMany({ where: { userId } }),
-    prisma.investment.findMany({ where: { userId, assetType: { in: ['SIP', 'RECURRING_DEPOSIT', 'GOLD_SCHEME'] } } }),
-    prisma.monthlyPayment.findMany({ where: { userId, month: { in: [month, currentMonth()] } } }),
-    getBillsCalendar(userId, window.start, window.end),
-    prisma.creditCard.findMany({ where: { userId, isActive: true } }),
-    prisma.cardEMI.findMany({ where: { userId }, include: { creditCard: true } }),
-    prisma.cardStatement.findMany({ where: { userId }, select: { id: true, creditCardId: true, month: true, totalDue: true, dueDate: true } }),
-    prisma.loanEvent.findMany({ where: { userId, type: 'CLOSED' }, select: { loanId: true, date: true }, orderBy: { date: 'desc' } }),
-  ]);
-  const rows: MonthlyPlanRow[] = [];
-  const cardMember = new Map(cards.map(c => [c.id, c.memberId]));
-  // When each loan closed: its latest CLOSED history entry (newest first). Older
-  // loans closed before history existed fall back to their last-edited time.
-  const closedOn = new Map<string, Date>();
-  for (const e of closeEvents) if (!closedOn.has(e.loanId)) closedOn.set(e.loanId, e.date);
-  for (const loan of loans) {
-    const event = events.find(e => e.month === month && e.entityType === 'LOAN' && e.entityId === loan.id);
-    const past = month < currentMonth();
-    // A loan closed since then was still being repaid in earlier months.
-    const closedLater = !loan.isActive && past && month < currentMonth(closedOn.get(loan.id) ?? loan.updatedAt);
-    if (!event && ((!loan.isActive && !closedLater) || currentMonth(loan.startDate) > month)) continue;
-    let balance = Number(loan.remainingBalance);
-    // Next month assumes this month's pending EMI is paid on schedule.
-    if (month > currentMonth() && currentMonth(loan.startDate) <= currentMonth()) {
-      const currentEvent = events.find(e => e.month === currentMonth() && e.entityType === 'LOAN' && e.entityId === loan.id);
-      if (!currentEvent) balance = calculateEMISplit(balance, Number(loan.emi), Number(loan.interestRate)).newBalance;
-    }
-    const split = calculateEMISplit(balance, Number(loan.emi), Number(loan.interestRate));
-    if (!event && !closedLater && split.actualPayment <= 0) continue;
-    // Earlier months without a record show the scheduled EMI, not one worked out from today's balance.
-    const scheduled = past ? Number(loan.emi) : split.actualPayment;
-    rows.push({ id: loan.id, type: 'LOAN', name: loan.name, amount: event ? Number(event.amount) : scheduled, status: event?.status ?? 'PENDING', accountId: loan.bankAccountId, memberId: loan.payerMemberId ?? loan.memberId, shared: !loan.memberId || !loan.payerMemberId || loan.memberId !== loan.payerMemberId, dueDate: dateInMonth(month, loan.paymentDay ?? Number(indiaDateKey(loan.startDate).slice(8))) });
-  }
-  for (const inv of investments) {
-    const event = events.find(e => e.month === month && e.entityType === 'INVESTMENT' && e.entityId === inv.id);
-    const instalment = instalmentFor(inv, month);
-    if (!event && (inv.recurringActive === false || instalment.paused || currentMonth(inv.purchaseDate) > month || (inv.maturityDate && currentMonth(inv.maturityDate) < month) || instalment.amount <= 0)) continue;
-    rows.push({ id: inv.id, type: 'INVESTMENT', name: inv.assetName, amount: event ? Number(event.amount) : instalment.amount, status: event?.status ?? 'PENDING', accountId: inv.bankAccountId, memberId: inv.memberId, dueDate: dateInMonth(month, inv.paymentDay ?? Number(indiaDateKey(inv.purchaseDate).slice(8))) });
-  }
-  for (const card of cards) {
-    // A saved statement for this month is the real figure.
-    const saved = statements.find(st => st.creditCardId === card.id && st.month === month);
-    if (saved) {
-      const event = events.find(e => e.month === month && e.entityType === 'CREDIT_CARD' && e.entityId === card.id && e.status === 'PAID');
-      const paid = event ? Number(event.amount) : 0;
-      const total = Number(saved.totalDue);
-      if (total <= 0 && !paid) continue;
-      const remaining = Math.max(0, Math.round((total - paid) * 100) / 100);
-      rows.push({ id: card.id, type: 'CREDIT_CARD', name: `${card.cardName} - statement balance`, amount: total, paidAmount: paid, remaining, status: remaining <= 0 ? 'PAID' : 'PENDING', dueDate: indiaDateKey(saved.dueDate), accountId: card.bankAccountId, creditCardId: card.id, memberId: card.memberId, statementId: saved.id });
-      continue;
-    }
-    // The card's own fields mirror a saved statement, which shows in its own month.
-    if (statements.some(st => st.creditCardId === card.id && st.month === indiaDateKey(card.dueDate).slice(0, 7))) continue;
-    const dueDate = indiaDateKey(card.dueDate);
-    // Full saved statement balance is due once; unknown future spending isn't repeated.
-    const dueMonth = dueDate.slice(0, 7) < currentMonth() ? currentMonth() : dueDate.slice(0, 7);
-    if (dueMonth !== month) continue;
-    // Payments already made against this statement are kept on its MonthlyPayment
-    // record, so the statement stays visible (as paid / part paid) after paying.
-    const event = events.find(e => e.month === month && e.entityType === 'CREDIT_CARD' && e.entityId === card.id);
-    const paid = event ? Number(event.amount) : 0;
-    const outstanding = Number(card.outstanding);
-    if (outstanding <= 0 && !paid) continue;
-    rows.push({ id: card.id, type: 'CREDIT_CARD', name: `${card.cardName} - statement balance`, amount: outstanding + paid, paidAmount: paid, remaining: outstanding, status: outstanding <= 0 ? 'PAID' : 'PENDING', dueDate, accountId: card.bankAccountId, creditCardId: card.id, memberId: card.memberId });
-  }
-  for (const emi of cardEmis) {
-    if (!emi.creditCard.isActive) continue;
-    const event = events.find(e => e.month === month && e.entityType === 'CARD_EMI' && e.entityId === emi.id);
-    const currentEvent = events.find(e => e.month === currentMonth() && e.entityType === 'CARD_EMI' && e.entityId === emi.id);
-    const payment = cardEMIAmountInMonth(emi, emi.creditCard, month, currentMonth(), currentEvent?.status);
-    if (!event && !payment) continue;
-    rows.push({ id: emi.id, type: 'CARD_EMI', accountId: emi.creditCard.bankAccountId, creditCardId: emi.creditCardId, memberId: emi.memberId ?? emi.creditCard.memberId, name: `${emi.itemName} (${emi.creditCard.cardName})`, amount: event ? Number(event.amount) : payment!.amount, status: event?.status ?? 'PENDING', dueDate: payment?.dueDate ?? dateInMonth(month, Number(indiaDateKey(emi.creditCard.dueDate).slice(8))) });
-  }
-  for (const bill of bills) {
-    if (bill.status === 'PAUSED') continue;
-    rows.push({ id: bill.billId, type: 'BILL', name: bill.name, amount: bill.amount, accountId: bill.accountId, creditCardId: bill.creditCardId ?? undefined, memberId: bill.memberId ?? (bill.creditCardId ? cardMember.get(bill.creditCardId) ?? null : null), status: ['PAID', 'SKIPPED'].includes(bill.status) ? bill.status : 'PENDING', dueDate: bill.dueDate });
-  }
-  const splits = await prisma.ownershipSplit.findMany({ where: { userId, entityType: { in: Array.from(new Set(Object.values(SPLIT_ENTITY))) } } });
-  for (const r of rows) {
-    const sp = SPLIT_ENTITY[r.type] && splits.find(x => x.entityType === SPLIT_ENTITY[r.type] && x.entityId === r.id);
-    if (sp && sp.secondaryMemberId !== r.memberId) r.split = { memberId: sp.secondaryMemberId, pct: Math.round((100 - Number(sp.ratio)) * 100) / 100 };
-  }
+  monthWindow(month);
+  const rows = (await dueItems(userId, month, month)).map(toPlanRow);
   return { month, rows, ...summarizeRows(rows) };
 }
 export function summarizeRows(input: { type: string; amount: number; status: string; paidAmount?: number; remaining?: number }[]) {
   // A part-paid card statement counts its paid part as paid and the rest as pending.
-  const rows = input.flatMap(r => r.status === 'PENDING' && r.paidAmount
+  // AUTO (confirmed on its due date) counts as paid.
+  const rows = input.map(r => (r.status === 'AUTO' ? { ...r, status: 'PAID' } : r)).flatMap(r => r.status === 'PENDING' && r.paidAmount
     ? [{ ...r, amount: r.paidAmount, status: 'PAID' }, { ...r, amount: r.remaining ?? r.amount - r.paidAmount }]
     : [r]);
   const sum = (status?: string, type?: string) => rows.filter(r => (!status || r.status === status) && (!type || r.type === type)).reduce((s, r) => s + r.amount, 0);
   return { scheduled: sum(), paid: sum('PAID'), skipped: sum('SKIPPED'), remaining: sum('PENDING'), loans: sum('PENDING', 'LOAN'), creditCards: sum('PENDING', 'CREDIT_CARD') + sum('PENDING', 'CARD_EMI'), investments: sum('PENDING', 'INVESTMENT'), bills: sum('PENDING', 'BILL') };
-}
-/** A SIP/RD/gold scheme's instalment for a month: paused, or the (possibly changed) amount. */
-export function instalmentFor(inv: { monthlyAmount: unknown; pauseFrom?: string | null; pauseUntil?: string | null; nextMonthlyAmount?: unknown; nextAmountFrom?: string | null }, month: string) {
-  const paused = !!inv.pauseFrom && month >= inv.pauseFrom && (!inv.pauseUntil || month <= inv.pauseUntil);
-  const changed = !!inv.nextAmountFrom && inv.nextMonthlyAmount != null && month >= inv.nextAmountFrom;
-  return { paused, amount: Number(changed ? inv.nextMonthlyAmount : inv.monthlyAmount) || 0 };
 }
 export interface PaymentOptions {
   /** `YYYY-MM`: this month (default) or last month, for an overdue instalment. */
@@ -141,6 +67,8 @@ export interface PaymentOptions {
   amount?: number;
   /** `YYYY-MM-DD` the money actually left the account; defaults to now. */
   paidDate?: string;
+  /** Recorded by the auto-debit job rather than by hand (status AUTO). */
+  auto?: boolean;
 }
 export function previousMonth(month = currentMonth()) {
   const [y, m] = month.split('-').map(Number);
@@ -175,13 +103,13 @@ export async function decideMonthlyPayment(userId: string, type: 'LOAN' | 'INVES
       if (amount <= 0) throw createError('No payment amount configured', 400);
       const sourceAccount = accountId || loan?.bankAccountId || inv?.bankAccountId;
       if (sourceAccount && !await tx.account.findFirst({ where: { id: sourceAccount, userId } })) throw createError('Account not found', 404);
-      const key = { userId, entityType: type, entityId: id, month };
-      const existing = await tx.monthlyPayment.findUnique({ where: { userId_entityType_entityId_month: key } });
-      if (existing?.status === 'PAID') throw createError('Already paid this month', 409);
+      const key = { userId, itemType: type, itemId: id, period: month, dueKey: '' };
+      const existing = await tx.dueStatus.findUnique({ where: { userId_itemType_itemId_period_dueKey: key } });
+      if (existing && existing.status !== 'SKIPPED') throw createError('Already paid this month', 409);
       if (existing?.status === 'SKIPPED' && status === 'SKIPPED') return existing;
       // Reserve the unique monthly slot before any money is moved.
-      if (existing) await tx.monthlyPayment.delete({ where: { id: existing.id } });
-      const event = await tx.monthlyPayment.create({ data: { ...key, status, amount } });
+      if (existing) await tx.dueStatus.delete({ where: { id: existing.id } });
+      const event = await tx.dueStatus.create({ data: { ...key, status: status === 'PAID' && options.auto ? 'AUTO' : status, amount, ...(status === 'PAID' && { paidDate: paidOn, accountId: sourceAccount ?? null }) } });
       if (status === 'SKIPPED') return event;
       const transactions = [];
       const portions = loan && split ? [
@@ -189,12 +117,15 @@ export async function decideMonthlyPayment(userId: string, type: 'LOAN' | 'INVES
         { amount: split.principalPortion, description: `EMI Principal: ${loan.name}`, categoryId: loan.linkedInvestmentId ? wealthCategory : emiCategory, isWealthTransfer: !!loan.linkedInvestmentId },
       ] : [{ amount, description: `${inv!.assetType}: ${inv!.assetName}`, categoryId: emiCategory, isWealthTransfer: false }];
       for (const portion of portions.filter(p => p.amount > 0)) transactions.push(await tx.transaction.create({ data: { userId, type: 'EXPENSE', kind: loan ? 'DEBT' : 'SAVE', sourceType: type, sourceId: id, period: month, ...portion, accountId: sourceAccount, memberId: loan?.payerMemberId ?? loan?.memberId ?? inv?.memberId, date: paidOn, isRecurring: true } }));
-      if (loan && split) await tx.loan.update({ where: { id }, data: { remainingBalance: split.newBalance, isActive: !split.isPaidOff } });
+      if (loan && split) {
+        await tx.loan.update({ where: { id }, data: { isActive: !split.isPaidOff } });
+        await syncLoanBalance(tx, id);
+      }
       if (loan && split?.isPaidOff) await tx.loanEvent.create({ data: { userId, loanId: id, type: 'CLOSED', date: paidOn, balanceBefore: loan.remainingBalance, balanceAfter: 0, note: `Last EMI (${month})` } });
       if (inv?.assetType === 'RECURRING_DEPOSIT') await tx.investment.update({ where: { id }, data: { quantity: { increment: 1 } } });
       if (sourceAccount) await tx.account.update({ where: { id: sourceAccount }, data: { balance: { decrement: amount } } });
       await copySplitToTransactions(tx, userId, loan ? 'LOAN' : 'INVESTMENT', id, transactions.map(t => t.id));
-      await tx.monthlyPayment.update({ where: { id: event.id }, data: { transactionIds: transactions.map(t => t.id) } });
+      await tx.dueStatus.update({ where: { id: event.id }, data: { transactionIds: transactions.map(t => t.id) } });
       return { ...event, amount, transactions, transaction: transactions[0], isPaidOff: split?.isPaidOff ?? false };
     });
   } catch (error) {

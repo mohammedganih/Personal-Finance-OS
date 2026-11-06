@@ -100,7 +100,7 @@ function bucket(rows: SheetRow[]): Bucket {
   const live = rows.filter(counts);
   return {
     total: round(live.reduce((s, r) => s + r.amount, 0)),
-    paid: round(live.filter(r => r.status === 'PAID').reduce((s, r) => s + r.amount, 0)),
+    paid: round(live.filter(r => r.status === 'PAID' || r.status === 'AUTO').reduce((s, r) => s + r.amount, 0)),
     items,
   };
 }

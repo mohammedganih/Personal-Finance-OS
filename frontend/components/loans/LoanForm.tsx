@@ -19,6 +19,7 @@ import { LOAN_TYPE_LABELS, ASSET_TYPE_ICONS } from '@/lib/constants';
 import { Loan, Account } from '@/types';
 
 const schema = z.object({
+  autoDebit: z.boolean().default(true),
   paymentDay: z.preprocess(v => v === '' || v == null ? null : Number(v), z.number().int().min(1).max(31).nullable()).optional(),
   name:             z.string().min(1, 'Name required'),
   loanType:         z.enum(['HOME', 'CAR', 'PERSONAL', 'EDUCATION', 'BUSINESS', 'OTHER']),
@@ -62,6 +63,7 @@ export function LoanForm({ onClose, loan }: LoanFormProps) {
           remainingBalance: loan.remainingBalance,
           tenureMonths: loan.tenureMonths,
           paymentDay: loan.paymentDay ?? null,
+          autoDebit: loan.autoDebit ?? true,
           startDate:     format(new Date(loan.startDate), 'yyyy-MM-dd'),
           lender:        loan.lender ?? '',
           memberId:      loan.memberId ?? undefined,
@@ -69,7 +71,7 @@ export function LoanForm({ onClose, loan }: LoanFormProps) {
           bankAccountId: loan.bankAccountId ?? undefined,
           linkedInvestmentId: loan.linkedInvestmentId ?? undefined,
         }
-      : { startDate: format(new Date(), 'yyyy-MM-dd'), loanType: 'PERSONAL' },
+      : { startDate: format(new Date(), 'yyyy-MM-dd'), loanType: 'PERSONAL', autoDebit: true },
   });
 
   const [splitMemberId, setSplitMemberId] = useState<string | null>(loan?.splitMemberId ?? null);
@@ -214,6 +216,10 @@ export function LoanForm({ onClose, loan }: LoanFormProps) {
             <p className="text-xs text-text-muted">Day 1-31. Defaults to the original start/purchase day. Shorter months use the last day.</p>
             {errors.paymentDay && <p className="text-xs text-danger">Choose a day from 1 to 31.</p>}
           </div>
+          <label className="flex items-start gap-2 text-sm text-text-secondary">
+            <input type="checkbox" className="mt-1" {...register('autoDebit')} />
+            <span>Auto-debited<span className="block text-xs text-text-muted">The bank takes the EMI on its due day, so it is marked paid automatically. You can still undo it.</span></span>
+          </label>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
             <Button type="submit" disabled={isPending}>

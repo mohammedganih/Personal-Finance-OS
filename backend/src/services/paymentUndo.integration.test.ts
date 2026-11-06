@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
+import { syncCardEMIProgress } from '../schedule/progress';
 import { resetDatabase, prisma } from '../test/db';
 import { decideMonthlyPayment, getMonthlyPlan } from './monthlyPayments.service';
 import { payCardEMI } from './card-emi.service';
@@ -54,8 +55,8 @@ describe('undo a recorded payment', () => {
   it('only undoes the latest loan payment', async () => {
     const { user } = await setup();
     const loan = await prisma.loan.create({ data: { userId: user.id, name: 'Loan', loanType: 'PERSONAL', principal: 10000, remainingBalance: 10000, emi: 2000, tenureMonths: 5, interestRate: 0, startDate: new Date('2026-08-01') } });
-    await prisma.monthlyPayment.create({ data: { userId: user.id, entityType: 'LOAN', entityId: loan.id, month: '2026-11', status: 'PAID', amount: 2000 } });
-    await prisma.monthlyPayment.create({ data: { userId: user.id, entityType: 'LOAN', entityId: loan.id, month: '2026-10', status: 'PAID', amount: 2000 } });
+    await prisma.dueStatus.create({ data: { userId: user.id, itemType: 'LOAN', itemId: loan.id, period: '2026-11', status: 'PAID', amount: 2000 } });
+    await prisma.dueStatus.create({ data: { userId: user.id, itemType: 'LOAN', itemId: loan.id, period: '2026-10', status: 'PAID', amount: 2000 } });
     await expect(undoPayment(user.id, { type: 'LOAN', id: loan.id, month: '2026-10' })).rejects.toMatchObject({ status: 409 });
   });
 
@@ -67,7 +68,7 @@ describe('undo a recorded payment', () => {
     await undoPayment(user.id, { type: 'INVESTMENT', id: rd.id });
     expect(Number((await prisma.investment.findUniqueOrThrow({ where: { id: rd.id } })).quantity)).toBe(3);
     expect(await balance(account.id)).toBe(100000);
-    expect(await prisma.monthlyPayment.count()).toBe(0);
+    expect(await prisma.dueStatus.count()).toBe(0);
   });
 
   it('clears a skipped month without touching money', async () => {
@@ -76,18 +77,23 @@ describe('undo a recorded payment', () => {
     await decideMonthlyPayment(user.id, 'INVESTMENT', sip.id, 'SKIPPED');
     const result = await undoPayment(user.id, { type: 'INVESTMENT', id: sip.id });
     expect(result).toMatchObject({ previousStatus: 'SKIPPED' });
-    expect(await prisma.monthlyPayment.count()).toBe(0);
+    expect(await prisma.dueStatus.count()).toBe(0);
     expect(await balance(account.id)).toBe(100000);
   });
 
-  it('reverses a card EMI instalment and reopens a completed EMI', async () => {
+  // Card EMI progress comes from the schedule's dates (billed once due), not from ticks.
+  it('reverses a card EMI tick; progress follows the due date, not the tick', async () => {
     const { user, account } = await setup();
     const card = await prisma.creditCard.create({ data: { userId: user.id, cardName: 'Card', creditLimit: 100000, outstanding: 0, statementDate: new Date('2026-07-09'), dueDate: new Date('2026-07-29') } });
     const emi = await prisma.cardEMI.create({ data: { userId: user.id, creditCardId: card.id, itemName: 'Phone', totalAmount: 3000, emiAmount: 3000, tenureMonths: 1, startDate: new Date('2026-09-20'), isNoCost: true } });
     await payCardEMI(user.id, emi.id, account.id);
-    expect(await prisma.cardEMI.findUniqueOrThrow({ where: { id: emi.id } })).toMatchObject({ emisPaid: 1, isArchived: true });
+    expect(await prisma.dueStatus.count({ where: { itemId: emi.id, status: 'PAID' } })).toBe(1);
+    expect(await prisma.cardEMI.findUniqueOrThrow({ where: { id: emi.id } })).toMatchObject({ emisPaid: 0, isArchived: false }); // due 29 Oct
     await undoPayment(user.id, { type: 'CARD_EMI', id: emi.id, month: '2026-10' });
-    expect(await prisma.cardEMI.findUniqueOrThrow({ where: { id: emi.id } })).toMatchObject({ emisPaid: 0, isArchived: false });
+    expect(await prisma.dueStatus.count({ where: { itemId: emi.id } })).toBe(0);
+    vi.setSystemTime(new Date('2026-10-30T06:00:00Z'));
+    await syncCardEMIProgress(prisma, user.id, emi.id);
+    expect(await prisma.cardEMI.findUniqueOrThrow({ where: { id: emi.id } })).toMatchObject({ emisPaid: 1, isArchived: true });
     expect(await balance(account.id)).toBe(100000);
     expect(await prisma.transaction.count({ where: { userId: user.id } })).toBe(0);
   });
@@ -100,7 +106,7 @@ describe('undo a recorded payment', () => {
     await expect(undoPayment(user.id, { type: 'BILL', id: bill.id })).rejects.toMatchObject({ status: 400 });
     await undoPayment(user.id, { type: 'BILL', id: bill.id, dueDate: '2026-10-07' });
     expect(await balance(account.id)).toBe(100000);
-    expect(await prisma.billOccurrence.count()).toBe(0);
+    expect(await prisma.dueStatus.count({ where: { itemType: 'BILL' } })).toBe(0);
   });
 
   it('only touches the signed-in user\'s records', async () => {
@@ -109,6 +115,6 @@ describe('undo a recorded payment', () => {
     const loan = await prisma.loan.create({ data: { userId: user.id, name: 'Loan', loanType: 'PERSONAL', principal: 10000, remainingBalance: 10000, emi: 2000, tenureMonths: 5, interestRate: 0, startDate: new Date('2026-09-01') } });
     await decideMonthlyPayment(user.id, 'LOAN', loan.id, 'PAID');
     await expect(undoPayment(other.id, { type: 'LOAN', id: loan.id })).rejects.toMatchObject({ status: 404 });
-    expect(await prisma.monthlyPayment.count()).toBe(1);
+    expect(await prisma.dueStatus.count()).toBe(1);
   });
 });

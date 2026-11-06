@@ -1,4 +1,5 @@
 import { Prisma, Loan, FamilyMember, Account, Investment } from '@prisma/client';
+import { openingBalanceFor, syncLoanBalance } from '../schedule/progress';
 import { monthOf } from '../lib/ledger';
 import { prisma } from '../lib/prisma';
 import { attachSplit, fetchSplits, saveSplit } from '../lib/ownershipSplit';
@@ -47,6 +48,7 @@ export async function createLoan(userId: string, input: CreateLoanInput) {
       interestRate:     input.interestRate,
       emi:              input.emi,
       remainingBalance: input.remainingBalance,
+      openingBalance:   input.remainingBalance,
       tenureMonths:     input.tenureMonths,
       startDate:        new Date(input.startDate),
       lender:           input.lender,
@@ -55,6 +57,7 @@ export async function createLoan(userId: string, input: CreateLoanInput) {
       payerMemberId:    input.payerMemberId,
       bankAccountId:    input.bankAccountId,
       paymentDay: input.paymentDay,
+      ...(input.autoDebit !== undefined && { autoDebit: input.autoDebit }),
       linkedInvestmentId: input.linkedInvestmentId,
     },
     include: LOAN_INCLUDE,
@@ -77,7 +80,8 @@ export async function updateLoan(userId: string, id: string, input: UpdateLoanIn
       ...(input.principal !== undefined && { principal: input.principal }),
       ...(input.interestRate !== undefined && { interestRate: input.interestRate }),
       ...(input.emi !== undefined && { emi: input.emi }),
-      ...(input.remainingBalance !== undefined && { remainingBalance: input.remainingBalance }),
+      // A balance typed by hand resets the opening balance, so recorded payments still come off it.
+      ...(input.remainingBalance !== undefined && { remainingBalance: input.remainingBalance, openingBalance: await openingBalanceFor(prisma, id, input.remainingBalance) }),
       ...(input.tenureMonths !== undefined && { tenureMonths: input.tenureMonths }),
       ...(input.startDate && { startDate: new Date(input.startDate) }),
       ...(input.lender !== undefined && { lender: input.lender }),
@@ -86,6 +90,7 @@ export async function updateLoan(userId: string, id: string, input: UpdateLoanIn
       ...(input.memberId       !== undefined && { memberId: input.memberId }),
       ...(input.payerMemberId  !== undefined && { payerMemberId: input.payerMemberId }),
       ...(input.paymentDay !== undefined && { paymentDay: input.paymentDay }),
+      ...(input.autoDebit !== undefined && { autoDebit: input.autoDebit }),
       ...(input.bankAccountId  !== undefined && { bankAccountId: input.bankAccountId }),
       ...(input.linkedInvestmentId !== undefined && { linkedInvestmentId: input.linkedInvestmentId }),
     },
@@ -222,6 +227,7 @@ export async function payLoanEMI(userId: string, loanId: string, accountId?: str
   if (accountId) ops.push(balanceAdjustment(accountId, -actualPayment));
 
   const results = await prisma.$transaction(ops);
+  await syncLoanBalance(prisma, loanId);
   const updatedLoan = results[0] as LoanWithRelations;
   const transactions = results.slice(1, 1 + [interestPortion > 0, principalPortion > 0].filter(Boolean).length) as { amount: { toString(): string } }[];
 

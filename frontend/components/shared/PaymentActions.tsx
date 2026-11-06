@@ -91,7 +91,7 @@ export function PaymentActions({ row, planMonth, className }: { row: PayableRow;
     const month = row.type === 'LOAN' || row.type === 'INVESTMENT' ? planMonth : row.dueDate?.slice(0, 7);
     return (
       <span className={cn('inline-flex items-center gap-2', className)}>
-        <span className="text-xs text-ink-muted">{row.status === 'SKIPPED' ? 'Skipped' : 'Paid'}</span>
+        <span className="text-xs text-ink-muted">{row.status === 'SKIPPED' ? 'Skipped' : row.status === 'AUTO' ? 'Auto-paid' : 'Paid'}</span>
         <button
           type="button" disabled={busy} className={pill}
           onClick={() => { if (window.confirm(`Undo the ${row.status === 'SKIPPED' ? 'skip' : 'payment'} for ${row.name}?`)) undo.mutate({ type: row.type, id: row.type === 'CREDIT_CARD' ? row.creditCardId ?? row.id : row.id, month, dueDate: row.dueDate }); }}

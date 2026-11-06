@@ -6,7 +6,7 @@ import { useToast } from '@/components/ui/use-toast';
 
 export type HistoryType = 'LOAN' | 'INVESTMENT' | 'CARD_EMI' | 'CREDIT_CARD' | 'BILL';
 export interface HistoryEntry {
-  key: string; kind: 'PAID' | 'SKIPPED' | 'PREPAYMENT' | 'RATE_CHANGE' | 'CLOSED';
+  key: string; kind: 'PAID' | 'AUTO' | 'SKIPPED' | 'PREPAYMENT' | 'RATE_CHANGE' | 'CLOSED';
   month: string | null; dueDate: string | null; date: string; amount: number | null;
   canUndo: boolean; eventId?: string; note?: string | null;
 }

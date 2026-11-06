@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client';
+import { syncLoanBalance } from '../schedule/progress';
 import { prisma } from '../lib/prisma';
 import { createError } from '../middleware/error.middleware';
 import { currentMonth, monthWindow } from './monthlyPayments.service';
@@ -25,28 +26,29 @@ export async function undoPayment(userId: string, input: UndoInput) {
   monthWindow(month);
 
   return prisma.$transaction(async tx => {
-    const key = { userId, entityType: input.type, entityId: input.id, month };
-    const event = await tx.monthlyPayment.findUnique({ where: { userId_entityType_entityId_month: key } });
+    const key = { userId, itemType: input.type === 'CREDIT_CARD' ? 'CARD_STATEMENT' : input.type, itemId: input.id, period: month, dueKey: '' };
+    const event = await tx.dueStatus.findUnique({ where: { userId_itemType_itemId_period_dueKey: key } });
     if (!event) throw createError('No payment recorded for this month', 404);
 
-    if (event.status === 'PAID') {
+    if (event.status !== 'SKIPPED') { // PAID or AUTO
       // Loans and card EMIs move a running balance/count forward, so only the
       // most recent payment can be reversed cleanly.
       if (input.type !== 'INVESTMENT') {
-        const later = await tx.monthlyPayment.findFirst({ where: { userId, entityType: input.type, entityId: input.id, status: 'PAID', month: { gt: month } } });
-        if (later) throw createError(`Undo the ${later.month} payment first`, 409);
+        const later = await tx.dueStatus.findFirst({ where: { userId, itemType: key.itemType, itemId: input.id, status: { in: ['PAID', 'AUTO'] }, period: { gt: month } } });
+        if (later) throw createError(`Undo the ${later.period} payment first`, 409);
       }
       const txns = event.transactionIds.length
         ? await tx.transaction.findMany({ where: { id: { in: event.transactionIds }, userId } })
         : [];
-      await reverseEntity(tx, userId, input.type, input.id, txns, Number(event.amount), month);
+      await reverseEntity(tx, userId, input.type, input.id, txns, Number(event.amount ?? 0), month);
       for (const t of txns) {
         if (t.accountId) await tx.account.update({ where: { id: t.accountId }, data: { balance: { increment: t.amount } } });
       }
       await deleteTransactionSplits(tx, txns.map(t => t.id));
       if (txns.length) await tx.transaction.deleteMany({ where: { id: { in: txns.map(t => t.id) }, userId } });
     }
-    await tx.monthlyPayment.delete({ where: { id: event.id } });
+    await tx.dueStatus.delete({ where: { id: event.id } });
+    if (input.type === 'LOAN') await syncLoanBalance(tx, input.id);
     if (input.type === 'CREDIT_CARD') await syncCardFromStatements(tx, userId, input.id);
     return { type: input.type, id: input.id, month, undone: true, previousStatus: event.status };
   });
@@ -58,9 +60,8 @@ async function reverseEntity(tx: Prisma.TransactionClient, userId: string, type:
   if (type === 'LOAN') {
     const loan = await tx.loan.findFirst({ where: { id, userId } });
     if (!loan) throw createError('Loan not found', 404);
-    // Interest never reduced the balance; only the principal portion did.
-    const principal = txns.filter(t => !(t.description ?? '').startsWith('EMI Interest:')).reduce((s, t) => s + Number(t.amount), 0);
-    await tx.loan.update({ where: { id }, data: { remainingBalance: { increment: principal }, isActive: true } });
+    // The balance is re-derived from the remaining payments once this one is gone.
+    await tx.loan.update({ where: { id }, data: { isActive: true } });
     if (!loan.isActive) await tx.loanEvent.deleteMany({ where: { loanId: id, type: 'CLOSED' } });
   } else if (type === 'INVESTMENT') {
     const inv = await tx.investment.findFirst({ where: { id, userId } });
@@ -78,6 +79,7 @@ async function reverseEntity(tx: Prisma.TransactionClient, userId: string, type:
   } else if (type === 'CARD_EMI') {
     const emi = await tx.cardEMI.findFirst({ where: { id, userId } });
     if (!emi) throw createError('Card EMI not found', 404);
-    await tx.cardEMI.update({ where: { id }, data: { emisPaid: Math.max(0, emi.emisPaid - 1), isArchived: false } });
+    // Its billed count comes from the schedule, so only an archived EMI needs reopening.
+    if (emi.isArchived && emi.emisPaid < emi.tenureMonths) await tx.cardEMI.update({ where: { id }, data: { isArchived: false } });
   }
 }

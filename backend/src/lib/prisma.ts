@@ -11,6 +11,13 @@ function fillKind(data: unknown) {
   }
 }
 
+function fillOpeningBalance(data: unknown) {
+  for (const row of Array.isArray(data) ? data : [data]) {
+    const l = row as { remainingBalance?: unknown; openingBalance?: unknown } | undefined;
+    if (l && l.openingBalance === undefined && l.remainingBalance !== undefined) l.openingBalance = l.remainingBalance;
+  }
+}
+
 function createClient() {
   const client = new PrismaClient({
     log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
@@ -22,6 +29,8 @@ function createClient() {
       if (params.action === 'create' || params.action === 'createMany') fillKind(params.args?.data);
       if (params.action === 'upsert') fillKind(params.args?.create);
     }
+    // A loan's balance is derived from its opening balance, which starts as the balance entered.
+    if (params.model === 'Loan' && (params.action === 'create' || params.action === 'createMany')) fillOpeningBalance(params.args?.data);
     return next(params);
   });
   return client;

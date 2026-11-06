@@ -1,4 +1,4 @@
-import { BillFrequency, Prisma, RecurringBill } from '@prisma/client';
+import { BillFrequency, RecurringBill } from '@prisma/client';
 import { NOT_MOVES } from '../metrics';
 import { monthOf } from '../lib/ledger';
 import { prisma } from '../lib/prisma';
@@ -7,18 +7,18 @@ import { assertOwned } from '../lib/ownership';
 import { createError } from '../middleware/error.middleware';
 import { findCategory } from '../lib/paymentCategory';
 import {
-  BillScheduleShape,
-  MaterializedEvent,
+  BILL_INCLUDE, BillWithRelations, EMPTY_EVENTS, EventMap, FlatOccurrence,
+  billOccurrencesInRange, billStatusKey, billStatusWhere, buildEventMaps, findBillStatus, loadBillsWithEvents, loadOccurrenceRows, projectAll, toOccurrenceRow, toSchedule,
+} from '../schedule/bills';
+import {
   ProjectedStatus,
   diffDays,
   effectiveStatus,
   monthlyEquivalent,
   nextDueDate,
   occurrencesBetween,
-  parseDateOnly,
-  projectOccurrences,
-  startOfDay,
-  toDateKey,
+  parseDateOnly,
+  startOfDay,
 } from '../lib/billSchedule';
 import {
   BulkBillActionInput,
@@ -29,59 +29,7 @@ import {
   UpdateBillInput,
 } from '../validators/bill.validator';
 
-const BILL_INCLUDE = {
-  member: { select: { id: true, name: true, color: true, emoji: true } },
-  account: { select: { id: true, name: true, type: true } },
-  creditCard: { select: { id: true, cardName: true, lastFourDigits: true, bank: true } },
-} satisfies Prisma.RecurringBillInclude;
-
-type BillWithRelations = Prisma.RecurringBillGetPayload<{ include: typeof BILL_INCLUDE }>;
-
-type EventMap = Map<string, MaterializedEvent>;
-
-interface OccurrenceRow {
-  id: string;
-  billId: string;
-  dueDate: Date;
-  status: 'PAID' | 'SKIPPED';
-  amount: Prisma.Decimal | null;
-  paidDate: Date | null;
-  transactionId: string | null;
-  notes: string | null;
-}
-
 // ─── Loading & serialization ─────────────────────────────────────────────────
-
-function toSchedule(bill: RecurringBill): BillScheduleShape & { amount: number } {
-  return {
-    frequency: bill.frequency,
-    customIntervalDays: bill.customIntervalDays,
-    startDate: bill.startDate,
-    endDate: bill.endDate,
-    status: bill.status,
-    pausedUntil: bill.pausedUntil,
-    amount: Number(bill.amount),
-  };
-}
-
-function buildEventMaps(occurrences: OccurrenceRow[]): Map<string, EventMap> {
-  const byBill = new Map<string, EventMap>();
-  for (const occ of occurrences) {
-    let events = byBill.get(occ.billId);
-    if (!events) {
-      events = new Map();
-      byBill.set(occ.billId, events);
-    }
-    events.set(toDateKey(occ.dueDate), {
-      status: occ.status,
-      amount: occ.amount != null ? Number(occ.amount) : null,
-      paidDate: occ.paidDate,
-    });
-  }
-  return byBill;
-}
-
-const EMPTY_EVENTS: EventMap = new Map();
 
 function serializeBill(bill: BillWithRelations, events: EventMap, today: Date) {
   const schedule = toSchedule(bill);
@@ -100,14 +48,6 @@ function serializeBill(bill: BillWithRelations, events: EventMap, today: Date) {
     dueInDays: next ? diffDays(startOfDay(today), next) : null,
     lastPaidDate,
   };
-}
-
-async function loadBillsWithEvents(userId: string) {
-  const [bills, occurrences] = await Promise.all([
-    prisma.recurringBill.findMany({ where: { userId }, include: BILL_INCLUDE }),
-    prisma.billOccurrence.findMany({ where: { userId } }),
-  ]);
-  return { bills, eventsByBill: buildEventMaps(occurrences as OccurrenceRow[]) };
 }
 
 async function getOwnedBill(userId: string, id: string) {
@@ -172,10 +112,7 @@ export async function getBills(userId: string, filters: BillFilters = {}) {
 
 export async function getBill(userId: string, id: string) {
   const bill = await getOwnedBill(userId, id);
-  const occurrences = (await prisma.billOccurrence.findMany({
-    where: { billId: id },
-    orderBy: { dueDate: 'desc' },
-  })) as OccurrenceRow[];
+  const occurrences = (await loadOccurrenceRows(userId, { billIds: [id] })).sort((a, b) => b.dueDate.getTime() - a.dueDate.getTime());
   const events = buildEventMaps(occurrences).get(id) ?? EMPTY_EVENTS;
   const splits = await fetchSplits('BILL', [id]);
   return {
@@ -339,15 +276,13 @@ function assertScheduledDate(bill: RecurringBill, dueDate: Date) {
   }
 }
 
-export async function payOccurrence(userId: string, billId: string, input: PayBillOccurrenceInput) {
+export async function payOccurrence(userId: string, billId: string, input: PayBillOccurrenceInput, options: { auto?: boolean } = {}) {
   const bill = await getOwnedBill(userId, billId);
   const dueDate = parseDateOnly(input.dueDate);
   assertScheduledDate(bill, dueDate);
 
-  const existing = await prisma.billOccurrence.findUnique({
-    where: { billId_dueDate: { billId, dueDate } },
-  });
-  if (existing?.status === 'PAID') throw createError('This occurrence is already marked as paid', 409);
+  const existing = await findBillStatus(prisma, userId, billId, dueDate);
+  if (existing?.status === 'PAID') throw createError('This occurrence is already marked as paid', 409); // PAID or AUTO
 
   const amount = input.amount ?? Number(bill.amount);
   const paidDate = input.paidDate ? parseDateOnly(input.paidDate) : new Date();
@@ -393,20 +328,13 @@ export async function payOccurrence(userId: string, billId: string, input: PayBi
       }
     }
 
-    const occurrence = await tx.billOccurrence.upsert({
-      where: { billId_dueDate: { billId, dueDate } },
-      create: {
-        billId,
-        userId,
-        dueDate,
-        status: 'PAID',
-        amount,
-        paidDate,
-        transactionId,
-        notes: input.notes ?? null,
-      },
-      update: { status: 'PAID', amount, paidDate, transactionId, notes: input.notes ?? null },
+    const record = { status: options.auto ? 'AUTO' as const : 'PAID' as const, amount, paidDate, accountId: transactionId ? accountId ?? null : null, transactionIds: transactionId ? [transactionId] : [], notes: input.notes ?? null };
+    const row = await tx.dueStatus.upsert({
+      where: billStatusWhere(userId, billId, dueDate),
+      create: { ...billStatusKey(userId, billId, dueDate), dueDate, ...record },
+      update: record,
     });
+    const occurrence = toOccurrenceRow(row);
     return { ...occurrence, amount: Number(occurrence.amount) };
   });
 }
@@ -416,18 +344,17 @@ export async function skipOccurrence(userId: string, billId: string, input: Skip
   const dueDate = parseDateOnly(input.dueDate);
   assertScheduledDate(bill, dueDate);
 
-  const existing = await prisma.billOccurrence.findUnique({
-    where: { billId_dueDate: { billId, dueDate } },
-  });
+  const existing = await findBillStatus(prisma, userId, billId, dueDate);
   if (existing?.status === 'PAID') {
     throw createError('This occurrence is already paid — undo the payment first', 409);
   }
 
-  const occurrence = await prisma.billOccurrence.upsert({
-    where: { billId_dueDate: { billId, dueDate } },
-    create: { billId, userId, dueDate, status: 'SKIPPED', notes: input.notes ?? null },
+  const row = await prisma.dueStatus.upsert({
+    where: billStatusWhere(userId, billId, dueDate),
+    create: { ...billStatusKey(userId, billId, dueDate), dueDate, status: 'SKIPPED', notes: input.notes ?? null },
     update: { status: 'SKIPPED', notes: input.notes ?? null },
   });
+  const occurrence = toOccurrenceRow(row);
   return { ...occurrence, amount: occurrence.amount != null ? Number(occurrence.amount) : null };
 }
 
@@ -439,9 +366,7 @@ export async function skipOccurrence(userId: string, billId: string, input: Skip
 export async function undoOccurrence(userId: string, billId: string, dueDateInput: string) {
   await getOwnedBill(userId, billId);
   const dueDate = parseDateOnly(dueDateInput);
-  const occurrence = await prisma.billOccurrence.findFirst({
-    where: { billId, userId, dueDate },
-  });
+  const occurrence = await findBillStatus(prisma, userId, billId, dueDate);
   if (!occurrence) throw createError('No paid/skipped record found for this occurrence', 404);
 
   await prisma.$transaction(async (tx) => {
@@ -458,7 +383,7 @@ export async function undoOccurrence(userId: string, billId: string, dueDateInpu
         await tx.transaction.delete({ where: { id: txn.id } });
       }
     }
-    await tx.billOccurrence.delete({ where: { id: occurrence.id } });
+    await tx.dueStatus.delete({ where: { id: occurrence.id } });
   });
 }
 
@@ -550,37 +475,6 @@ function bucketTotals(
   return t;
 }
 
-interface FlatOccurrence {
-  bill: BillWithRelations;
-  dueDate: Date;
-  dueKey: string;
-  status: ProjectedStatus;
-  amount: number;
-}
-
-function projectAll(
-  bills: BillWithRelations[],
-  eventsByBill: Map<string, EventMap>,
-  rangeStart: Date,
-  rangeEnd: Date,
-  today: Date
-): FlatOccurrence[] {
-  const flat: FlatOccurrence[] = [];
-  for (const bill of bills) {
-    if (bill.status === 'ARCHIVED') continue;
-    const projected = projectOccurrences(
-      toSchedule(bill),
-      eventsByBill.get(bill.id) ?? EMPTY_EVENTS,
-      rangeStart,
-      rangeEnd,
-      today
-    );
-    for (const occ of projected) flat.push({ bill, ...occ });
-  }
-  flat.sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
-  return flat;
-}
-
 export async function getBillsSummary(userId: string) {
   const { bills, eventsByBill } = await loadBillsWithEvents(userId);
   const today = startOfDay(new Date());
@@ -654,57 +548,27 @@ export async function getBillsSummary(userId: string) {
 }
 
 export async function getBillsCalendar(userId: string, startInput?: string, endInput?: string) {
-  const { bills, eventsByBill } = await loadBillsWithEvents(userId);
   const today = startOfDay(new Date());
-  const start = startInput
-    ? parseDateOnly(startInput)
-    : new Date(today.getFullYear(), today.getMonth() - 1, 1);
-  const end = endInput
-    ? parseDateOnly(endInput)
-    : new Date(today.getFullYear(), today.getMonth() + 2, 0);
-
-  const flat = projectAll(bills, eventsByBill, start, end, today);
-
-  // Archived bills stop projecting, but their real (materialized) history in
-  // the window should still show on the calendar.
-  const archivedIds = new Set(bills.filter((b) => b.status === 'ARCHIVED').map((b) => b.id));
-  const archivedEvents: FlatOccurrence[] = [];
-  if (archivedIds.size > 0) {
-    const billById = new Map(bills.map((b) => [b.id, b]));
-    const rows = (await prisma.billOccurrence.findMany({
-      where: { userId, billId: { in: [...archivedIds] }, dueDate: { gte: start, lte: end } },
-    })) as OccurrenceRow[];
-    for (const row of rows) {
-      archivedEvents.push({
-        bill: billById.get(row.billId)!,
-        dueDate: row.dueDate,
-        dueKey: toDateKey(row.dueDate),
-        status: row.status,
-        amount: row.amount != null ? Number(row.amount) : Number(billById.get(row.billId)!.amount),
-      });
-    }
-  }
-
-  return [...flat, ...archivedEvents]
-    .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime())
-    .map((occ) => ({
-      billId: occ.bill.id,
-      effectiveBillStatus: effectiveStatus(occ.bill, today),
-      accountId: occ.bill.accountId,
-      creditCardId: occ.bill.creditCardId,
-      memberId: occ.bill.memberId,
-      currency: occ.bill.currency,
-      name: occ.bill.name,
-      vendor: occ.bill.vendor,
-      category: occ.bill.category,
-      icon: occ.bill.icon,
-      color: occ.bill.color,
-      autoDebit: occ.bill.autoDebit,
-      frequency: occ.bill.frequency,
-      dueDate: occ.dueKey,
-      status: occ.status,
-      amount: occ.amount,
-    }));
+  const start = startInput ? parseDateOnly(startInput) : new Date(today.getFullYear(), today.getMonth() - 1, 1);
+  const end = endInput ? parseDateOnly(endInput) : new Date(today.getFullYear(), today.getMonth() + 2, 0);
+  return (await billOccurrencesInRange(userId, start, end, today)).map((occ) => ({
+    billId: occ.bill.id,
+    effectiveBillStatus: occ.effectiveBillStatus,
+    accountId: occ.bill.accountId,
+    creditCardId: occ.bill.creditCardId,
+    memberId: occ.bill.memberId,
+    currency: occ.bill.currency,
+    name: occ.bill.name,
+    vendor: occ.bill.vendor,
+    category: occ.bill.category,
+    icon: occ.bill.icon,
+    color: occ.bill.color,
+    autoDebit: occ.bill.autoDebit,
+    frequency: occ.bill.frequency,
+    dueDate: occ.dueKey,
+    status: occ.status,
+    amount: occ.amount,
+  }));
 }
 
 export async function getBillsForecast(userId: string, months = 12) {
@@ -832,13 +696,7 @@ export async function getBillsAnalytics(userId: string) {
   // Trend: 6 months of real payments (occurrence ledger), then 6 months of
   // projection -- the seam between history and forecast is the current month.
   const trend = [];
-  const paidRows = (await prisma.billOccurrence.findMany({
-    where: {
-      userId,
-      status: 'PAID',
-      dueDate: { gte: new Date(today.getFullYear(), today.getMonth() - 5, 1) },
-    },
-  })) as OccurrenceRow[];
+  const paidRows = await loadOccurrenceRows(userId, { paidOnly: true, from: new Date(today.getFullYear(), today.getMonth() - 5, 1) });
   const paidByMonth = new Map<string, number>();
   for (const row of paidRows) {
     const d = row.paidDate ?? row.dueDate;

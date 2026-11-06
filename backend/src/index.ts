@@ -7,6 +7,7 @@ import morgan from 'morgan';
 import cookieParser from 'cookie-parser';
 import routes from './routes';
 import { errorHandler, notFound } from './middleware/error.middleware';
+import { startAutoDebitJob } from './jobs/autoDebit.job';
 
 const PLACEHOLDER_JWT_SECRET = 'your-super-secret-jwt-key-change-in-production';
 
@@ -42,6 +43,7 @@ app.use(errorHandler);
 app.listen(PORT, () => {
   console.log(`\n🚀 Server running at http://localhost:${PORT}`);
   console.log(`   API: http://localhost:${PORT}/api/v1/health\n`);
+  startAutoDebitJob();
 });
 
 export default app;

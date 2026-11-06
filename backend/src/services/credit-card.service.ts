@@ -1,4 +1,4 @@
-import { CreditCard, Prisma } from '@prisma/client';
+import { CreditCard } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { assertOwnMembers } from '../lib/ownershipSplit';
 import { createError } from '../middleware/error.middleware';
@@ -100,10 +100,10 @@ export async function payCreditCardBill(
   const month = options.month ?? cardStatementMonth(card.dueDate);
   const statement = await prisma.cardStatement.findUnique({ where: { creditCardId_month: { creditCardId: cardId, month } } });
   if (!statement && month !== cardStatementMonth(card.dueDate)) throw createError('No statement saved for that month', 404);
-  const key = { userId, entityType: 'CREDIT_CARD', entityId: cardId, month };
-  const before = await prisma.monthlyPayment.findUnique({ where: { userId_entityType_entityId_month: key } });
+  const key = { userId, itemType: 'CARD_STATEMENT', itemId: cardId, period: month, dueKey: '' };
+  const before = await prisma.dueStatus.findUnique({ where: { userId_itemType_itemId_period_dueKey: key } });
   const owed = statement
-    ? Number(statement.totalDue) - (before?.status === 'PAID' ? Number(before.amount) : 0)
+    ? Number(statement.totalDue) - (before && before.status !== 'SKIPPED' ? Number(before.amount ?? 0) : 0)
     : Number(card.outstanding);
   const payment = Math.round(Math.min(amount, owed) * 100) / 100; // can't pay more than is owed
   if (payment <= 0) throw createError(statement ? 'This statement is already paid' : 'Nothing is outstanding on this card', 400);
@@ -136,11 +136,11 @@ export async function payCreditCardBill(
     // Paying a bill from a bank account draws down that account's balance too.
     if (sourceAccount) await tx.account.update({ where: { id: sourceAccount }, data: { balance: { decrement: payment } } });
 
-    const existing = await tx.monthlyPayment.findUnique({ where: { userId_entityType_entityId_month: key } });
+    const existing = await tx.dueStatus.findUnique({ where: { userId_itemType_itemId_period_dueKey: key } });
     if (existing) {
-      await tx.monthlyPayment.update({ where: { id: existing.id }, data: { status: 'PAID', amount: { increment: payment }, transactionIds: [...existing.transactionIds, transaction.id] } });
+      await tx.dueStatus.update({ where: { id: existing.id }, data: { status: 'PAID', amount: Number(existing.status === 'SKIPPED' ? 0 : existing.amount ?? 0) + payment, paidDate: paidOn, accountId: sourceAccount ?? existing.accountId, transactionIds: [...existing.transactionIds, transaction.id] } });
     } else {
-      await tx.monthlyPayment.create({ data: { ...key, status: 'PAID', amount: payment, transactionIds: [transaction.id] } });
+      await tx.dueStatus.create({ data: { ...key, status: 'PAID', amount: payment, paidDate: paidOn, accountId: sourceAccount ?? null, transactionIds: [transaction.id] } });
     }
     if (statement) await syncCardFromStatements(tx, userId, cardId);
     const updatedCard = await tx.creditCard.findUniqueOrThrow({ where: { id: cardId } });

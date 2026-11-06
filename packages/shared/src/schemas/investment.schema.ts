@@ -11,6 +11,7 @@ const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
 export const createInvestmentSchema = z.object({
   paymentDay: z.number().int().min(1).max(31).optional().nullable(),
   recurringActive: z.boolean().default(true),
+  autoDebit: z.boolean().optional(), // the bank takes the instalment itself (default: RDs only)
   assetName:     z.string().min(1).max(255),
   assetType:     z.enum(ASSET_TYPES),
   ticker:        z.string().max(20).optional(),
