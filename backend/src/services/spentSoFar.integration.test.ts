@@ -20,6 +20,19 @@ async function household() {
   return { user, a, b, bank, other, card };
 }
 
+describe('quick add', () => {
+  it('a spend from a bank account or on a card, with just amount and what, lands in spent so far', async () => {
+    const { user, a, b, bank, card } = await household();
+    // The two payloads Quick add sends (today = 20 Nov, after the card's statement day).
+    await createTransaction(user.id, { type: 'EXPENSE', amount: 250, description: 'Tea', date: '2026-11-20', accountId: bank.id, memberId: a.id, isRecurring: false });
+    await createCardExpense(user.id, { creditCardId: card.id, name: 'Petrol', amount: 1500, date: '2026-11-20', memberId: b.id } as never);
+    const s = await getMonthSummary(user.id, '2026-11');
+    expect(s.members[0].spentSoFar.items.map((i) => [i.name, i.amount])).toEqual([['Tea', 250]]);
+    expect(s.members[1].spentSoFar.items.map((i) => [i.name, i.amount])).toEqual([['Petrol (Card)', 1500]]);
+    expect(Number((await prisma.account.findUniqueOrThrow({ where: { id: bank.id } })).balance)).toBe(500000 + 100000 - 250);
+  });
+});
+
 describe('spent so far', () => {
   it('counts everyday spending not already on the sheet, split per person, and gives still free', async () => {
     const { user, a, b, bank, other, card } = await household();

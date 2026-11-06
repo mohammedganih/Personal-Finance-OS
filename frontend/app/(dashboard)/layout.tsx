@@ -8,6 +8,7 @@ import { Header } from '@/components/layout/Header';
 import { SidebarLight } from '@/components/layout/SidebarLight';
 import { HeaderLight } from '@/components/layout/HeaderLight';
 import { PeriodUrlSync } from '@/components/shared/PeriodUrlSync';
+import { QuickAdd } from '@/components/shared/QuickAdd';
 import { useAuthStore } from '@/stores/auth.store';
 import { cn } from '@/lib/utils';
 
@@ -55,6 +56,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <main className="flex-1 p-6 overflow-auto">
           {children}
         </main>
+        <QuickAdd />
       </div>
     </div>
   );
