@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect } from 'react';
+import { Suspense, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Header } from '@/components/layout/Header';
 import { SidebarLight } from '@/components/layout/SidebarLight';
 import { HeaderLight } from '@/components/layout/HeaderLight';
+import { PeriodUrlSync } from '@/components/shared/PeriodUrlSync';
 import { useAuthStore } from '@/stores/auth.store';
 import { cn } from '@/lib/utils';
 
@@ -47,6 +48,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div className={cn('min-h-screen flex', isLightRoute ? 'bg-paper' : 'bg-bg')}>
+      <Suspense fallback={null}><PeriodUrlSync /></Suspense>
       {isLightRoute ? <SidebarLight /> : <Sidebar />}
       <div className="flex-1 ml-64 flex flex-col min-h-screen">
         {isLightRoute ? <HeaderLight /> : <Header />}

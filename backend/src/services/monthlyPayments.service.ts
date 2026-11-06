@@ -146,6 +146,11 @@ export function previousMonth(month = currentMonth()) {
   const [y, m] = month.split('-').map(Number);
   return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`;
 }
+/** The plan for `month` (default: this month) plus the months either side, as Home's Still to pay shows them. */
+export async function getPlanAround(userId: string, month = currentMonth()) {
+  const [current, next, previous] = await Promise.all([getMonthlyPlan(userId, month), getMonthlyPlan(userId, monthWindow(month).next), getMonthlyPlan(userId, previousMonth(month))]);
+  return { current, next, previous };
+}
 export async function decideMonthlyPayment(userId: string, type: 'LOAN' | 'INVESTMENT', id: string, status: 'PAID' | 'SKIPPED', accountId?: string, options: PaymentOptions = {}) {
   const month = options.month ?? currentMonth();
   if (month !== currentMonth() && month !== previousMonth()) throw createError('Only this month or last month can be recorded', 400);

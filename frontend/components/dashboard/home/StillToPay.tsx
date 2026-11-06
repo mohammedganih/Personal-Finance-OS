@@ -6,6 +6,8 @@ import { AlertTriangle, ChevronRight, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatCurrency, formatDate } from '@/lib/format';
 import { useMonthlyPlan, MonthlyPaymentRow, MonthlyPlan } from '@/hooks/useMonthlyPlan';
+import { usePeriodMonth } from '@/hooks/useMonthSummary';
+import { canRecordMonth } from '@/lib/monthParam';
 import { useAccountFunding } from '@/hooks/useAccountFunding';
 import { useFamilyMembers } from '@/hooks/useFamilyMembers';
 import { useCreditCards } from '@/hooks/useCreditCards';
@@ -24,6 +26,8 @@ const entryOwed = (e: Entry) => (e.kind === 'row' ? owed(e.row) : e.statement ? 
 const istToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
 const addDays = (key: string, n: number) => { const d = new Date(`${key}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 const DISMISS_KEY = 'shazah:topups-moved';
+/** Mark paid is only offered for this month and last month, as the API allows. */
+const canPay = (row: Row) => canRecordMonth(row.planMonth, istToday().slice(0, 7));
 
 /** Plain rows plus one group per card (its statement, EMIs and card-charged bills), earliest first. */
 export function buildEntries(rows: Row[], cardNames: Map<string, string>): Entry[] {
@@ -96,7 +100,7 @@ function CardGroupRow({ group, who, overdue }: { group: CardGroup; who: string; 
           {st?.paidAmount ? <p className="text-[11px] text-ink-muted">{formatCurrency(st.paidAmount)} paid so far</p> : null}
         </div>
         <span className="text-sm font-semibold tabular-nums text-ink-primary">{formatCurrency(st ? owed(st) : inside)}</span>
-        <div className={actionCell}>{st && <PaymentActions row={st} planMonth={st.planMonth} />}</div>
+        <div className={actionCell}>{st && canPay(st) && <PaymentActions row={st} planMonth={st.planMonth} />}</div>
       </div>
       {open && (
         <ul className="ml-[56px] mt-2 grid gap-1.5 border-l border-line pl-3 sm:ml-[64px]">
@@ -105,7 +109,7 @@ function CardGroupRow({ group, who, overdue }: { group: CardGroup; who: string; 
               <span className="min-w-0">{item.name}{item.dueDate && <span className="text-ink-muted"> · {formatDate(item.dueDate, 'd MMM')}</span>}</span>
               <span className="flex items-center gap-2">
                 <span className="tabular-nums">{formatCurrency(item.amount)}</span>
-                <PaymentActions row={item} planMonth={item.planMonth} />
+                {canPay(item) && <PaymentActions row={item} planMonth={item.planMonth} />}
               </span>
             </li>
           ))}
@@ -134,7 +138,7 @@ function Section({ title, entries, who, overdue, tone }: { title: string; entrie
               <p className="text-xs text-ink-muted">{who(entry.row.memberId)}{entry.row.split ? ` · split ${100 - entry.row.split.pct}/${entry.row.split.pct}` : ''}</p>
             </div>
             <span className="text-sm font-semibold tabular-nums text-ink-primary">{formatCurrency(entry.row.amount)}</span>
-            <div className={actionCell}><PaymentActions row={entry.row} planMonth={entry.row.planMonth} /></div>
+            <div className={actionCell}>{canPay(entry.row) && <PaymentActions row={entry.row} planMonth={entry.row.planMonth} />}</div>
           </li>
         ))}
       </ul>
@@ -156,7 +160,9 @@ function useMovedTopUps() {
 }
 
 export function StillToPay() {
-  const { data, isLoading, isError } = useMonthlyPlan();
+  // Follows the header month (?m=), the same month the sheet above shows.
+  const month = usePeriodMonth();
+  const { data, isLoading, isError } = useMonthlyPlan(month);
   const { data: funding } = useAccountFunding();
   const { data: members } = useFamilyMembers();
   const { data: cards } = useCreditCards();
@@ -180,12 +186,14 @@ export function StillToPay() {
   const later = entries.filter((e) => !isOverdue(e) && !!e.dueDate && e.dueDate > weekEnd);
   const left = entries.reduce((s, e) => s + entryOwed(e), 0);
   const people = Array.from(perPerson(entries).entries()).filter(([, n]) => n > 0.5);
-  const topUps = (funding?.accounts ?? []).filter((a) => a.amountToAdd > 0 && !moved.includes(`${a.id}:${a.amountToAdd}`));
+  const isThisMonth = month === today.slice(0, 7);
+  // Top-ups are about the money needed now, so only the current month shows them.
+  const topUps = !isThisMonth ? [] : (funding?.accounts ?? []).filter((a) => a.amountToAdd > 0 && !moved.includes(`${a.id}:${a.amountToAdd}`));
 
   return (
     <section className="card-light min-w-0 rounded-2xl px-5 py-[18px]">
       <div className="mb-2.5 flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-[15px] font-semibold text-ink-primary">Still to pay</h2>
+        <h2 className="text-[15px] font-semibold text-ink-primary">Still to pay{!isThisMonth && <span className="font-normal text-ink-muted"> · {formatDate(`${month}-01`, 'MMM yyyy')}</span>}</h2>
         {data && <span className="text-xs text-ink-muted">{formatCurrency(left)} left · {entries.length} {entries.length === 1 ? 'payment' : 'payments'}</span>}
       </div>
 
@@ -211,7 +219,7 @@ export function StillToPay() {
 
       {isLoading && <div className="h-40 rounded-xl shimmer" />}
       {isError && <p role="alert" className="text-sm text-ink-secondary">Could not load payments. Please refresh.</p>}
-      {data && entries.length === 0 && <p className="py-6 text-center text-sm text-ink-muted">Everything for this month is paid.</p>}
+      {data && entries.length === 0 && <p className="py-6 text-center text-sm text-ink-muted">Everything for {isThisMonth ? 'this month' : formatDate(`${month}-01`, 'MMMM')} is paid.</p>}
 
       <Section title="Overdue" entries={overdue} who={who} overdue tone="down" />
       <Section title="Due this week" entries={thisWeek} who={who} />

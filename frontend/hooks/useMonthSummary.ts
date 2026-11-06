@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { usePeriodStore } from '@/stores/period.store';
+import { toMonthKey } from '@/lib/monthParam';
 import { useToast } from '@/components/ui/use-toast';
 
 export interface SummaryItem {
@@ -29,10 +30,10 @@ export interface MonthSummary {
   unassigned: { id: string; type: string; name: string; amount: number }[];
 }
 
-/** `YYYY-MM` from the header period selector. */
+/** `YYYY-MM` from the header period selector (kept in the URL as `?m=`). */
 export function usePeriodMonth() {
   const { month, year } = usePeriodStore();
-  return `${year}-${String(month).padStart(2, '0')}`;
+  return toMonthKey(month, year);
 }
 
 export function useMonthSummary(month: string) {

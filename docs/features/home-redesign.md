@@ -54,7 +54,7 @@ For the test database, run the same `db execute` with `--url` set to the `DATABA
 On this machine, the patch was applied to the local dev DB (`shazah_finance`) and the test DB (`shazah_finance_test`). `prisma migrate diff` against the dev DB now reports no differences from the schema.
 
 ## Notes and limits
-- **Still to pay** always shows the current calendar month, matching the funding plan. The month sheet follows the header period selector.
+- **Still to pay** and the month sheet both follow the header month, which is kept in the URL as `?m=YYYY-MM` (no `?m` = this month). Mark paid shows only for this month and last month, and the "Move ₹X" top-ups only for this month. (Changed 2026-11-06; before that Still to pay always showed the current month.)
 - `CashFlowSankey`, `FinancialHealthGauge` and `AiInsightsLight` are no longer rendered anywhere, because `/analytics` is still a dark page. The spec says to move them there only if it is already light.
 - The "Loans left to repay" change compares the debt snapshots from the last 31 days.
 
