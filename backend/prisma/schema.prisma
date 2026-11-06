@@ -144,6 +144,7 @@ enum SplitEntityType {
 model User {
   monthlyPayments MonthlyPayment[]
   dueStatuses     DueStatus[]
+  settings        UserSettings?
   id           String   @id @default(cuid())
   email        String   @unique
   name         String
@@ -731,6 +732,22 @@ model OwnershipSplit {
   @@unique([entityType, entityId])
   @@index([userId])
   @@map("ownership_splits")
+}
+
+// Household preferences that are not about any one record.
+model UserSettings {
+  id               String   @id @default(cuid())
+  userId           String   @unique
+  // Buffer target in rupees; null = 3 x the month's commitments (loans, EMIs, investments, bills).
+  bufferTarget     Decimal? @db.Decimal(14, 2)
+  // Accounts whose balance counts as buffer; empty = every active savings account.
+  bufferAccountIds String[] @default([])
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_settings")
 }
 
 // What happened to one scheduled instalment (schedule engine, backend/src/schedule).

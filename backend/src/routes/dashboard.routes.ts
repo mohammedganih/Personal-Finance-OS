@@ -4,6 +4,7 @@ import { undoPayment } from '../services/paymentUndo.service';
 import { getPaymentHistory, getReminders } from '../services/paymentHistory.service';
 import { decideMonthlyPayment, getPlanAround } from '../services/monthlyPayments.service';
 import { autoConfirm } from '../schedule/autoConfirm';
+import { getBuffer, saveBufferSettings } from '../services/buffer.service';
 import { z } from 'zod';
 import { validate } from '../middleware/validate.middleware';
 import { AuthRequest } from '../types';
@@ -40,6 +41,13 @@ const historyQuery = z.object({ type: z.enum(['LOAN', 'INVESTMENT', 'CARD_EMI', 
 router.get('/payment-history', async (req: AuthRequest, res) => {
   const { type, id } = historyQuery.parse(req.query);
   res.json({ success: true, data: await getPaymentHistory(req.user!.userId, type, id) });
+});
+router.get('/buffer', async (req: AuthRequest, res) => {
+  res.json({ success: true, data: await getBuffer(req.user!.userId) });
+});
+const bufferBody = z.object({ bufferTarget: z.coerce.number().min(0).max(1e12).nullable().optional(), bufferAccountIds: z.array(z.string().min(1)).max(50).optional() });
+router.put('/settings/buffer', validate(bufferBody), async (req: AuthRequest, res) => {
+  res.json({ success: true, data: await saveBufferSettings(req.user!.userId, bufferBody.parse(req.body)) });
 });
 // Confirms this month's auto-debited items due by today (the daily job does the same for everyone).
 router.post('/auto-confirm', async (req: AuthRequest, res) => {
