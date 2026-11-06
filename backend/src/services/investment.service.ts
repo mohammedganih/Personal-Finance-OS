@@ -47,6 +47,7 @@ export async function createInvestment(userId: string, input: CreateInvestmentIn
     const created = await tx.investment.create({
       data: {
         userId,
+        priceUpdatedAt: new Date(),
         assetName:     input.assetName,
         assetType:     input.assetType,
         ticker:        input.ticker,
@@ -83,6 +84,12 @@ export async function createInvestment(userId: string, input: CreateInvestmentIn
   return serializeInvestment(attachSplit(investment, splits.get(investment.id)));
 }
 
+/** True when an edit changes the units or the price (NAV), not just other details. */
+export function priceChanged(existing: { quantity: unknown; currentPrice: unknown }, input: { quantity?: number; currentPrice?: number }) {
+  return (input.quantity !== undefined && Number(input.quantity) !== Number(existing.quantity))
+    || (input.currentPrice !== undefined && Number(input.currentPrice) !== Number(existing.currentPrice));
+}
+
 export async function updateInvestment(userId: string, id: string, input: UpdateInvestmentInput) {
   const existing = await prisma.investment.findFirst({ where: { id, userId } });
   if (!existing) throw createError('Investment not found', 404);
@@ -113,6 +120,7 @@ export async function updateInvestment(userId: string, id: string, input: Update
         ...(input.autoDebit !== undefined && { autoDebit: input.autoDebit }),
         ...(input.recurringActive !== undefined && { recurringActive: input.recurringActive }),
         ...(input.bankAccountId !== undefined && { bankAccountId: input.bankAccountId ?? null }),
+        ...(priceChanged(existing, input) && { priceUpdatedAt: new Date() }),
       },
       include: INVESTMENT_INCLUDE,
     });

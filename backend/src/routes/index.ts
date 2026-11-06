@@ -14,9 +14,10 @@ import cardEMIRoutes from './card-emi.routes';
 import familyRoutes from './family.routes';
 import budgetRoutes from './budget.routes';
 import debtRoutes from './debt.routes';
-import assetLoanRoutes from './assetLoan.routes';
 import analyticsRoutes from './analytics.routes';
 import registerRoutes from './register.routes';
+import wealthRoutes from './wealth.routes';
+import lookbackRoutes from './lookback.routes';
 
 const router = Router();
 
@@ -34,11 +35,12 @@ router.use('/categories', categoryRoutes);
 router.use('/credit-cards', creditCardRoutes);
 router.use('/p2p', p2pRoutes);
 router.use('/registers', registerRoutes);
+router.use('/wealth', wealthRoutes);
+router.use('/lookback', lookbackRoutes);
 router.use('/card-emis', cardEMIRoutes);
 router.use('/family', familyRoutes);
 router.use('/budgets', budgetRoutes);
 router.use('/debt', debtRoutes);
-router.use('/asset-loans', assetLoanRoutes);
 router.use('/analytics', analyticsRoutes);
 
 export default router;

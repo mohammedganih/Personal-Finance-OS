@@ -39,27 +39,68 @@ export function unpaidStatements(
   return sum(statements, (s) => Math.max(0, Number(s.totalDue) - (paid.get(`${s.creditCardId}|${s.month}`) ?? 0)));
 }
 
-export async function getBalanceSheet(userId: string, now = new Date()): Promise<BalanceSheet> {
+/** One line on the balance sheet. */
+export interface SheetItem { id: string; name: string; amount: number; detail?: string }
+
+/** The balance sheet line by line; the totals in BalanceSheet are these lines added up. */
+export interface BalanceSheetItems {
+  bank: SheetItem[];
+  investments: SheetItem[];
+  /** Gold and gold schemes (also counted in investmentValue). */
+  gold: SheetItem[];
+  lent: SheetItem[];
+  loans: SheetItem[];
+  cardEmis: SheetItem[];
+  cardStatements: SheetItem[];
+  borrowed: SheetItem[];
+}
+
+const GOLD_TYPES = new Set(['GOLD', 'GOLD_SCHEME']);
+
+export async function getBalanceSheetItems(userId: string, now = new Date()): Promise<BalanceSheetItems> {
   const [accounts, investments, p2p, loans, cardEmis, statements, cardPayments, paidIn] = await Promise.all([
-    prisma.account.findMany({ where: { userId, type: { not: 'CREDIT_CARD' } }, select: { balance: true } }),
-    prisma.investment.findMany({ where: { userId }, include: { collateral: { select: { ownershipPercent: true } } } }),
-    prisma.p2PLoan.findMany({ where: { userId, isSettled: false }, select: { type: true, remainingAmount: true } }),
-    prisma.loan.findMany({ where: { userId, isActive: true }, select: { remainingBalance: true } }),
-    prisma.cardEMI.findMany({ where: { userId, isArchived: false } }),
-    prisma.cardStatement.findMany({ where: { userId }, select: { creditCardId: true, month: true, totalDue: true } }),
+    prisma.account.findMany({ where: { userId, type: { not: 'CREDIT_CARD' } }, select: { id: true, name: true, balance: true, type: true }, orderBy: { createdAt: 'asc' } }),
+    prisma.investment.findMany({ where: { userId }, include: { collateral: { select: { ownershipPercent: true } } }, orderBy: { createdAt: 'asc' } }),
+    prisma.p2PLoan.findMany({ where: { userId, isSettled: false }, select: { id: true, personName: true, type: true, remainingAmount: true } }),
+    prisma.loan.findMany({ where: { userId, isActive: true }, select: { id: true, name: true, lender: true, remainingBalance: true } }),
+    prisma.cardEMI.findMany({ where: { userId, isArchived: false }, include: { creditCard: { select: { cardName: true } } } }),
+    prisma.cardStatement.findMany({ where: { userId }, select: { creditCardId: true, month: true, totalDue: true, creditCard: { select: { cardName: true } } } }),
     prisma.dueStatus.findMany({ where: { userId, itemType: 'CARD_STATEMENT' }, select: { itemId: true, period: true, status: true, amount: true } })
       .then((rows) => rows.map((r) => ({ entityId: r.itemId, month: r.period, status: r.status, amount: r.amount }))),
     paidInByInvestment(userId, now),
   ]);
 
-  const bankBalance = sum(accounts, (a) => Number(a.balance));
-  const investmentValue = sum(investments, (inv) => computeInvestmentValue(inv, now, paidIn.get(inv.id)).currentValue);
-  const moneyLent = sum(p2p.filter((p) => p.type === 'LENT'), (p) => Number(p.remainingAmount));
-  const loanDebt = sum(loans, (l) => Number(l.remainingBalance));
-  const cardEmiDebt = sum(cardEmis, (e) => calcEMIOutstanding(e));
-  const cardStatementsDue = unpaidStatements(statements, cardPayments);
-  const moneyBorrowed = sum(p2p.filter((p) => p.type === 'BORROWED'), (p) => Number(p.remainingAmount));
+  const holdings = investments.map((inv) => ({
+    inv, value: computeInvestmentValue(inv, now, paidIn.get(inv.id)).currentValue,
+  }));
+  const holding = ({ inv, value }: (typeof holdings)[number]): SheetItem => ({ id: inv.id, name: inv.assetName, amount: value, detail: inv.assetType });
+  const statementLines = statements
+    .map((s) => ({ s, unpaid: unpaidStatements([s], cardPayments) }))
+    .filter(({ unpaid }) => unpaid > 0)
+    .map(({ s, unpaid }): SheetItem => ({ id: `${s.creditCardId}|${s.month}`, name: s.creditCard.cardName, amount: unpaid, detail: s.month }));
 
+  return {
+    bank: accounts.map((a) => ({ id: a.id, name: a.name, amount: Number(a.balance), detail: a.type })),
+    investments: holdings.filter((h) => !GOLD_TYPES.has(h.inv.assetType)).map(holding),
+    gold: holdings.filter((h) => GOLD_TYPES.has(h.inv.assetType)).map(holding),
+    lent: p2p.filter((p) => p.type === 'LENT').map((p) => ({ id: p.id, name: p.personName, amount: Number(p.remainingAmount) })),
+    loans: loans.map((l) => ({ id: l.id, name: l.name, amount: Number(l.remainingBalance), detail: l.lender ?? undefined })),
+    cardEmis: cardEmis.map((e) => ({ id: e.id, name: e.itemName, amount: calcEMIOutstanding(e), detail: e.creditCard.cardName })),
+    cardStatements: statementLines,
+    borrowed: p2p.filter((p) => p.type === 'BORROWED').map((p) => ({ id: p.id, name: p.personName, amount: Number(p.remainingAmount) })),
+  };
+}
+
+/** Adds up the line items. */
+export function totalsOf(items: BalanceSheetItems): BalanceSheet {
+  const total = (rows: SheetItem[]) => sum(rows, (r) => r.amount);
+  const bankBalance = total(items.bank);
+  const investmentValue = total(items.investments) + total(items.gold);
+  const moneyLent = total(items.lent);
+  const loanDebt = total(items.loans);
+  const cardEmiDebt = total(items.cardEmis);
+  const cardStatementsDue = total(items.cardStatements);
+  const moneyBorrowed = total(items.borrowed);
   const totalAssets = bankBalance + investmentValue + moneyLent;
   const totalDebt = loanDebt + cardEmiDebt + cardStatementsDue + moneyBorrowed;
   return {
@@ -67,6 +108,10 @@ export async function getBalanceSheet(userId: string, now = new Date()): Promise
     loanDebt, cardEmiDebt, cardStatementsDue, moneyBorrowed, totalDebt,
     netWorth: totalAssets - totalDebt,
   };
+}
+
+export async function getBalanceSheet(userId: string, now = new Date()): Promise<BalanceSheet> {
+  return totalsOf(await getBalanceSheetItems(userId, now));
 }
 
 /** Everything still owed: the same liabilities net worth subtracts. */

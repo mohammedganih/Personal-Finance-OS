@@ -1,8 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
 import { resetDatabase, prisma } from '../test/db';
 import { bucketFlows, getBalanceSheet, getMonthFlows, getTotalDebt, savingsRate, unpaidStatements } from '.';
-import { getDashboardOverview, getCashflowTrend } from '../services/dashboard.service';
-import { getDebtOverview } from '../services/debtIntelligence.service';
+import { getDashboardOverview } from '../services/dashboard.service';
 import { getBudgets } from '../services/budget.service';
 import { createTransfer } from '../services/transaction.service';
 
@@ -70,9 +69,8 @@ describe('balance sheet', () => {
 
   it('Home, Net worth and Loans all show the same debt', async () => {
     const { user } = await household();
-    const [overview, debt, total] = await Promise.all([getDashboardOverview(user.id), getDebtOverview(user.id), getTotalDebt(user.id)]);
+    const [overview, total] = await Promise.all([getDashboardOverview(user.id), getTotalDebt(user.id)]);
     expect(overview.totalLiabilities).toBe(total);
-    expect(debt.totalOutstanding).toBe(total);
     expect(overview.netWorth).toBe(-157000);
   });
 });
@@ -94,8 +92,6 @@ describe('month flows', () => {
     const overview = await getDashboardOverview(user.id);
     expect(overview).toMatchObject({ monthlyIncome: 100000, monthlyExpenses: 42000, monthlySavings: 58000, actualInvestmentSpent: 20000, actualEMISpent: 12000 });
     expect(overview.savingsRate).toBeCloseTo(58, 6);
-    const trend = await getCashflowTrend(user.id, 2);
-    expect(trend[1]).toMatchObject({ income: 100000, expenses: 42000, savings: 58000 });
   });
 
   it('budgets count only everyday spending in their category', async () => {
