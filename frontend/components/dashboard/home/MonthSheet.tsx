@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Check, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { formatCurrency } from '@/lib/format';
+import { formatCurrency, formatDate } from '@/lib/format';
 import { useUndoPayment, UNDOABLE_TYPES } from '@/hooks/useMonthlyPlan';
 import {
   MemberSummary, MonthSummary, SummaryBucket, SummaryTotals, CardSplit,
@@ -12,7 +12,8 @@ import {
 } from '@/hooks/useMonthSummary';
 
 // The family's paper sheet: salary − loans − investments − bills = left for the
-// month; minus last month's card spending = free to spend & buffer.
+// month; minus last month's card spending = free to spend & buffer; minus what
+// has been spent so far this month = still free.
 
 const money = (n: number) => formatCurrency(n);
 const initials = (name: string) => name.trim().charAt(0).toUpperCase() || '?';
@@ -175,13 +176,72 @@ function CardLine({ cards, total, names, showWho }: { cards: CardSplit[]; total:
   );
 }
 
-function Sheet({ title, subtitle, avatar, salary, totals, names, combined }: {
+/** Everyday spending this month that the lines above don't already include. */
+function SpentLine({ spent, names, showWho }: { spent: SummaryTotals['spentSoFar']; names: Map<string, string>; showWho?: boolean }) {
+  return (
+    <details className="group border-b border-line">
+      <summary className="grid cursor-pointer list-none grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 rounded py-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mono [&::-webkit-details-marker]:hidden">
+        <span className="flex items-center gap-2 text-sm font-medium text-ink-primary">
+          <ChevronRight aria-hidden="true" className="h-3.5 w-3.5 text-ink-muted transition-transform group-open:rotate-90" />Spent so far
+        </span>
+        <span className="whitespace-nowrap text-sm font-semibold tabular-nums text-ink-primary">− {money(spent.total)}</span>
+        <span className="ml-[22px] text-[11px] font-medium text-ink-muted">
+          {spent.items.length ? `${spent.items.length} ${spent.items.length === 1 ? 'entry' : 'entries'} from the bank and cards` : 'Nothing logged yet'}
+        </span>
+      </summary>
+      <ul className="mb-2 grid gap-1.5 pl-[22px] text-[13px] text-ink-secondary">
+        {spent.items.slice(0, 12).map((e) => {
+          const who = showWho && e.memberId ? names.get(e.memberId) : undefined;
+          return (
+            <li key={`${e.source}-${e.id}-${e.memberId}`} className="flex justify-between gap-2">
+              <span className="min-w-0">
+                {e.name}
+                <span className="text-ink-muted"> · {formatDate(e.date, 'd MMM')}</span>
+                {who && <Tag>{firstName(who)}</Tag>}
+                {e.source === 'CARD' && <Tag>card</Tag>}
+                {e.sharePct != null && e.fullAmount != null && <Tag>{Math.round(e.sharePct)}% of {money(e.fullAmount)}</Tag>}
+              </span>
+              <span className="font-medium tabular-nums">{money(e.amount)}</span>
+            </li>
+          );
+        })}
+      </ul>
+      <Link href="/transactions" className="mb-2.5 ml-[22px] inline-block text-xs font-medium text-ink-muted underline underline-offset-2 hover:text-ink-primary">
+        {spent.items.length > 12 ? `See all ${spent.items.length} in Transactions` : 'Open Transactions'}
+      </Link>
+    </details>
+  );
+}
+
+/** How far through the month we are, against how much of Free has gone. */
+function PaceBar({ month, free, spent }: { month: string; free: number; spent: number }) {
+  const [y, m] = month.split('-').map(Number);
+  const days = new Date(y, m, 0).getDate();
+  const todayKey = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+  const day = todayKey.slice(0, 7) === month ? Number(todayKey.slice(8)) : todayKey.slice(0, 7) > month ? days : 0;
+  const timePct = Math.round((day / days) * 100);
+  const spentPct = free > 0 ? Math.min(100, Math.round((spent / free) * 100)) : spent > 0 ? 100 : 0;
+  const ahead = spentPct > timePct;
+  return (
+    <div className="mt-2.5" aria-label={`Day ${day} of ${days}; ${spentPct}% of free spent`}>
+      <div className="relative h-1.5 overflow-hidden rounded-full bg-paper-subtle">
+        <i className={cn('absolute inset-y-0 left-0 block', ahead ? 'bg-updown-down' : 'bg-updown-up')} style={{ width: `${spentPct}%` }} />
+        <i className="absolute inset-y-[-2px] block w-0.5 bg-ink-primary" style={{ left: `calc(${timePct}% - 1px)` }} />
+      </div>
+      <p className="mt-1 flex justify-between text-[11px] text-ink-muted">
+        <span>{spentPct}% of free spent</span><span>day {day} of {days}</span>
+      </p>
+    </div>
+  );
+}
+
+function Sheet({ title, subtitle, avatar, salary, totals, names, combined, month }: {
   title: string; subtitle: string; avatar: React.ReactNode; salary: React.ReactNode;
-  totals: SummaryTotals; names: Map<string, string>; combined?: boolean;
+  totals: SummaryTotals; names: Map<string, string>; combined?: boolean; month: string;
 }) {
   const base = Math.max(1, totals.salary);
   const w = (v: number) => `${(Math.max(0, v) / base) * 100}%`;
-  const negative = totals.free < 0;
+  const negative = totals.stillFree < 0;
   return (
     <article className={cn('card-light grid min-w-0 content-start rounded-2xl px-5 py-[18px]', combined && 'bg-paper-subtle')}>
       <div className="mb-2.5 flex items-center gap-2.5">
@@ -196,10 +256,15 @@ function Sheet({ title, subtitle, avatar, salary, totals, names, combined }: {
         <span>Left for the month</span><span className="tabular-nums">{money(totals.left)}</span>
       </div>
       <CardLine cards={totals.cards} total={totals.cardSpending} names={names} showWho={combined} />
-      <div className={cn('mt-3 flex items-center justify-between gap-2 rounded-xl p-3.5', negative ? 'bg-updown-down-muted text-updown-down' : 'bg-updown-up-muted text-updown-up')}>
-        <span className="text-xs font-semibold">Free to spend &amp; buffer</span>
-        <span className="text-2xl font-bold tabular-nums tracking-tight">{money(totals.free)}</span>
+      <div className="flex justify-between border-b border-line px-0.5 py-3 text-sm font-semibold text-ink-primary">
+        <span>Free to spend &amp; buffer</span><span className={cn('tabular-nums', totals.free < 0 && 'text-updown-down')}>{money(totals.free)}</span>
       </div>
+      <SpentLine spent={totals.spentSoFar} names={names} showWho={combined} />
+      <div className={cn('mt-3 flex items-center justify-between gap-2 rounded-xl p-3.5', negative ? 'bg-updown-down-muted text-updown-down' : 'bg-updown-up-muted text-updown-up')}>
+        <span className="text-xs font-semibold">Still free</span>
+        <span className="text-2xl font-bold tabular-nums tracking-tight">{money(totals.stillFree)}</span>
+      </div>
+      <PaceBar month={month} free={totals.free} spent={totals.spentSoFar.total} />
       <div className="mt-3 flex h-1.5 gap-0.5 overflow-hidden rounded-full bg-paper-subtle" title="Loans, investments, bills, card spending, free">
         <i className="block h-full bg-mono" style={{ width: w(totals.loans.total) }} />
         <i className="block h-full bg-ink-secondary" style={{ width: w(totals.investments.total) }} />
@@ -278,6 +343,7 @@ export function MonthSheet() {
             avatar={<Avatar label={m.emoji || initials(m.name)} color={m.color} />}
             salary={<SalaryInput member={m} month={data.month} />}
             totals={m}
+            month={data.month}
             names={names}
           />
         ))}
@@ -293,6 +359,7 @@ export function MonthSheet() {
             </div>
           }
           totals={data.combined}
+          month={data.month}
           names={names}
         />
       </div>

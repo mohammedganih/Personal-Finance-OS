@@ -18,9 +18,16 @@ export interface CardSplit {
   /** STATEMENT = saved statement; EXPENSES = statement building now from EMIs + card expenses; CARD = figure typed on the card. */
   source?: 'STATEMENT' | 'EXPENSES' | 'CARD';
 }
+/** Everyday spending this month not already on the sheet: from a bank account, or a card purchase not yet on a statement. */
+export interface SpentEntry {
+  id: string; source: 'TRANSACTION' | 'CARD'; name: string; date: string; amount: number;
+  memberId: string | null; fullAmount: number | null; sharePct: number | null;
+}
 export interface SummaryTotals {
   salary: number; loans: SummaryBucket; investments: SummaryBucket; bills: SummaryBucket;
   cards: CardSplit[]; cardSpending: number; left: number; free: number;
+  spentSoFar: { total: number; items: SpentEntry[] };
+  stillFree: number;
 }
 export interface MemberSummary extends SummaryTotals {
   memberId: string; name: string; color: string | null; emoji: string | null; salaryIsEstimate: boolean;
