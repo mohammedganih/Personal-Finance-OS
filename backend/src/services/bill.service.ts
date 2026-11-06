@@ -1,6 +1,7 @@
 import { BillFrequency, Prisma, RecurringBill } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { assertOwnMembers, attachSplit, copySplitToTransactions, fetchSplits, saveSplit } from '../lib/ownershipSplit';
+import { assertOwned } from '../lib/ownership';
 import { createError } from '../middleware/error.middleware';
 import { findCategory } from '../lib/paymentCategory';
 import {
@@ -118,18 +119,7 @@ async function assertLinkedOwnership(
   userId: string,
   input: { accountId?: string | null; creditCardId?: string | null; memberId?: string | null }
 ) {
-  if (input.accountId) {
-    const account = await prisma.account.findFirst({ where: { id: input.accountId, userId } });
-    if (!account) throw createError('Linked account not found', 404);
-  }
-  if (input.creditCardId) {
-    const card = await prisma.creditCard.findFirst({ where: { id: input.creditCardId, userId } });
-    if (!card) throw createError('Linked credit card not found', 404);
-  }
-  if (input.memberId) {
-    const member = await prisma.familyMember.findFirst({ where: { id: input.memberId, userId } });
-    if (!member) throw createError('Family member not found', 404);
-  }
+  await assertOwned(userId, { accounts: [input.accountId], creditCards: [input.creditCardId], members: [input.memberId] });
 }
 
 // ─── CRUD ────────────────────────────────────────────────────────────────────

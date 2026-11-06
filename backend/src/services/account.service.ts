@@ -1,4 +1,5 @@
 import { prisma } from '../lib/prisma';
+import { assertOwned } from '../lib/ownership';
 import { createError } from '../middleware/error.middleware';
 import { CreateAccountInput, UpdateAccountInput } from '../validators/account.validator';
 
@@ -33,5 +34,5 @@ export async function deleteAccount(userId: string, id: string) {
 }
 
 async function validateMember(userId: string, memberId?: string | null) {
-  if (memberId && !await prisma.familyMember.findFirst({ where: { id: memberId, userId } })) throw createError('Family member not found', 404);
+  await assertOwned(userId, { members: [memberId] });
 }

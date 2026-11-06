@@ -1,4 +1,5 @@
 import { Goal, FamilyMember, Account } from '@prisma/client';
+import { assertOwned } from '../lib/ownership';
 import { prisma } from '../lib/prisma';
 import { createError } from '../middleware/error.middleware';
 import { CreateGoalInput, UpdateGoalInput, CreateGoalContributionInput } from '../validators/goal.validator';
@@ -35,6 +36,7 @@ export async function getGoal(userId: string, id: string) {
 }
 
 export async function createGoal(userId: string, input: CreateGoalInput) {
+  await assertOwned(userId, { members: [input.memberId], accounts: [input.fundingAccountId] });
   const goal = await prisma.goal.create({
     data: {
       userId,
@@ -66,6 +68,7 @@ export async function createGoal(userId: string, input: CreateGoalInput) {
 export async function updateGoal(userId: string, id: string, input: UpdateGoalInput) {
   const existing = await prisma.goal.findFirst({ where: { id, userId } });
   if (!existing) throw createError('Goal not found', 404);
+  await assertOwned(userId, { members: [input.memberId], accounts: [input.fundingAccountId] });
 
   const goal = await prisma.goal.update({
     where: { id },

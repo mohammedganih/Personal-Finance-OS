@@ -1,4 +1,5 @@
 import { prisma } from '../lib/prisma';
+import { assertOwned } from '../lib/ownership';
 import { createError } from '../middleware/error.middleware';
 import { CreateBudgetInput, UpdateBudgetInput } from '../validators/budget.validator';
 import { resolveMonthRange } from '../lib/dateRange';
@@ -55,6 +56,7 @@ export async function getBudgets(userId: string, month?: number, year?: number) 
 }
 
 export async function createBudget(userId: string, input: CreateBudgetInput) {
+  await assertOwned(userId, { categories: [input.categoryId] });
   const budget = await prisma.budget.create({
     data: { userId, categoryId: input.categoryId, monthlyLimit: input.monthlyLimit },
     include: { category: { select: { id: true, name: true, icon: true, color: true } } },

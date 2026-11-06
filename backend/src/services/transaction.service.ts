@@ -2,6 +2,7 @@ import { prisma } from '../lib/prisma';
 import { createError } from '../middleware/error.middleware';
 import { signedDelta } from '../lib/accountBalance';
 import { writeSplit, fetchSplits, attachSplit } from '../lib/ownershipSplit';
+import { assertOwned } from '../lib/ownership';
 import {
   CreateTransactionInput,
   UpdateTransactionInput,
@@ -56,6 +57,7 @@ export async function getTransactions(userId: string, query: TransactionQuery) {
 }
 
 export async function createTransaction(userId: string, input: CreateTransactionInput) {
+  await assertOwned(userId, { accounts: [input.accountId], categories: [input.categoryId], members: [input.memberId, input.splitMemberId] });
   const transaction = await prisma.$transaction(async (tx) => {
     const created = await tx.transaction.create({
       data: {
@@ -92,6 +94,7 @@ export async function createTransaction(userId: string, input: CreateTransaction
 export async function updateTransaction(userId: string, id: string, input: UpdateTransactionInput) {
   const existing = await prisma.transaction.findFirst({ where: { id, userId } });
   if (!existing) throw createError('Transaction not found', 404);
+  await assertOwned(userId, { accounts: [input.accountId], categories: [input.categoryId], members: [input.memberId, input.splitMemberId] });
 
   const transaction = await prisma.$transaction(async (tx) => {
     const updated = await tx.transaction.update({

@@ -1,4 +1,5 @@
 import { decideMonthlyPayment } from './monthlyPayments.service';
+import { assertOwned } from '../lib/ownership';
 import { Investment, InvestmentCollateral, FamilyMember, Account, Loan } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { createError } from '../middleware/error.middleware';
@@ -39,6 +40,7 @@ export async function getInvestments(userId: string) {
 }
 
 export async function createInvestment(userId: string, input: CreateInvestmentInput) {
+  await assertOwned(userId, { accounts: [input.bankAccountId], members: [input.memberId, input.splitMemberId] });
   const investment = await prisma.$transaction(async (tx) => {
     const created = await tx.investment.create({
       data: {
@@ -80,6 +82,7 @@ export async function createInvestment(userId: string, input: CreateInvestmentIn
 export async function updateInvestment(userId: string, id: string, input: UpdateInvestmentInput) {
   const existing = await prisma.investment.findFirst({ where: { id, userId } });
   if (!existing) throw createError('Investment not found', 404);
+  await assertOwned(userId, { accounts: [input.bankAccountId], members: [input.memberId, input.splitMemberId] });
 
   const investment = await prisma.$transaction(async (tx) => {
     const updated = await tx.investment.update({
