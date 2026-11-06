@@ -276,13 +276,13 @@ function assertScheduledDate(bill: RecurringBill, dueDate: Date) {
   }
 }
 
-export async function payOccurrence(userId: string, billId: string, input: PayBillOccurrenceInput) {
+export async function payOccurrence(userId: string, billId: string, input: PayBillOccurrenceInput, options: { auto?: boolean } = {}) {
   const bill = await getOwnedBill(userId, billId);
   const dueDate = parseDateOnly(input.dueDate);
   assertScheduledDate(bill, dueDate);
 
   const existing = await findBillStatus(prisma, userId, billId, dueDate);
-  if (existing?.status === 'PAID') throw createError('This occurrence is already marked as paid', 409);
+  if (existing?.status === 'PAID') throw createError('This occurrence is already marked as paid', 409); // PAID or AUTO
 
   const amount = input.amount ?? Number(bill.amount);
   const paidDate = input.paidDate ? parseDateOnly(input.paidDate) : new Date();
@@ -328,7 +328,7 @@ export async function payOccurrence(userId: string, billId: string, input: PayBi
       }
     }
 
-    const record = { status: 'PAID' as const, amount, paidDate, accountId: transactionId ? accountId ?? null : null, transactionIds: transactionId ? [transactionId] : [], notes: input.notes ?? null };
+    const record = { status: options.auto ? 'AUTO' as const : 'PAID' as const, amount, paidDate, accountId: transactionId ? accountId ?? null : null, transactionIds: transactionId ? [transactionId] : [], notes: input.notes ?? null };
     const row = await tx.dueStatus.upsert({
       where: billStatusWhere(userId, billId, dueDate),
       create: { ...billStatusKey(userId, billId, dueDate), dueDate, ...record },

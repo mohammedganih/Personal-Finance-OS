@@ -105,6 +105,8 @@ export type AssetType =
   | 'OTHER';
 
 export interface Investment {
+  /** Taken by the bank or billed on the card automatically: confirmed on its due date. */
+  autoDebit?: boolean;
   paymentDay?: number | null;
   pauseFrom?: string | null;
   pauseUntil?: string | null;
@@ -337,6 +339,8 @@ export interface GoalInsight {
 export type LoanType = 'HOME' | 'CAR' | 'PERSONAL' | 'EDUCATION' | 'BUSINESS' | 'OTHER';
 
 export interface Loan {
+  /** Taken by the bank or billed on the card automatically: confirmed on its due date. */
+  autoDebit?: boolean;
   splitMemberId?: string | null;
   splitRatio?: number | null;
   paymentDay?: number | null;
@@ -617,6 +621,8 @@ export interface MemberAnalytics {
 // ─── Card EMI ─────────────────────────────────────────────────────────────────
 
 export interface CardEMI {
+  /** Taken by the bank or billed on the card automatically: confirmed on its due date. */
+  autoDebit?: boolean;
   memberId?: string | null;
   splitMemberId?: string | null;
   splitRatio?: number | null;

@@ -25,6 +25,7 @@ const schema = z.object({
   tenureMonths: z.coerce.number().int().positive('Required'),
   emisPaid:     z.coerce.number().int().min(0).default(0),
   isNoCost:     z.boolean().default(true),
+  autoDebit:    z.boolean().default(true),
   interestRate: z.coerce.number().min(0).max(100).optional(),
   startDate:    z.string().min(1, 'Required'),
   notes:        z.string().optional(),
@@ -57,6 +58,7 @@ export function CardEMIForm({ onClose, emi, defaultCardId }: CardEMIFormProps) {
           tenureMonths: emi.tenureMonths,
           emisPaid:     emi.emisPaid,
           isNoCost:     emi.isNoCost,
+          autoDebit:    emi.autoDebit ?? true,
           interestRate: emi.interestRate ?? undefined,
           startDate:    format(new Date(emi.startDate), 'yyyy-MM-dd'),
           notes:        emi.notes ?? '',
@@ -64,6 +66,7 @@ export function CardEMIForm({ onClose, emi, defaultCardId }: CardEMIFormProps) {
       : {
           creditCardId: defaultCardId ?? '',
           isNoCost:     true,
+          autoDebit:    true,
           emisPaid:     0,
           startDate:    format(new Date(), 'yyyy-MM-dd'),
         },
@@ -187,6 +190,11 @@ export function CardEMIForm({ onClose, emi, defaultCardId }: CardEMIFormProps) {
               {' '}Instalments already billed are counted from this date{emi ? ` (${emi.emisPaid} of ${emi.tenureMonths} so far)` : ''}.
             </p>
           </div>
+
+          <label className="flex items-start gap-2 text-sm text-text-secondary">
+            <input type="checkbox" className="mt-1" {...register('autoDebit')} />
+            <span>Auto-debited<span className="block text-xs text-text-muted">Billed on the card each month, so it is ticked off on its due day. You can still undo it.</span></span>
+          </label>
 
           {/* Auto-calc hint */}
           {autoEMI && !isNoCost && (

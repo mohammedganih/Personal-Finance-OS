@@ -109,7 +109,7 @@ export async function syncCardFromStatements(db: Db, userId: string, cardId: str
   const latest = await db.cardStatement.findFirst({ where: { creditCardId: cardId, userId }, orderBy: { month: 'desc' } });
   if (!card || !latest || latest.month < indiaDateKey(card.dueDate).slice(0, 7)) return;
   const event = await db.dueStatus.findUnique({ where: { userId_itemType_itemId_period_dueKey: { userId, itemType: 'CARD_STATEMENT', itemId: cardId, period: latest.month, dueKey: '' } } });
-  const paid = event?.status === 'PAID' ? Number(event.amount) : 0;
+  const paid = event && event.status !== 'SKIPPED' ? Number(event.amount ?? 0) : 0;
   await db.creditCard.update({
     where: { id: cardId },
     data: {

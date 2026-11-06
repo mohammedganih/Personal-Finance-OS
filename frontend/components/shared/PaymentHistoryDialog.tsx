@@ -7,7 +7,7 @@ import { usePaymentHistory, useUndoLoanEvent, HistoryType, HistoryEntry } from '
 import { useUndoPayment } from '@/hooks/useMonthlyPlan';
 
 const LABEL: Record<HistoryEntry['kind'], string> = {
-  PAID: 'Paid', SKIPPED: 'Skipped', PREPAYMENT: 'Prepayment', RATE_CHANGE: 'Rate change', CLOSED: 'Loan closed',
+  PAID: 'Paid', AUTO: 'Auto-paid', SKIPPED: 'Skipped', PREPAYMENT: 'Prepayment', RATE_CHANGE: 'Rate change', CLOSED: 'Loan closed',
 };
 
 /** Every payment, skip and loan change recorded for one item, with Undo where it is safe. */

@@ -65,6 +65,8 @@ export async function createInvestment(userId: string, input: CreateInvestmentIn
         memberId:      input.memberId,
         bankAccountId: input.bankAccountId,
         paymentDay: input.paymentDay,
+        // RDs are debited by the bank, so they default to auto-debited.
+        autoDebit: input.autoDebit ?? input.assetType === 'RECURRING_DEPOSIT',
         recurringActive: input.recurringActive,
       },
       include: INVESTMENT_INCLUDE,
@@ -107,6 +109,7 @@ export async function updateInvestment(userId: string, id: string, input: Update
         ...(input.platform      !== undefined && { platform:      input.platform }),
         ...(input.memberId      !== undefined && { memberId:      input.memberId ?? null }),
         ...(input.paymentDay !== undefined && { paymentDay: input.paymentDay }),
+        ...(input.autoDebit !== undefined && { autoDebit: input.autoDebit }),
         ...(input.recurringActive !== undefined && { recurringActive: input.recurringActive }),
         ...(input.bankAccountId !== undefined && { bankAccountId: input.bankAccountId ?? null }),
       },

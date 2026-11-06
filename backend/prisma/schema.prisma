@@ -306,6 +306,7 @@ model Transaction {
 model Investment {
   paymentDay Int? // optional recurring contribution day
   recurringActive Boolean @default(true) // stop future contributions without deleting the holding
+  autoDebit  Boolean @default(false) // the bank takes the instalment itself (RDs by default): confirmed on its due date
   id           String    @id @default(cuid())
   userId       String
   assetName    String
@@ -428,6 +429,7 @@ model GoalContribution {
 
 model Loan {
   paymentDay Int? // optional monthly debit day; defaults to start-date day
+  autoDebit  Boolean @default(true) // the bank takes the EMI itself: confirmed on its due date
   id               String   @id @default(cuid())
   userId           String
   memberId         String?  // who is the borrower
@@ -594,6 +596,7 @@ model CardEMI {
   startDate    DateTime
   notes        String?
   isArchived   Boolean  @default(false)
+  autoDebit    Boolean  @default(true) // billed on the card automatically: confirmed on its due date
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

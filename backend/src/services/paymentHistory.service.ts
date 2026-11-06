@@ -9,7 +9,7 @@ import { getLoanEvents } from './loanEvents.service';
 
 export type HistoryType = 'LOAN' | 'INVESTMENT' | 'CARD_EMI' | 'CREDIT_CARD' | 'BILL';
 export interface HistoryEntry {
-  key: string; kind: 'PAID' | 'SKIPPED' | 'PREPAYMENT' | 'RATE_CHANGE' | 'CLOSED';
+  key: string; kind: 'PAID' | 'AUTO' | 'SKIPPED' | 'PREPAYMENT' | 'RATE_CHANGE' | 'CLOSED';
   month: string | null; dueDate: string | null; date: string; amount: number | null;
   canUndo: boolean; eventId?: string; note?: string | null;
 }
@@ -30,7 +30,7 @@ export async function getPaymentHistory(userId: string, type: HistoryType, id: s
   if (type === 'BILL') {
     const rows = (await loadOccurrenceRows(userId, { billIds: [id] })).sort((a, b) => b.dueDate.getTime() - a.dueDate.getTime());
     return rows.map(o => ({
-      key: o.id, kind: o.status === 'SKIPPED' ? 'SKIPPED' : 'PAID', month: indiaDateKey(o.dueDate).slice(0, 7), dueDate: indiaDateKey(o.dueDate),
+      key: o.id, kind: o.status === 'SKIPPED' ? 'SKIPPED' : o.auto ? 'AUTO' : 'PAID', month: indiaDateKey(o.dueDate).slice(0, 7), dueDate: indiaDateKey(o.dueDate),
       date: (o.paidDate ?? o.createdAt).toISOString(), amount: o.amount != null ? Number(o.amount) : null, canUndo: true, note: o.notes,
     }));
   }
@@ -38,7 +38,7 @@ export async function getPaymentHistory(userId: string, type: HistoryType, id: s
   // Loans, card EMIs and card bills move a running balance, so only the latest payment can be undone.
   const latestPaid = records.find(r => r.status !== 'SKIPPED')?.period;
   const entries: HistoryEntry[] = records.map(r => ({
-    key: r.id, kind: r.status === 'SKIPPED' ? 'SKIPPED' : 'PAID', month: r.period, dueDate: null, date: (r.paidDate ?? r.createdAt).toISOString(), amount: Number(r.amount ?? 0),
+    key: r.id, kind: r.status, month: r.period, dueDate: null, date: (r.paidDate ?? r.createdAt).toISOString(), amount: Number(r.amount ?? 0),
     canUndo: r.status === 'SKIPPED' || type === 'INVESTMENT' || r.period === latestPaid,
   }));
   if (type === 'LOAN') {

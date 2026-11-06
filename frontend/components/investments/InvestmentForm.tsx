@@ -115,6 +115,7 @@ const FIELD_CONFIG: Record<AssetType, FieldSet> = {
 const schema = z.object({
   paymentDay: z.preprocess(v => v === '' || v == null ? null : Number(v), z.number().int().min(1).max(31).nullable()).optional(),
   recurringActive: z.boolean().default(true),
+  autoDebit: z.boolean().default(false),
   assetName:     z.string().min(1, 'Name required'),
   assetType:     z.enum(Object.keys(ASSET_TYPE_LABELS) as [AssetType, ...AssetType[]]),
   purchaseDate:  z.string().min(1, 'Date required'),
@@ -169,6 +170,7 @@ export function InvestmentForm({ onClose, investment }: InvestmentFormProps) {
           exchange:      investment.exchange ?? '',
           paymentDay: investment.paymentDay ?? null,
           recurringActive: investment.recurringActive ?? true,
+          autoDebit: investment.autoDebit ?? false,
           purchaseDate:  format(new Date(investment.purchaseDate), 'yyyy-MM-dd'),
           quantity:      investment.quantity,
           buyPrice:      investment.buyPrice,
@@ -190,6 +192,7 @@ export function InvestmentForm({ onClose, investment }: InvestmentFormProps) {
       : {
           assetType:    defaultType,
           recurringActive: true,
+          autoDebit: defaultType === 'RECURRING_DEPOSIT',
           purchaseDate: format(new Date(), 'yyyy-MM-dd'),
         },
   });
@@ -494,6 +497,11 @@ export function InvestmentForm({ onClose, investment }: InvestmentFormProps) {
               {errors.paymentDay && <p className="text-xs text-danger">Choose a day from 1 to 31.</p>}
             </div>
             <label className="flex items-center gap-2 text-sm text-text-secondary"><input type="checkbox" {...register('recurringActive')} /> Active recurring contributions</label>
+            <label className="flex items-start gap-2 text-sm text-text-secondary">
+              <input type="checkbox" className="mt-1" {...register('autoDebit')} />
+              <span>Auto-debited<span className="block text-xs text-text-muted">The bank takes the instalment on its due day, so it is marked paid automatically. You can still undo it.</span></span>
+            </label>
+
           </>}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>

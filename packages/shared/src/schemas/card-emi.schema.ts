@@ -8,6 +8,7 @@ export const createCardEMISchema = z.object({
   tenureMonths: z.number().int().positive(),
   emisPaid:     z.number().int().min(0).default(0),
   isNoCost:     z.boolean().default(true),
+  autoDebit:    z.boolean().optional(), // billed on the card automatically (default true)
   interestRate: z.number().min(0).max(100).optional(),
   startDate:    z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   notes:        z.string().max(500).optional(),
@@ -27,6 +28,7 @@ export const updateCardEMISchema = z.object({
   startDate:    z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   notes:        z.string().max(500).optional(),
   isArchived:   z.boolean().optional(),
+  autoDebit:    z.boolean().optional(),
   memberId:     z.string().cuid().optional().nullable(),
   splitMemberId: z.string().cuid().optional().nullable(), // other person sharing it (null clears)
   splitRatio:    z.number().min(0).max(100).optional().nullable(), // % paid by the main person

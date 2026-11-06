@@ -75,6 +75,7 @@ export async function createCardEMI(userId: string, input: CreateCardEMIInput) {
       tenureMonths: input.tenureMonths,
       emisPaid:     input.emisPaid ?? 0,
       isNoCost:     input.isNoCost ?? true,
+      ...(input.autoDebit !== undefined && { autoDebit: input.autoDebit }),
       interestRate: input.interestRate,
       startDate:    new Date(input.startDate),
       notes:        input.notes,
@@ -109,6 +110,7 @@ export async function updateCardEMI(userId: string, id: string, input: UpdateCar
       ...(input.tenureMonths !== undefined && { tenureMonths: input.tenureMonths }),
       ...(input.emisPaid     !== undefined && { emisPaid: input.emisPaid }),
       ...(input.isNoCost     !== undefined && { isNoCost: input.isNoCost }),
+      ...(input.autoDebit    !== undefined && { autoDebit: input.autoDebit }),
       ...(input.interestRate !== undefined && { interestRate: input.interestRate }),
       ...(input.startDate    !== undefined && { startDate: new Date(input.startDate) }),
       ...(input.notes        !== undefined && { notes: input.notes }),
@@ -134,7 +136,7 @@ export async function deleteCardEMI(userId: string, id: string) {
  * when the card bill itself is paid (credit-card.service payCreditCardBill).
  * `accountId` is accepted for older clients and ignored.
  */
-export async function payCardEMI(userId: string, emiId: string, _accountId?: string) {
+export async function payCardEMI(userId: string, emiId: string, _accountId?: string, options: { auto?: boolean } = {}) {
   try {
     return await prisma.$transaction(async tx => {
       const emi = await tx.cardEMI.findFirst({ where: { id: emiId, userId }, include: { creditCard: true } });
@@ -148,7 +150,7 @@ export async function payCardEMI(userId: string, emiId: string, _accountId?: str
       }
       const key = { userId, itemType: 'CARD_EMI', itemId: emiId, period: month, dueKey: '' };
       if (await tx.dueStatus.findUnique({ where: { userId_itemType_itemId_period_dueKey: key } })) throw createError('This due-month installment is already recorded', 409);
-      await tx.dueStatus.create({ data: { ...key, amount: Number(emi.emiAmount), status: 'PAID', paidDate: new Date() } });
+      await tx.dueStatus.create({ data: { ...key, amount: Number(emi.emiAmount), status: options.auto ? 'AUTO' : 'PAID', paidDate: new Date() } });
       await syncCardEMIProgress(tx, userId, emiId);
       const updatedEMI = await tx.cardEMI.findUniqueOrThrow({ where: { id: emiId } });
       return { emi: serializeWithStats(updatedEMI), transaction: null, isComplete: k === emi.tenureMonths - 1, billedToCard: true };

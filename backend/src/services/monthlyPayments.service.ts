@@ -53,7 +53,8 @@ export async function getMonthlyPlan(userId: string, month = currentMonth()) {
 }
 export function summarizeRows(input: { type: string; amount: number; status: string; paidAmount?: number; remaining?: number }[]) {
   // A part-paid card statement counts its paid part as paid and the rest as pending.
-  const rows = input.flatMap(r => r.status === 'PENDING' && r.paidAmount
+  // AUTO (confirmed on its due date) counts as paid.
+  const rows = input.map(r => (r.status === 'AUTO' ? { ...r, status: 'PAID' } : r)).flatMap(r => r.status === 'PENDING' && r.paidAmount
     ? [{ ...r, amount: r.paidAmount, status: 'PAID' }, { ...r, amount: r.remaining ?? r.amount - r.paidAmount }]
     : [r]);
   const sum = (status?: string, type?: string) => rows.filter(r => (!status || r.status === status) && (!type || r.type === type)).reduce((s, r) => s + r.amount, 0);
@@ -66,6 +67,8 @@ export interface PaymentOptions {
   amount?: number;
   /** `YYYY-MM-DD` the money actually left the account; defaults to now. */
   paidDate?: string;
+  /** Recorded by the auto-debit job rather than by hand (status AUTO). */
+  auto?: boolean;
 }
 export function previousMonth(month = currentMonth()) {
   const [y, m] = month.split('-').map(Number);
@@ -106,7 +109,7 @@ export async function decideMonthlyPayment(userId: string, type: 'LOAN' | 'INVES
       if (existing?.status === 'SKIPPED' && status === 'SKIPPED') return existing;
       // Reserve the unique monthly slot before any money is moved.
       if (existing) await tx.dueStatus.delete({ where: { id: existing.id } });
-      const event = await tx.dueStatus.create({ data: { ...key, status, amount, ...(status === 'PAID' && { paidDate: paidOn, accountId: sourceAccount ?? null }) } });
+      const event = await tx.dueStatus.create({ data: { ...key, status: status === 'PAID' && options.auto ? 'AUTO' : status, amount, ...(status === 'PAID' && { paidDate: paidOn, accountId: sourceAccount ?? null }) } });
       if (status === 'SKIPPED') return event;
       const transactions = [];
       const portions = loan && split ? [

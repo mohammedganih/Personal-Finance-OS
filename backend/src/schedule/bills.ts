@@ -40,6 +40,8 @@ export interface FlatOccurrence {
   dueKey: string;
   status: ProjectedStatus;
   amount: number;
+  /** Paid automatically on its due date. */
+  auto?: boolean;
 }
 
 export const EMPTY_EVENTS: EventMap = new Map();
@@ -56,7 +58,7 @@ export function toSchedule(bill: RecurringBill): BillScheduleShape & { amount: n
   };
 }
 
-export function buildEventMaps(occurrences: OccurrenceRow[]): Map<string, EventMap> {
+export function buildEventMaps(occurrences: (OccurrenceRow & { auto?: boolean })[]): Map<string, EventMap> {
   const byBill = new Map<string, EventMap>();
   for (const occ of occurrences) {
     let events = byBill.get(occ.billId);
@@ -68,6 +70,7 @@ export function buildEventMaps(occurrences: OccurrenceRow[]): Map<string, EventM
       status: occ.status,
       amount: occ.amount != null ? Number(occ.amount) : null,
       paidDate: occ.paidDate,
+      auto: occ.auto,
     });
   }
   return byBill;
@@ -128,8 +131,9 @@ export function projectAll(
   const flat: FlatOccurrence[] = [];
   for (const bill of bills) {
     if (bill.status === 'ARCHIVED') continue;
-    const projected = projectOccurrences(toSchedule(bill), eventsByBill.get(bill.id) ?? EMPTY_EVENTS, rangeStart, rangeEnd, today);
-    for (const occ of projected) flat.push({ bill, ...occ });
+    const events = eventsByBill.get(bill.id) ?? EMPTY_EVENTS;
+    const projected = projectOccurrences(toSchedule(bill), events, rangeStart, rangeEnd, today);
+    for (const occ of projected) flat.push({ bill, ...occ, auto: events.get(occ.dueKey)?.auto });
   }
   flat.sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
   return flat;
@@ -148,7 +152,7 @@ export async function billOccurrencesInRange(userId: string, start: Date, end: D
     const billById = new Map(bills.map((b) => [b.id, b]));
     for (const row of await loadOccurrenceRows(userId, { billIds: archivedIds, from: start, to: end })) {
       const bill = billById.get(row.billId)!;
-      flat.push({ bill, dueDate: row.dueDate, dueKey: toDateKey(row.dueDate), status: row.status, amount: row.amount != null ? Number(row.amount) : Number(bill.amount) });
+      flat.push({ bill, dueDate: row.dueDate, dueKey: toDateKey(row.dueDate), status: row.status, auto: row.auto, amount: row.amount != null ? Number(row.amount) : Number(bill.amount) });
     }
   }
   return flat

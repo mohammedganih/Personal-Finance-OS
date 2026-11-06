@@ -24,6 +24,8 @@ export interface MaterializedEvent {
   status: 'PAID' | 'SKIPPED';
   amount: number | null;
   paidDate: Date | null;
+  /** Paid automatically on its due date (auto-debit). */
+  auto?: boolean;
 }
 
 export type ProjectedStatus = 'PAID' | 'SKIPPED' | 'PAUSED' | 'OVERDUE' | 'DUE_TODAY' | 'UPCOMING';

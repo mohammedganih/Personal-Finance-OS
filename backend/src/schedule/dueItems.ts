@@ -103,7 +103,7 @@ export async function dueItems(userId: string, fromMonth: string, toMonth: strin
         dueDate: dateInMonth(month, loan.paymentDay ?? Number(indiaDateKey(loan.startDate).slice(8))),
         amount: rec ? rec.amount : scheduled, payerMemberId: loan.payerMemberId ?? loan.memberId,
         shared: !loan.memberId || !loan.payerMemberId || loan.memberId !== loan.payerMemberId,
-        accountId: loan.bankAccountId, creditCardId: null, autoDebit: false,
+        accountId: loan.bankAccountId, creditCardId: null, autoDebit: loan.autoDebit,
       });
     }
 
@@ -115,7 +115,7 @@ export async function dueItems(userId: string, fromMonth: string, toMonth: strin
         ...base(rec), itemType: 'INVESTMENT', itemId: inv.id, name: inv.assetName, period: month,
         dueDate: dateInMonth(month, inv.paymentDay ?? Number(indiaDateKey(inv.purchaseDate).slice(8))),
         amount: rec ? rec.amount : instalment.amount, payerMemberId: inv.memberId,
-        accountId: inv.bankAccountId, creditCardId: null, autoDebit: false,
+        accountId: inv.bankAccountId, creditCardId: null, autoDebit: inv.autoDebit,
       });
     }
 
@@ -155,7 +155,7 @@ export async function dueItems(userId: string, fromMonth: string, toMonth: strin
         ...base(rec), itemType: 'CARD_EMI', itemId: emi.id, name: `${emi.itemName} (${emi.creditCard.cardName})`, period: month,
         dueDate: cardEMIDueDateIn(emi.creditCard, month),
         amount: rec ? rec.amount : Number(emi.emiAmount), payerMemberId: emi.memberId ?? emi.creditCard.memberId,
-        accountId: emi.creditCard.bankAccountId, creditCardId: emi.creditCardId, autoDebit: false,
+        accountId: emi.creditCard.bankAccountId, creditCardId: emi.creditCardId, autoDebit: emi.autoDebit,
       });
     }
   }
@@ -172,7 +172,7 @@ export async function dueItems(userId: string, fromMonth: string, toMonth: strin
         itemType: 'BILL', itemId: bill.id, name: bill.name, period: occ.dueKey.slice(0, 7), dueDate: occ.dueKey, amount: occ.amount,
         payerMemberId: bill.memberId ?? (bill.creditCardId ? cardMember.get(bill.creditCardId) ?? null : null),
         accountId: bill.accountId, creditCardId: bill.creditCardId, autoDebit: bill.autoDebit,
-        status: done ? (occ.status as DueStatus) : 'PENDING', paidAmount: occ.status === 'PAID' ? occ.amount : 0, paidDate: null,
+        status: done ? (occ.status === 'PAID' && occ.auto ? 'AUTO' : (occ.status as DueStatus)) : 'PENDING', paidAmount: occ.status === 'PAID' ? occ.amount : 0, paidDate: null,
         split: null, billStatus: occ.status,
       });
     }
