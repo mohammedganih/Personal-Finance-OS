@@ -6,12 +6,12 @@ import { useState } from 'react';
 import { useDeleteInvestment } from '@/hooks/useInvestments';
 import { InvestmentForm } from '@/components/investments/InvestmentForm';
 import { InvestmentDetailDialog } from '@/components/investments/InvestmentDetailDialog';
-import { StatsRowInvestments } from '@/components/investments/light/StatsRowInvestments';
-import { PortfolioPerformanceChart } from '@/components/investments/light/PortfolioPerformanceChart';
-import { AssetAllocationLight } from '@/components/investments/light/AssetAllocationLight';
-import { HoldingsTable } from '@/components/investments/light/HoldingsTable';
-import { InvestmentInsightsLight } from '@/components/investments/light/InvestmentInsightsLight';
-import { UpcomingInvestmentsCard } from '@/components/investments/light/UpcomingInvestmentsCard';
+import { StatsRowInvestments } from '@/components/investments/StatsRowInvestments';
+import { PortfolioPerformanceChart } from '@/components/investments/PortfolioPerformanceChart';
+import { AssetAllocationLight } from '@/components/investments/AssetAllocationLight';
+import { HoldingsTable } from '@/components/investments/HoldingsTable';
+import { InvestmentInsightsLight } from '@/components/investments/InvestmentInsightsLight';
+import { UpcomingInvestmentsCard } from '@/components/investments/UpcomingInvestmentsCard';
 import { HoldingBucket } from '@/lib/investmentBuckets';
 import { Investment, InvestmentWithPnl } from '@/types';
 

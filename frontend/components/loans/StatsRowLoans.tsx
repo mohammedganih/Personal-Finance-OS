@@ -2,7 +2,7 @@
 
 import { addMonths } from 'date-fns';
 import { Wallet, CalendarClock, Percent, CalendarCheck } from 'lucide-react';
-import { StatCardLight } from '@/components/dashboard/light/StatCardLight';
+import { StatCardLight } from '@/components/dashboard/StatCardLight';
 import { useMonthlyPlan } from '@/hooks/useMonthlyPlan';
 import { useDebtOverview, useDebtTrend, useDebtStrategy } from '@/hooks/useDebtIntelligence';
 import { formatCurrency, formatDate } from '@/lib/format';

@@ -1,11 +1,11 @@
 'use client';
-import { ManageBills } from '@/components/bills/light/ManageBills';
+import { ManageBills } from '@/components/bills/ManageBills';
 
-import { UpcomingBillsTable } from '@/components/bills/light/UpcomingBillsTable';
-import { SubscriptionsTable } from '@/components/bills/light/SubscriptionsTable';
-import { BillsSummaryCard } from '@/components/bills/light/BillsSummaryCard';
-import { UpcomingBillsCalendarCard } from '@/components/bills/light/UpcomingBillsCalendarCard';
-import { BillInsightsLight } from '@/components/bills/light/BillInsightsLight';
+import { UpcomingBillsTable } from '@/components/bills/UpcomingBillsTable';
+import { SubscriptionsTable } from '@/components/bills/SubscriptionsTable';
+import { BillsSummaryCard } from '@/components/bills/BillsSummaryCard';
+import { UpcomingBillsCalendarCard } from '@/components/bills/UpcomingBillsCalendarCard';
+import { BillInsightsLight } from '@/components/bills/BillInsightsLight';
 
 export default function BillsPage() {
   return (

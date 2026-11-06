@@ -1,7 +1,7 @@
 'use client';
 
 import { Wallet, Landmark, CreditCard, TrendingUp } from 'lucide-react';
-import { StatCardLight } from '@/components/dashboard/light/StatCardLight';
+import { StatCardLight } from '@/components/dashboard/StatCardLight';
 import { AccountHealthGauge } from './AccountHealthGauge';
 import { useDashboardOverview, useNetWorthTrend } from '@/hooks/useDashboard';
 import { formatCurrency } from '@/lib/format';

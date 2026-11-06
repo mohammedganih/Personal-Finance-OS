@@ -11,7 +11,7 @@ import {
 } from '@/hooks/useCardStatements';
 import { PaymentActions } from '@/components/shared/PaymentActions';
 import { CreditCardForm } from '@/components/loans/CreditCardForm';
-import { CardEMIsDialog } from '@/components/loans/light/CardEMIsDialog';
+import { CardEMIsDialog } from '@/components/loans/CardEMIsDialog';
 import { CardExpenseDialog, PayExpenseDialog, StatementDialog } from './CardDialogs';
 import { formatCurrency, formatDate } from '@/lib/format';
 import { cn } from '@/lib/utils';

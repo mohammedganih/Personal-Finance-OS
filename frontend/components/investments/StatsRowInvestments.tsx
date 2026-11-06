@@ -1,7 +1,7 @@
 'use client';
 
 import { Wallet, Target, TrendingUp, Repeat } from 'lucide-react';
-import { StatCardLight } from '@/components/dashboard/light/StatCardLight';
+import { StatCardLight } from '@/components/dashboard/StatCardLight';
 import { usePortfolioSummary } from '@/hooks/useInvestments';
 import { usePortfolioTrend } from '@/hooks/useInvestmentIntelligence';
 import { formatCurrency } from '@/lib/format';

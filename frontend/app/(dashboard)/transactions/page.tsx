@@ -1,8 +1,8 @@
 'use client';
 
-import { TransactionsMainCard } from '@/components/transactions/light/TransactionsMainCard';
-import { TransactionsSummaryCard } from '@/components/transactions/light/TransactionsSummaryCard';
-import { TransactionInsightsLight } from '@/components/transactions/light/TransactionInsightsLight';
+import { TransactionsMainCard } from '@/components/transactions/TransactionsMainCard';
+import { TransactionsSummaryCard } from '@/components/transactions/TransactionsSummaryCard';
+import { TransactionInsightsLight } from '@/components/transactions/TransactionInsightsLight';
 
 export default function TransactionsPage() {
   return (

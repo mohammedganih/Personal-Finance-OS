@@ -1,7 +1,7 @@
 'use client';
 
 import { Target, Briefcase, PiggyBank, CalendarCheck } from 'lucide-react';
-import { StatCardLight } from '@/components/dashboard/light/StatCardLight';
+import { StatCardLight } from '@/components/dashboard/StatCardLight';
 import { useGoals, useGoalInsights } from '@/hooks/useGoals';
 import { formatCurrency } from '@/lib/format';
 

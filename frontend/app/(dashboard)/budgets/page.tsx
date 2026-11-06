@@ -1,12 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { StatsRowBudgets } from '@/components/budgets/light/StatsRowBudgets';
-import { BudgetCategoryTable, BUDGET_TABS, BudgetTab } from '@/components/budgets/light/BudgetCategoryTable';
-import { BudgetOverviewDonut } from '@/components/budgets/light/BudgetOverviewDonut';
-import { TopOverspentCategories } from '@/components/budgets/light/TopOverspentCategories';
-import { BudgetInsightsLight } from '@/components/budgets/light/BudgetInsightsLight';
-import { MonthlyComparisonCard } from '@/components/budgets/light/MonthlyComparisonCard';
+import { StatsRowBudgets } from '@/components/budgets/StatsRowBudgets';
+import { BudgetCategoryTable, BUDGET_TABS, BudgetTab } from '@/components/budgets/BudgetCategoryTable';
+import { BudgetOverviewDonut } from '@/components/budgets/BudgetOverviewDonut';
+import { TopOverspentCategories } from '@/components/budgets/TopOverspentCategories';
+import { BudgetInsightsLight } from '@/components/budgets/BudgetInsightsLight';
+import { MonthlyComparisonCard } from '@/components/budgets/MonthlyComparisonCard';
 
 export default function BudgetsPage() {
   // Lifted so "View All" in Top Overspent Categories can jump the table

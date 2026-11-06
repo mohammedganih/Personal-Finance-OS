@@ -1,7 +1,7 @@
 'use client';
 
 import { Briefcase, CreditCard, PieChart, TrendingUp } from 'lucide-react';
-import { StatCardLight } from '@/components/dashboard/light/StatCardLight';
+import { StatCardLight } from '@/components/dashboard/StatCardLight';
 import { useBudgets, useBudgetsForPeriod } from '@/hooks/useBudgets';
 import { computeBudgetPacing } from '@/lib/budgetPacing';
 import { usePeriodStore } from '@/stores/period.store';
