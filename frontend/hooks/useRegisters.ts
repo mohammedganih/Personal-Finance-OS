@@ -31,3 +31,22 @@ export function useLoanRegister() {
     queryFn: async () => (await api.get<{ data: LoanRegister }>('/registers/loans')).data.data,
   });
 }
+
+export interface CardRow {
+  id: string; cardName: string; bank: string | null; lastFourDigits: string | null;
+  memberId: string | null; bankAccountId: string | null; creditLimit: number;
+  statementDue: { amount: number; dueDate: string; month: string; overdue: boolean } | null;
+  buildingNow: { amount: number; dueDate: string };
+  emiCount: number; emiStillToBill: number; available: number;
+}
+export interface CardRegister {
+  totals: { statementDue: number; nextDueDate: string | null; buildingNow: number; available: number };
+  cards: CardRow[];
+}
+
+export function useCardRegister() {
+  return useQuery({
+    queryKey: ['credit-cards', 'register'],
+    queryFn: async () => (await api.get<{ data: CardRegister }>('/registers/cards')).data.data,
+  });
+}
