@@ -191,15 +191,6 @@ export interface NetWorthTrendPoint {
   totalLiabilities: number;
 }
 
-export interface InvestmentCalendarEntry {
-  date: string;
-  investmentId: string;
-  assetName: string;
-  assetType: AssetType;
-  amount: number;
-  accountName: string | null;
-}
-
 export type AssetClass = 'Equity' | 'Debt' | 'Gold' | 'Real Estate' | 'Crypto' | 'Other';
 
 export interface DiversificationWarning {
@@ -467,45 +458,6 @@ export interface BillRangeTotals {
   upcomingCount: number;
   skipped: number;
   remaining: number;
-}
-
-export interface BillsSummary {
-  monthlyCommitment: number;
-  annualCommitment: number;
-  avgMonthlyNext12: number;
-  autoDebitMonthly: number;
-  activeCount: number;
-  pausedCount: number;
-  archivedCount: number;
-  thisMonth: BillRangeTotals;
-  nextMonth: BillRangeTotals;
-  next3Months: BillRangeTotals;
-  next6Months: BillRangeTotals;
-  next12Months: BillRangeTotals;
-  dueThisWeek: BillRangeTotals;
-  byFrequency: {
-    frequency: BillFrequency;
-    count: number;
-    amountPerCycle: number;
-    monthlyEquivalent: number;
-  }[];
-}
-
-export interface BillCalendarOccurrence {
-  billId: string;
-  name: string;
-  vendor: string | null;
-  category: string;
-  icon: string | null;
-  color: string | null;
-  autoDebit: boolean;
-  frequency: BillFrequency;
-  dueDate: string; // yyyy-MM-dd
-  status: BillOccurrenceStatus;
-  amount: number;
-  accountId?: string | null;
-  creditCardId?: string | null;
-  memberId?: string | null;
 }
 
 export interface BillInsight {

@@ -219,8 +219,8 @@ function SpentLine({ spent, names, showWho }: { spent: SummaryTotals['spentSoFar
           );
         })}
       </ul>
-      <Link href="/transactions" className="mb-2.5 ml-[22px] inline-block text-xs font-medium text-ink-muted underline underline-offset-2 hover:text-ink-primary">
-        {spent.items.length > 12 ? `See all ${spent.items.length} in Transactions` : 'Open Transactions'}
+      <Link href="/spending" className="mb-2.5 ml-[22px] inline-block text-xs font-medium text-ink-muted underline underline-offset-2 hover:text-ink-primary">
+        {spent.items.length > 12 ? `See all ${spent.items.length} in Spending` : 'Open Spending'}
       </Link>
     </details>
   );

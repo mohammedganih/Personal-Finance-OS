@@ -255,6 +255,8 @@ model Category {
   user         User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
   transactions Transaction[]
   budgets      Budget[]
+  bills        RecurringBill[] @relation("BillCategory")
+  cardExpenses CardExpense[]   @relation("CardExpenseCategory")
 
   @@index([userId])
   @@map("categories")
@@ -484,6 +486,8 @@ model RecurringBill {
   name     String
   vendor   String? // who gets paid: "Netflix", "Airtel", "LIC", landlord's name...
   category String  @default("Other") // free-form -- unlimited categories, suggested list lives in shared constants
+  // The category on the Category table (same list as transactions and budgets); `category` text kept for now.
+  categoryId String?
   icon     String?
   color    String?
 
@@ -516,6 +520,7 @@ model RecurringBill {
   member      FamilyMember?    @relation(fields: [memberId], references: [id], onDelete: SetNull)
   account     Account?         @relation("BillAccount", fields: [accountId], references: [id], onDelete: SetNull)
   creditCard  CreditCard?      @relation("BillCreditCard", fields: [creditCardId], references: [id], onDelete: SetNull)
+  categoryRef Category?        @relation("BillCategory", fields: [categoryId], references: [id], onDelete: SetNull)
   occurrences BillOccurrence[]
 
   @@index([userId])
@@ -905,6 +910,8 @@ model CardExpense {
   amount            Decimal   @db.Decimal(12, 2)
   date              DateTime
   category          String    @default("Other")
+  // The category on the Category table (same list as transactions and budgets); `category` text kept for now.
+  categoryId        String?
   statementMonth    String
   // A plan payment made on the card (e.g. a gold scheme instalment), already
   // counted in its own bucket on Home: INVESTMENT | LOAN | BILL + its id.
@@ -919,6 +926,7 @@ model CardExpense {
 
   user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   creditCard CreditCard    @relation(fields: [creditCardId], references: [id], onDelete: Cascade)
+  categoryRef Category?  @relation("CardExpenseCategory", fields: [categoryId], references: [id], onDelete: SetNull)
   member     FamilyMember? @relation(fields: [memberId], references: [id], onDelete: SetNull)
 
   @@index([userId])

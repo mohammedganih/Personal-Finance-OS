@@ -18,24 +18,34 @@ export function calculateBudgetProgress(monthlyLimit: number, spent: number) {
   return { spent, remaining, progressPct, status };
 }
 
-async function getMonthlySpendByCategory(userId: string, categoryIds: string[], month?: number, year?: number) {
+/**
+ * Everyday spending per category in the month: bank spending (kind SPEND, but
+ * not the card bill, whose purchases are counted one by one) plus card
+ * purchases (not linked to another bucket, not paid off -- a paid-off purchase
+ * is already a bank entry).
+ */
+export async function getMonthlySpendByCategory(userId: string, categoryIds: string[], month?: number, year?: number) {
   const { start: startOfMonth, end: endOfMonth } = resolveMonthRange(month, year);
 
-  const grouped = await prisma.transaction.groupBy({
-    by: ['categoryId'],
-    where: {
-      userId,
-      // Only everyday spending counts against a budget (not saving, EMIs or transfers).
-      kind: 'SPEND',
-      categoryId: { in: categoryIds },
-      date: { gte: startOfMonth, lte: endOfMonth },
-    },
-    _sum: { amount: true },
-  });
+  const [bank, card] = await Promise.all([
+    prisma.transaction.groupBy({
+      by: ['categoryId'],
+      where: {
+        userId, kind: 'SPEND', categoryId: { in: categoryIds }, date: { gte: startOfMonth, lte: endOfMonth },
+        OR: [{ sourceType: null }, { sourceType: { not: 'CREDIT_CARD' } }],
+      },
+      _sum: { amount: true },
+    }),
+    prisma.cardExpense.groupBy({
+      by: ['categoryId'],
+      where: { userId, categoryId: { in: categoryIds }, date: { gte: startOfMonth, lte: endOfMonth }, linkedType: null, paidDate: null },
+      _sum: { amount: true },
+    }),
+  ]);
 
   const spendMap = new Map<string, number>();
-  for (const row of grouped) {
-    if (row.categoryId) spendMap.set(row.categoryId, Number(row._sum.amount ?? 0));
+  for (const row of [...bank, ...card]) {
+    if (row.categoryId) spendMap.set(row.categoryId, (spendMap.get(row.categoryId) ?? 0) + Number(row._sum.amount ?? 0));
   }
   return spendMap;
 }

@@ -48,24 +48,6 @@ export function useDeleteLoan() {
   });
 }
 
-export function usePayLoanEMI() {
-  const qc = useQueryClient();
-  const { toast } = useToast();
-  return useMutation({
-    mutationFn: ({ id, accountId }: { id: string; accountId?: string }) =>
-      api.post(`/loans/${id}/pay`, { accountId }),
-    onSuccess: (res) => {
-      qc.invalidateQueries({ queryKey: ['loans'] });
-      qc.invalidateQueries({ queryKey: ['transactions'] });
-      qc.invalidateQueries({ queryKey: ['dashboard'] });
-      const { isPaidOff } = res.data.data;
-      qc.invalidateQueries({ queryKey: ['dashboard', 'monthly-plan'] });
-      toast({ title: isPaidOff ? '🎉 Loan fully paid off!' : 'EMI payment recorded' });
-    },
-    onError: () => toast({ title: 'Failed to record payment', variant: 'destructive' }),
-  });
-}
-
 export function useAssetLoanSummary(loanId: string | undefined) {
   return useQuery({
     queryKey: ['asset-loans', loanId, 'summary'],

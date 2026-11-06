@@ -24,7 +24,8 @@ const schema = createBudgetSchema.extend({
 });
 type FormData = z.infer<typeof schema>;
 
-export function BudgetForm({ existingBudgets, budget, onClose }: { existingBudgets: Budget[]; budget?: Budget; onClose: () => void }) {
+/** A monthly limit for one spending category. `categoryId` preselects the category for a new limit. */
+export function BudgetForm({ existingBudgets, budget, categoryId, onClose }: { existingBudgets: Budget[]; budget?: Budget; categoryId?: string; onClose: () => void }) {
   const isEdit = !!budget;
   const { mutate: create, isPending: isCreating } = useCreateBudget();
   const { mutate: update, isPending: isUpdating } = useUpdateBudget();
@@ -38,7 +39,7 @@ export function BudgetForm({ existingBudgets, budget, onClose }: { existingBudge
 
   const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: budget ? { categoryId: budget.categoryId, monthlyLimit: budget.monthlyLimit } : undefined,
+    defaultValues: budget ? { categoryId: budget.categoryId, monthlyLimit: budget.monthlyLimit } : categoryId ? { categoryId } : undefined,
   });
 
   const onSubmit = (data: FormData) => {

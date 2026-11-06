@@ -1,35 +1,31 @@
 import {
   Home,
-  ArrowLeftRight,
   TrendingUp,
   Target,
   CreditCard,
   Receipt,
   BarChart3,
   Settings,
-  PiggyBank,
   Wallet,
-  FileText,
   Landmark,
+  CalendarClock,
 } from 'lucide-react';
 
-// `group` drives the sidebar headings; '' = no heading, 'spacer' = blank gap.
-export const NAV_GROUPS = ['', 'This month', 'Commitments', 'Insights', 'spacer'] as const;
+// The five places of the app (redesign plan, "Target layout"); `group` is the sidebar heading.
+export const NAV_GROUPS = ['This month', 'Commitments', 'Wealth', 'Look back', 'Setup'] as const;
 export type NavGroup = (typeof NAV_GROUPS)[number];
 
 export const NAV_ITEMS: readonly { href: string; label: string; icon: typeof Home; group: NavGroup }[] = [
-  { href: '/dashboard', label: 'Home', icon: Home, group: '' },
-  { href: '/transactions', label: 'Transactions', icon: ArrowLeftRight, group: 'This month' },
-  { href: '/bills', label: 'Bills', icon: Receipt, group: 'This month' },
-  { href: '/budgets', label: 'Budgets', icon: PiggyBank, group: 'This month' },
+  { href: '/dashboard', label: 'Home', icon: Home, group: 'This month' },
+  { href: '/spending', label: 'Spending', icon: Receipt, group: 'This month' },
   { href: '/loans', label: 'Loans', icon: Landmark, group: 'Commitments' },
-  { href: '/credit-cards', label: 'Credit Cards', icon: CreditCard, group: 'Commitments' },
-  { href: '/investments', label: 'Investments', icon: TrendingUp, group: 'Commitments' },
-  { href: '/goals', label: 'Goals', icon: Target, group: 'Commitments' },
-  { href: '/analytics', label: 'Analytics', icon: BarChart3, group: 'Insights' },
-  { href: '/reports', label: 'Reports', icon: FileText, group: 'Insights' },
-  { href: '/accounts', label: 'Accounts', icon: Wallet, group: 'spacer' },
-  { href: '/settings', label: 'Settings', icon: Settings, group: 'spacer' },
+  { href: '/credit-cards', label: 'Credit cards', icon: CreditCard, group: 'Commitments' },
+  { href: '/bills', label: 'Bills & subscriptions', icon: CalendarClock, group: 'Commitments' },
+  { href: '/investments', label: 'Savings & investments', icon: TrendingUp, group: 'Wealth' },
+  { href: '/goals', label: 'Goals', icon: Target, group: 'Wealth' },
+  { href: '/analytics', label: 'Analytics', icon: BarChart3, group: 'Look back' },
+  { href: '/accounts', label: 'Accounts', icon: Wallet, group: 'Setup' },
+  { href: '/settings', label: 'Settings', icon: Settings, group: 'Setup' },
 ];
 
 export const ASSET_TYPE_LABELS: Record<string, string> = {

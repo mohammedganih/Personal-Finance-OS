@@ -16,6 +16,7 @@ import budgetRoutes from './budget.routes';
 import debtRoutes from './debt.routes';
 import assetLoanRoutes from './assetLoan.routes';
 import analyticsRoutes from './analytics.routes';
+import registerRoutes from './register.routes';
 
 const router = Router();
 
@@ -32,6 +33,7 @@ router.use('/accounts', accountRoutes);
 router.use('/categories', categoryRoutes);
 router.use('/credit-cards', creditCardRoutes);
 router.use('/p2p', p2pRoutes);
+router.use('/registers', registerRoutes);
 router.use('/card-emis', cardEMIRoutes);
 router.use('/family', familyRoutes);
 router.use('/budgets', budgetRoutes);

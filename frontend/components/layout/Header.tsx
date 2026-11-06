@@ -12,7 +12,7 @@ import { PeriodSelector } from '@/components/shared/PeriodSelector';
 // -- showing the selector elsewhere (Transactions has its own date filter;
 // Investments/Loans/Goals are point-in-time, not monthly) would imply it
 // does something it doesn't.
-const PERIOD_SCOPED_ROUTES = ['/dashboard', '/analytics', '/budgets'];
+const PERIOD_SCOPED_ROUTES = ['/dashboard', '/analytics'];
 
 export function Header() {
   const setNavOpen = useNavStore((st) => st.setOpen);

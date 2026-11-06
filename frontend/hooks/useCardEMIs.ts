@@ -72,25 +72,3 @@ export function useDeleteCardEMI() {
     onError: () => toast({ title: 'Failed to delete', variant: 'destructive' }),
   });
 }
-
-export function usePayCardEMI() {
-  const qc = useQueryClient();
-  const { toast } = useToast();
-  return useMutation({
-    mutationFn: ({ id, accountId }: { id: string; accountId?: string }) =>
-      api.post(`/card-emis/${id}/pay`, { accountId }),
-    onSuccess: (res) => {
-      qc.invalidateQueries({ queryKey: ['card-emis'] });
-      qc.invalidateQueries({ queryKey: ['transactions'] });
-      qc.invalidateQueries({ queryKey: ['accounts'] });
-      qc.invalidateQueries({ queryKey: ['dashboard'] });
-      qc.invalidateQueries({ queryKey: ['debt'] });
-      const { isComplete } = res.data.data;
-      toast({ title: isComplete ? '🎉 Last EMI ticked off!' : 'EMI ticked off', description: 'It is paid with the card bill, so no money moved.' });
-    },
-    onError: (error: unknown) => {
-      const e = error as { response?: { data?: { message?: string } } };
-      toast({ title: e.response?.data?.message || 'Failed to record payment', variant: 'destructive' });
-    },
-  });
-}

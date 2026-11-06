@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { ChevronRight, CreditCard as CardIcon, Plus } from 'lucide-react';
 import { useCreditCards, useDeleteCreditCard } from '@/hooks/useCreditCards';
-import { useCardEMIs } from '@/hooks/useCardEMIs';
 import { useAccounts } from '@/hooks/useAccounts';
 import {
   Breakdown, CardExpense, CardStatement, UpcomingStatement,
@@ -11,7 +10,10 @@ import {
 } from '@/hooks/useCardStatements';
 import { PaymentActions } from '@/components/shared/PaymentActions';
 import { CreditCardForm } from '@/components/loans/CreditCardForm';
-import { CardEMIsDialog } from '@/components/loans/CardEMIsDialog';
+import { CardEMIList } from './CardEMIList';
+import { useCardRegister, CardRow } from '@/hooks/useRegisters';
+import { useFamilyMembers } from '@/hooks/useFamilyMembers';
+import { RegisterPage, RegisterTable, RegisterColumn, DetailDrawer, DrawerSection } from '@/components/register/Register';
 import { CardExpenseDialog, PayExpenseDialog, StatementDialog } from './CardDialogs';
 import { formatCurrency, formatDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -157,8 +159,8 @@ function ExpenseRow({ card, e, onEdit, onPay }: { card: CreditCard; e: CardExpen
   );
 }
 
-function CardPanel({ card }: { card: CreditCard }) {
-  const { data: emis } = useCardEMIs(false);
+/** One card's detail (inside the register's drawer): statements, what's on them, EMIs and card purchases. */
+function CardDetail({ card }: { card: CreditCard }) {
   const { data: accounts } = useAccounts();
   const { data, isLoading } = useCardStatements(card.id);
   const { data: expenses } = useCardExpenses(card.id);
@@ -167,119 +169,109 @@ function CardPanel({ card }: { card: CreditCard }) {
     | { kind: 'statement'; statement?: CardStatement; suggested?: UpcomingStatement }
     | { kind: 'expense'; expense?: CardExpense }
     | { kind: 'pay'; expense: CardExpense }
-    | { kind: 'emis' } | { kind: 'edit' } | null
+    | { kind: 'edit' } | null
   >(null);
   const [showAll, setShowAll] = useState(false);
-
-  const active = (emis ?? []).filter((e) => e.creditCardId === card.id && !e.isArchived);
-  const emiOutstanding = active.reduce((s, e) => s + e.outstanding, 0);
-  const used = card.outstanding + emiOutstanding;
-  const utilization = card.creditLimit > 0 ? Math.min(100, (used / card.creditLimit) * 100) : 0;
   const payFrom = accounts?.find((a) => a.id === card.bankAccountId)?.name;
   const list = expenses ?? [];
-  // An entered statement not yet paid in full; otherwise the statement building now
-  // (EMIs + card expenses + card bills so far), which switches to the real one once entered.
-  const unpaid = data?.statements.find((st) => st.status !== 'PAID');
-  const current = data && (unpaid
-    ? { amount: unpaid.remaining, dueDate: unpaid.dueDate, unpaid: true }
-    : { amount: data.upcoming.estimatedTotal, dueDate: data.upcoming.dueDate, unpaid: false });
   const shown = showAll ? list : list.slice(0, 8);
 
   return (
-    <div className="space-y-4">
-      <section className="card-light rounded-2xl p-5">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <span className="grid h-10 w-10 place-items-center rounded-xl bg-paper-subtle text-ink-primary"><CardIcon className="h-5 w-5" /></span>
-            <div>
-              <h2 className="text-base font-semibold text-ink-primary">{card.cardName}</h2>
-              <p className="text-xs text-ink-muted">{card.bank ?? 'Credit card'}{card.lastFourDigits ? ` •••• ${card.lastFourDigits}` : ''}{payFrom ? ` · bill paid from ${payFrom}` : ''}</p>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={() => setDialog({ kind: 'expense' })} className="inline-flex items-center gap-1 rounded-full bg-mono px-3 py-1.5 text-xs font-medium text-white hover:bg-mono-hover"><Plus className="h-3.5 w-3.5" />Card expense</button>
-            <button type="button" onClick={() => setDialog({ kind: 'statement', suggested: data?.upcoming })} className={pill}>Add statement</button>
-            <button type="button" onClick={() => setDialog({ kind: 'emis' })} className={pill}>EMIs ({active.length})</button>
-            <button type="button" onClick={() => setDialog({ kind: 'edit' })} className={pill}>Edit card</button>
-          </div>
-        </div>
-        <dl className="mt-4 grid grid-cols-2 gap-4 border-t border-line pt-4 text-xs sm:grid-cols-4">
-          <div>
-            <dt className="text-ink-muted">{current?.unpaid ? 'Statement due' : 'Current statement'}</dt>
-            <dd className="mt-1 text-sm font-semibold tabular-nums text-ink-primary">{current ? formatCurrency(current.amount) : '…'}</dd>
-            {current && <dd className="text-ink-muted">{current.unpaid ? 'left to pay' : 'so far'} · due {formatDate(current.dueDate, 'd MMM')}</dd>}
-          </div>
-          <div><dt className="text-ink-muted">EMIs still to bill</dt><dd className="mt-1 text-sm font-semibold tabular-nums text-ink-primary">{formatCurrency(emiOutstanding)}</dd><dd className="text-ink-muted">{active.length} active</dd></div>
-          <div><dt className="text-ink-muted">Credit limit</dt><dd className="mt-1 text-sm font-semibold tabular-nums text-ink-primary">{formatCurrency(card.creditLimit, 'INR', true)}</dd></div>
-          <div>
-            <dt className="text-ink-muted">Used</dt><dd className="mt-1 text-sm font-semibold tabular-nums text-ink-primary">{utilization.toFixed(1)}%</dd>
-            <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-paper-subtle"><div className="h-full rounded-full bg-mono" style={{ width: `${utilization}%` }} /></div>
-          </div>
-        </dl>
-      </section>
-
-      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-5">
-        <section className="card-light rounded-2xl p-5 lg:col-span-3">
-          <h3 className="text-sm font-semibold text-ink-primary">Statements</h3>
-          <p className="mb-3 text-xs text-ink-muted">Each month&apos;s statement as printed, with what you paid. Pay and Undo work like everywhere else.</p>
-          {isLoading || !data ? <div className="h-32 rounded-xl shimmer" /> : (
-            <>
-              <UpcomingPanel up={data.upcoming} onEnter={() => setDialog({ kind: 'statement', suggested: data.upcoming })} />
-              {data.statements.length === 0
-                ? <p className="mt-4 text-sm text-ink-muted">No statements entered yet.</p>
-                : <ul className="mt-2">{data.statements.map((st) => <StatementRow key={st.id} card={card} st={st} onEdit={() => setDialog({ kind: 'statement', statement: st })} />)}</ul>}
-            </>
-          )}
-        </section>
-
-        <section className="card-light rounded-2xl p-5 lg:col-span-2">
-          <h3 className="text-sm font-semibold text-ink-primary">Card expenses</h3>
-          <p className="mb-2 text-xs text-ink-muted">One-off purchases on the card (not EMIs). Mark one &ldquo;Paid off&rdquo; if you cleared it from your bank the same month.</p>
-          {list.length === 0 ? <p className="py-6 text-center text-sm text-ink-muted">No card expenses yet.</p> : (
-            <ul>{shown.map((e) => <ExpenseRow key={e.id} card={card} e={e} onEdit={() => setDialog({ kind: 'expense', expense: e })} onPay={() => setDialog({ kind: 'pay', expense: e })} />)}</ul>
-          )}
-          {list.length > 8 && <button type="button" onClick={() => setShowAll((v) => !v)} className={cn(link, 'mt-2')}>{showAll ? 'Show fewer' : `Show all ${list.length}`}</button>}
-        </section>
+    <>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" onClick={() => setDialog({ kind: 'expense' })} className="inline-flex items-center gap-1 rounded-full bg-mono px-3 py-1.5 text-xs font-medium text-white hover:bg-mono-hover"><Plus className="h-3.5 w-3.5" />Card expense</button>
+        <button type="button" onClick={() => setDialog({ kind: 'statement', suggested: data?.upcoming })} className={pill}>Add statement</button>
+        <button type="button" onClick={() => setDialog({ kind: 'edit' })} className={pill}>Edit card</button>
       </div>
+      {payFrom && <p className="text-xs text-ink-muted">Bill paid from {payFrom}.</p>}
+
+      <DrawerSection title="Statements">
+        {isLoading || !data ? <div className="h-32 rounded-xl shimmer" /> : (
+          <>
+            <UpcomingPanel up={data.upcoming} onEnter={() => setDialog({ kind: 'statement', suggested: data.upcoming })} />
+            {data.statements.length === 0
+              ? <p className="mt-3 text-sm text-ink-muted">No statements entered yet.</p>
+              : <ul className="mt-2">{data.statements.map((st) => <StatementRow key={st.id} card={card} st={st} onEdit={() => setDialog({ kind: 'statement', statement: st })} />)}</ul>}
+          </>
+        )}
+      </DrawerSection>
+
+      <DrawerSection title="Card EMIs">
+        <CardEMIList card={card} />
+      </DrawerSection>
+
+      <DrawerSection title="Card expenses">
+        <p className="mb-2 text-xs text-ink-muted">One-off purchases on the card (not EMIs). Mark one &ldquo;Paid off&rdquo; if you cleared it from your bank the same month.</p>
+        {list.length === 0 ? <p className="py-4 text-center text-sm text-ink-muted">No card expenses yet.</p> : (
+          <ul>{shown.map((e) => <ExpenseRow key={e.id} card={card} e={e} onEdit={() => setDialog({ kind: 'expense', expense: e })} onPay={() => setDialog({ kind: 'pay', expense: e })} />)}</ul>
+        )}
+        {list.length > 8 && <button type="button" onClick={() => setShowAll((v) => !v)} className={cn(link, 'mt-2')}>{showAll ? 'Show fewer' : `Show all ${list.length}`}</button>}
+      </DrawerSection>
+
+      <p>
+        <button type="button" className={link} onClick={() => { if (window.confirm(`Delete ${card.cardName}? Its EMIs, statements and card expenses are deleted too.`)) deleteCard.mutate(card.id); }}>Delete this card</button>
+      </p>
 
       {dialog?.kind === 'statement' && <StatementDialog card={card} statement={dialog.statement} suggested={dialog.suggested} onClose={() => setDialog(null)} />}
       {dialog?.kind === 'expense' && <CardExpenseDialog card={card} expense={dialog.expense} onClose={() => setDialog(null)} />}
       {dialog?.kind === 'pay' && <PayExpenseDialog card={card} expense={dialog.expense} onClose={() => setDialog(null)} />}
-      {dialog?.kind === 'emis' && <CardEMIsDialog card={card} onClose={() => setDialog(null)} />}
       {dialog?.kind === 'edit' && <CreditCardForm card={card} onClose={() => setDialog(null)} />}
-      <p className="text-right">
-        <button type="button" className={link} onClick={() => { if (window.confirm(`Delete ${card.cardName}? Its EMIs, statements and card expenses are deleted too.`)) deleteCard.mutate(card.id); }}>Delete this card</button>
-      </p>
-    </div>
+    </>
   );
 }
 
+/** Credit cards register: what is due, what is building, the limit left; each card opens its detail. */
 export function CreditCardsView() {
-  const { data: cards, isLoading } = useCreditCards();
-  const [selected, setSelected] = useState<string | null>(null);
-  const [adding, setAdding] = useState(false);
-  if (isLoading) return <div className="card-light h-96 rounded-2xl shimmer" />;
-  const active = (cards ?? []).filter((c) => c.isActive);
-  const card = active.find((c) => c.id === selected) ?? active[0];
-  return (
-    <div className="mx-auto max-w-7xl space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap gap-2" role="tablist" aria-label="Cards">
-          {active.length > 1 && active.map((c) => (
-            <button key={c.id} type="button" role="tab" aria-selected={c.id === card?.id} onClick={() => setSelected(c.id)}
-              className={cn('rounded-full px-3 py-1.5 text-xs font-medium', c.id === card?.id ? 'bg-mono text-white' : 'border border-line-strong text-ink-primary hover:bg-paper-subtle')}>
-              {c.cardName}{c.lastFourDigits ? ` ··${c.lastFourDigits}` : ''}
-            </button>
-          ))}
+  const { data, isLoading, isError } = useCardRegister();
+  const { data: cards } = useCreditCards();
+  const { data: members } = useFamilyMembers();
+  const [openId, setOpenId] = useState<string | null>(null);
+  const names = new Map((members ?? []).map((m) => [m.id, m.name.split(' ')[0]]));
+  const open = (cards ?? []).find((c) => c.id === openId) ?? null;
+  const openRow = data?.cards.find((c) => c.id === openId);
+
+  const columns: RegisterColumn<CardRow>[] = [
+    {
+      key: 'card', header: 'Card', className: 'w-[40%] sm:w-auto',
+      cell: (c) => (
+        <div className="min-w-0">
+          <p className="truncate font-medium text-ink-primary">{c.cardName}{c.lastFourDigits ? <span className="text-ink-muted"> ··{c.lastFourDigits}</span> : null}</p>
+          <p className="truncate text-xs text-ink-muted">{c.memberId ? `${names.get(c.memberId) ?? 'Someone'} pays` : 'No payer set'}{c.emiCount ? ` · ${c.emiCount} EMI${c.emiCount === 1 ? '' : 's'}` : ''}</p>
         </div>
-        <button type="button" onClick={() => setAdding(true)} className={pill}>Add a card</button>
-      </div>
-      {card ? (
-        <CardPanel key={card.id} card={card} />
-      ) : (
-        <div className="card-light grid h-48 place-items-center rounded-2xl text-sm text-ink-muted">No credit cards yet.</div>
-      )}
-      {adding && <CreditCardForm onClose={() => setAdding(false)} />}
-    </div>
+      ),
+    },
+    {
+      key: 'due', header: 'Statement due', numeric: true,
+      cell: (c) => c.statementDue ? (
+        <span>
+          <b className="text-ink-primary">{formatCurrency(c.statementDue.amount)}</b>
+          <span className={cn('block text-xs', c.statementDue.overdue ? 'text-updown-down' : 'text-ink-muted')}>{c.statementDue.overdue ? 'overdue · ' : ''}due {formatDate(c.statementDue.dueDate, 'd MMM')}</span>
+        </span>
+      ) : <span className="text-ink-muted">Nothing due</span>,
+    },
+    { key: 'building', header: 'Building now', numeric: true, hideOnPhone: true, cell: (c) => <span>{formatCurrency(c.buildingNow.amount)}<span className="block text-xs text-ink-muted">due {formatDate(c.buildingNow.dueDate, 'd MMM')}</span></span> },
+    { key: 'available', header: 'Limit left', numeric: true, hideOnPhone: true, cell: (c) => <span>{formatCurrency(c.available)}<span className="block text-xs text-ink-muted">of {formatCurrency(c.creditLimit, 'INR', true)}</span></span> },
+  ];
+
+  return (
+    <RegisterPage
+      totals={[
+        { label: 'Statement due', value: data ? formatCurrency(data.totals.statementDue) : '—', note: data?.totals.nextDueDate ? `next due ${formatDate(data.totals.nextDueDate, 'd MMM')}` : 'nothing entered and unpaid' },
+        { label: 'Building now', value: data ? formatCurrency(data.totals.buildingNow) : '—', note: 'EMIs, purchases and bills this cycle' },
+        { label: 'Limit left', value: data ? formatCurrency(data.totals.available) : '—' },
+      ]}
+    >
+      {isLoading && <div className="card-light h-48 shimmer" />}
+      {isError && <p role="alert" className="card-light p-5 text-sm text-ink-secondary">Could not load your cards. Please refresh.</p>}
+      {data && <RegisterTable title="Cards" columns={columns} rows={data.cards} rowKey={(c) => c.id} onOpen={(c) => setOpenId(c.id)} selectedKey={openId} empty="No credit cards yet." />}
+      <DetailDrawer
+        open={!!open}
+        onClose={() => setOpenId(null)}
+        title={open?.cardName}
+        subtitle={open ? `${open.bank ?? 'Credit card'}${open.lastFourDigits ? ` •••• ${open.lastFourDigits}` : ''}${openRow ? ` · ${formatCurrency(openRow.emiStillToBill)} of EMIs still to bill` : ''}` : undefined}
+      >
+        {open && <CardDetail key={open.id} card={open} />}
+      </DetailDrawer>
+    </RegisterPage>
   );
 }
