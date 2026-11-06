@@ -13,10 +13,11 @@ Every number comes from one ledger. Each transaction carries a **kind** (`INCOME
 - [Schedule engine, due status and auto-debit](features/schedule-and-auto-debit.md): redesign foundation part 2.
 - [Home v2](features/home-v2.md): spent so far, expected salary, buffer, Where we stand, month close, quick add, phone layout.
 - [Registers and Spending](features/registers.md): Loans, Credit cards, Bills, Savings & investments as registers; Spending; one category list; five nav groups.
+- [Net worth, Month history, Health check, SIP values](features/wealth-and-look-back.md): the Wealth and Look back pages, balance check-in, Close month, how SIPs are valued, one light theme, and what was removed.
 
 ## Design references
 - [Home redesign spec](design/home-redesign-spec.md): the brief the Home page was built from.
 - [Home redesign mockup](design/home-redesign-mockup.html): open in a browser for the visual reference.
 
 ## Database changes
-Schema changes are Prisma migrations in `backend/prisma/migrations/` (baseline `0_init`, then one folder per change). Payment statuses live in `due_status`; the old `monthly_payments` and `bill_occurrences` tables are read-only and due for removal (see the schedule doc). Older installs got hand-applied SQL patches, kept in `backend/prisma/patches/` for reference; they are already part of the `0_init` baseline.
+Schema changes are Prisma migrations in `backend/prisma/migrations/` (baseline `0_init`, then one folder per change). Payment statuses live in `due_status`; the old `monthly_payments` and `bill_occurrences` tables were dropped in round 5. Older installs got hand-applied SQL patches, kept in `backend/prisma/patches/` for reference; they are already part of the `0_init` baseline.

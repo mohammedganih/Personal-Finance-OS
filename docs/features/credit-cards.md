@@ -14,7 +14,7 @@ Credit cards now have their own page, **Credit Cards** (`/credit-cards`), split 
 ## Data
 New tables, applied by `backend/prisma/patches/credit-cards.sql` (additive and idempotent; applied to the dev and test DBs on this machine):
 - `card_statements`: unique per card + due month (`month`, YYYY-MM).
-  - Payments are not stored here. They live on the existing `CREDIT_CARD` `monthly_payments` record for that month, which is why Pay, Undo and payment history work unchanged.
+  - Payments are not stored here. They live on the card's `CARD_STATEMENT` row in `due_status` for that month, which is why Pay, Undo and payment history work unchanged.
   - The card's own fields (outstanding, minimum, due date, statement date) are synced from the latest saved statement, unless the card already holds a newer month's figure.
 - `card_expenses`: `statementMonth` is worked out from the date. A saved statement whose period holds the date wins; otherwise the card's cycle decides. It can also be picked explicitly.
   - `linkedType`/`linkedId` mark a purchase that is already counted in another bucket.

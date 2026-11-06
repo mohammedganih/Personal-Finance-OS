@@ -67,7 +67,9 @@ export default function HealthPage() {
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Check title="Buffer" level={buffer.level} value={money(buffer.amount)} href="/dashboard">
           Target {money(buffer.target)}{buffer.targetIsDefault ? ' (3 months of commitments)' : ''}.
-          {buffer.monthsCovered != null && <> Covers about <b className="font-semibold text-ink-primary">{buffer.monthsCovered.toFixed(1)} months</b> of commitments.</>}
+          {buffer.monthsCovered != null && (buffer.monthsCovered > 0
+            ? <> Covers about <b className="font-semibold text-ink-primary">{buffer.monthsCovered.toFixed(1)} months</b> of commitments.</>
+            : <> It doesn&apos;t cover this month&apos;s commitments yet.</>)}
         </Check>
         <Check title="Debt to income" level={dti.level} value={pct(dti.pct)} href="/loans">
           {money(dti.monthlyEmis)} of EMIs a month against {money(dti.income)} {dti.incomeIsSalary ? 'salary this month' : 'average income'}. Up to 30% is comfortable; over 40% is stretched.

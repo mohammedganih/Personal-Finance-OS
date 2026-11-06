@@ -15,7 +15,7 @@ describe('health check', () => {
   it('levels', () => {
     expect([bufferLevel(100, 100), bufferLevel(60, 100), bufferLevel(40, 100), bufferLevel(0, 0)]).toEqual(['good', 'watch', 'act', 'good']);
     expect([debtToIncomeLevel(null), debtToIncomeLevel(30), debtToIncomeLevel(35), debtToIncomeLevel(45)]).toEqual(['good', 'good', 'watch', 'act']);
-    expect([savingsRateLevel(25), savingsRateLevel(15), savingsRateLevel(5)]).toEqual(['good', 'watch', 'act']);
+    expect([savingsRateLevel(25), savingsRateLevel(15), savingsRateLevel(5), savingsRateLevel(null)]).toEqual(['good', 'watch', 'act', 'watch']);
   });
 
   it('flags funds valued at paid in, values entered 60+ days ago, and old stock prices', () => {

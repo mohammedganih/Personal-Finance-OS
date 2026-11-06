@@ -40,8 +40,10 @@ export function debtToIncomeLevel(pct: number | null): Level {
   if (pct == null || pct <= 30) return 'good';
   return pct <= 40 ? 'watch' : 'act';
 }
+/** No income recorded in the last three months: worth a look, since the rate can't be worked out. */
 export function savingsRateLevel(pct: number | null): Level {
-  if (pct == null || pct >= 20) return 'good';
+  if (pct == null) return 'watch';
+  if (pct >= 20) return 'good';
   return pct >= 10 ? 'watch' : 'act';
 }
 

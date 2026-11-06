@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { formatCurrency, formatDate } from '@/lib/format';
 
 export interface TrendPoint { month: string; netWorth: number; approximate: boolean }
@@ -11,12 +11,23 @@ export interface TrendPoint { month: string; netWorth: number; approximate: bool
  */
 export function NetWorthTrend({ points, now }: { points: TrendPoint[]; now?: number }) {
   const [active, setActive] = useState<number | null>(null);
+  // Drawn at the container's real width, so labels stay readable on a phone and the line fills a wide screen.
+  const box = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(640);
   const series = now == null ? points : [...points, { month: 'now', netWorth: now, approximate: false }];
-  if (series.length < 2) {
+  const drawn = series.length >= 2;
+  useEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([e]) => setWidth(Math.max(240, Math.round(e.contentRect.width))));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [drawn]);
+  if (!drawn) {
     return <p className="py-6 text-center text-sm text-ink-muted">The trend starts once two months are closed.</p>;
   }
 
-  const W = 640, H = 200, padL = 8, padR = 8, padT = 16, padB = 28;
+  const W = width, H = 200, padL = 8, padR = 8, padT = 16, padB = 28;
   const values = series.map((p) => p.netWorth);
   const lo = Math.min(...values), hi = Math.max(...values);
   const span = hi - lo || Math.abs(hi) || 1;
@@ -25,12 +36,12 @@ export function NetWorthTrend({ points, now }: { points: TrendPoint[]; now?: num
   const y = (v: number) => padT + (1 - (v - min) / (max - min)) * (H - padT - padB);
   const path = series.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(p.netWorth).toFixed(1)}`).join(' ');
   const label = (m: string) => (m === 'now' ? 'Now' : formatDate(`${m}-01`, 'MMM'));
-  const step = Math.ceil(series.length / 8); // keep month labels from crowding on a phone
+  const step = Math.ceil(series.length / Math.max(2, Math.floor(W / 70))); // keep month labels from crowding on a phone
   const tip = active != null ? series[active] : null;
 
   return (
-    <div className="relative">
-      <svg viewBox={`0 0 ${W} ${H}`} className="h-48 w-full overflow-visible" role="img" aria-label="Net worth at each month close" onMouseLeave={() => setActive(null)}>
+    <div ref={box} className="relative">
+      <svg viewBox={`0 0 ${W} ${H}`} className="block h-[200px] w-full" role="img" aria-label="Net worth at each month close" onMouseLeave={() => setActive(null)}>
         {[0.25, 0.5, 0.75].map((f) => (
           <line key={f} x1={padL} x2={W - padR} y1={padT + f * (H - padT - padB)} y2={padT + f * (H - padT - padB)} className="stroke-line" strokeWidth={1} />
         ))}
@@ -44,7 +55,8 @@ export function NetWorthTrend({ points, now }: { points: TrendPoint[]; now?: num
               <text x={x(i)} y={H - 8} textAnchor={i === 0 ? 'start' : i === series.length - 1 ? 'end' : 'middle'} className="fill-ink-muted text-[11px]">{label(p.month)}</text>
             )}
             {/* Wide invisible hit area per month. */}
-            <rect x={x(i) - (W / series.length) / 2} y={0} width={W / series.length} height={H} fill="transparent"
+            <rect x={Math.max(0, x(i) - W / series.length / 2)} y={0}
+              width={Math.min(W, x(i) + W / series.length / 2) - Math.max(0, x(i) - W / series.length / 2)} height={H} fill="transparent"
               onMouseEnter={() => setActive(i)} onClick={() => setActive(i)} />
           </g>
         ))}

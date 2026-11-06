@@ -49,7 +49,7 @@ The sidebar has five groups:
 - **This month:** Home, Spending
 - **Commitments:** Loans, Credit cards, Bills & subscriptions
 - **Wealth:** Savings & investments, Goals
-- **Look back:** Analytics
+- **Look back:** Month history, Health check (round 5)
 - **Setup:** Accounts, Settings
 
 The Reports placeholder is gone, and `/reports` redirects to Analytics.

@@ -43,7 +43,7 @@ The migration copied every row from the dev DB: 21 rows from `monthly_payments` 
 
 Everything that records or reads a payment now uses `due_status`: Mark paid, skip, card EMI ticks, card bill payments, bill pay / skip / undo, undo, payment history, card statements, net worth and the schedule engine.
 
-**To remove later:** `monthly_payments` and `bill_occurrences` are kept, read-only, for one round. Drop them in a later migration once `due_status` has been in use for a while. `backend/src/scripts/normalizeBillDates.ts` already uses `due_status`.
+**Removed in round 5:** `monthly_payments` and `bill_occurrences` were dropped (migration `20261107010000_drop_old_payment_tables`). `backend/src/scripts/normalizeBillDates.ts` already uses `due_status`.
 
 ## Auto-debit
 - **The flag.** `autoDebit` is on for loans and card EMIs by default. For investments it is on for recurring deposits only. Bills already had it.
