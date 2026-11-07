@@ -135,7 +135,11 @@ export async function updateTransaction(userId: string, id: string, input: Updat
     const updated = await tx.transaction.update({
       where: { id },
       data: {
-        ...(input.type        !== undefined && { type: input.type, kind: kindForType(input.type) }),
+        // The edit form always sends the type, so only re-derive `kind` when the type
+        // really changes: otherwise an EMI (DEBT) or SIP (SAVE) entry would turn into
+        // spending just by being saved, and count twice.
+        ...(input.type        !== undefined && { type: input.type }),
+        ...(input.type        !== undefined && input.type !== existing.type && { kind: kindForType(input.type) }),
         ...(input.amount      !== undefined && { amount: input.amount }),
         ...(input.description !== undefined && { description: input.description }),
         ...(input.notes       !== undefined && { notes: input.notes }),

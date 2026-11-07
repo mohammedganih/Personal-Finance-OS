@@ -65,4 +65,14 @@ describe('every writer records what the money was for', () => {
     expect(spend.kind).toBe('SPEND');
     expect((await updateTransaction(user.id, spend.id, { type: 'INCOME' })).kind).toBe('INCOME');
   });
+
+  it('editing an EMI entry with the same type keeps it DEBT, not spending', async () => {
+    const { user, account } = await setup();
+    const loan = await createLoan(user.id, { name: 'Scaler', loanType: 'EDUCATION', principal: 60000, interestRate: 0, emi: 5000, remainingBalance: 60000, tenureMonths: 12, startDate: '2026-01-07', bankAccountId: account.id } as never);
+    await decideMonthlyPayment(user.id, 'LOAN', loan.id, 'PAID');
+    const [row] = await prisma.transaction.findMany({ where: { sourceType: 'LOAN', sourceId: loan.id } });
+    // The edit form sends every field back, type included.
+    const saved = await updateTransaction(user.id, row.id, { type: 'EXPENSE', amount: 5000, date: '2026-11-07', description: row.description ?? undefined });
+    expect(saved.kind).toBe('DEBT');
+  });
 });
