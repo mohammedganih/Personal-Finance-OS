@@ -1,11 +1,8 @@
 import { prisma } from '../lib/prisma';
 
 /**
- * Record-on-read, mirroring investmentIntelligence.service's
- * recordDailySnapshot: each dashboard-overview fetch upserts today's net
- * worth. There is no other source of net-worth history in this schema --
- * account balances and debt are current-value-only -- so this is where
- * real tracking starts, not a backfill of anything that existed before.
+ * Record-on-read: each dashboard-overview fetch upserts today's net worth,
+ * for the daily net-worth trend (month-by-month history is in month_close).
  */
 export async function recordNetWorthSnapshot(
   userId: string,

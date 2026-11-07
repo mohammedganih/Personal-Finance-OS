@@ -54,7 +54,7 @@ The dark tokens (`bg`, `text`, `border`) now point at the light palette, so the 
 - The Analytics page and its widgets: cash flow sankey, cashflow chart, expense pie, comparison, savings trend, spending rhythm heatmap, member split, story cards.
 - Read endpoints nothing called any more: `/analytics/spending-rhythm`, `/dashboard/cashflow|expense-breakdown|recent-transactions`, `/debt/overview|debt-trend|health-score|strategy|prepayment|recommendations|funding-opportunities`, all of `/asset-loans`, `/bills/summary|calendar|forecast|insights|analytics`, `/investments/xirr|trend|calendar|diversification|maturities|health`, `/family/analytics` and `/card-emis/summary`. Also their controller handlers, the service functions only they used, and those functions' tests. The engines the Health check uses stay.
 - The `monthly_payments` and `bill_occurrences` tables and the `BillOccurrenceStatus` enum (migration `20261107010000_drop_old_payment_tables`). Every row had already been copied into `due_status`. The two tests of the older migrations that read them now create the tables themselves (`src/test/oldTables.ts`).
-- The record-on-read snapshots for the investment and debt trends, which nothing reads any more. The `debt_snapshots` and `investment_snapshots` tables stay for now (net_worth_snapshots is still used).
+- The record-on-read snapshots for the investment and debt trends, which nothing read any more. Their tables, `debt_snapshots` and `investment_snapshots`, are dropped by migration `20261107040000_drop_trend_snapshots`. `net_worth_snapshots` is still used.
 
 ## Phone layout
 Every page was checked at 390px wide. Tables drop their secondary columns on a phone (`hideOnPhone`), and the first column carries what matters.
