@@ -57,11 +57,70 @@ export async function closeMonth(userId: string, month: string, options: { appro
   return prisma.monthClose.upsert({ where: { userId_month: { userId, month } }, create: { userId, month, ...data }, update: data });
 }
 
-/** Closes last month if it hasn't been (the daily job runs this; on the 1st it closes the month just ended). */
+/** Start of `month` (YYYY-MM) in India time. */
+const monthStartIndia = (month: string) => new Date(`${month}-01T00:00:00+05:30`);
+
+/**
+ * Closes last month if it hasn't been, or if it was closed early by hand
+ * (before the month ended). The daily job runs this; on the 1st it closes the
+ * month just ended.
+ */
 export async function closePreviousMonthIfOpen(userId: string, now = new Date()) {
   const month = shiftMonth(currentMonth(now), -1);
-  if (await prisma.monthClose.findUnique({ where: { userId_month: { userId, month } } })) return null;
+  const existing = await prisma.monthClose.findUnique({ where: { userId_month: { userId, month } } });
+  if (existing && existing.closedAt >= monthStartIndia(shiftMonth(month, 1))) return null;
   return closeMonth(userId, month, { now });
+}
+
+/** "Close month" on Month history: freezes this month now; the 1st of next month closes it again with the final figures. */
+export async function closeCurrentMonth(userId: string, now = new Date()) {
+  return closeMonth(userId, currentMonth(now), { now });
+}
+
+export interface HistoryRow {
+  month: string;
+  salary: number;
+  /** Loan EMIs and bills. */
+  commitments: number;
+  /** Put into savings and investments. */
+  saved: number;
+  /** Card statements and everyday spending. */
+  spent: number;
+  /** Salary less all of the above. */
+  leftOver: number;
+  netWorth: number;
+  totalDebt: number;
+  approximate: boolean;
+  /** Closed before the month ended (by hand); it is closed again on the 1st. */
+  early: boolean;
+  closedAt: Date;
+}
+
+type StoredTotals = Partial<ReturnType<typeof sheetTotals>>;
+
+/** One closed month as a Month history row. */
+export function historyRow(c: { month: string; combined: unknown; netWorth: unknown; totalDebt: unknown; approximate: boolean; closedAt: Date }): HistoryRow {
+  const t = (c.combined ?? {}) as StoredTotals;
+  const n = (v: unknown) => Number(v ?? 0);
+  return {
+    month: c.month,
+    salary: n(t.salary),
+    commitments: round(n(t.loans) + n(t.bills)),
+    saved: n(t.investments),
+    spent: round(n(t.cardSpending) + n(t.spentSoFar)),
+    leftOver: n(t.stillFree),
+    netWorth: n(c.netWorth), totalDebt: n(c.totalDebt),
+    approximate: c.approximate,
+    early: c.closedAt < monthStartIndia(shiftMonth(c.month, 1)),
+    closedAt: c.closedAt,
+  };
+}
+
+/** Every closed month, newest first, and whether this month is closed yet. */
+export async function getMonthHistory(userId: string, now = new Date()) {
+  const closes = await prisma.monthClose.findMany({ where: { userId }, orderBy: { month: 'desc' } });
+  const month = currentMonth(now);
+  return { currentMonth: month, currentClosed: closes.some((c) => c.month === month), months: closes.map(historyRow) };
 }
 
 /**

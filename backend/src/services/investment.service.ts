@@ -1,5 +1,6 @@
 import { decideMonthlyPayment } from './monthlyPayments.service';
-import { paidInByInvestment } from '../schedule/paidIn';
+import { paidInByInvestment, type PaidIn } from '../schedule/paidIn';
+import { indiaDateKey } from '../lib/cardPaymentSchedule';
 import { monthOf } from '../lib/ledger';
 import { assertOwned } from '../lib/ownership';
 import { Investment, InvestmentCollateral, FamilyMember, Account, Loan } from '@prisma/client';
@@ -47,6 +48,8 @@ export async function createInvestment(userId: string, input: CreateInvestmentIn
     const created = await tx.investment.create({
       data: {
         userId,
+        priceUpdatedAt: new Date(),
+        enteredValue:  enteredValueOnCreate(input),
         assetName:     input.assetName,
         assetType:     input.assetType,
         ticker:        input.ticker,
@@ -83,6 +86,36 @@ export async function createInvestment(userId: string, input: CreateInvestmentIn
   return serializeInvestment(attachSplit(investment, splits.get(investment.id)));
 }
 
+/** True when an edit changes the units or the price (NAV), or types a value, not just other details. */
+export function priceChanged(existing: { quantity: unknown; currentPrice: unknown }, input: { quantity?: number; currentPrice?: number; currentValue?: number }) {
+  return input.currentValue !== undefined
+    || (input.quantity !== undefined && Number(input.quantity) !== Number(existing.quantity))
+    || (input.currentPrice !== undefined && Number(input.currentPrice) !== Number(existing.currentPrice));
+}
+
+const VALUE_TYPES = new Set(['SIP', 'MUTUAL_FUND']);
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/** SIPs and mutual funds: a typed value, else units × NAV when both are given, else none (valued at paid in). */
+export function enteredValueOnCreate(input: { assetType: string; quantity?: number; currentPrice?: number; currentValue?: number }): number | null {
+  if (!VALUE_TYPES.has(input.assetType)) return null;
+  if (input.currentValue !== undefined) return round2(input.currentValue);
+  const qty = Number(input.quantity ?? 0), nav = Number(input.currentPrice ?? 0);
+  return qty > 0 && nav > 0 ? round2(qty * nav) : null;
+}
+
+/** On an edit: a typed value, or new units/NAV, becomes the entered value as of now. */
+export function enteredValueOnUpdate(
+  existing: { assetType: string; quantity: unknown; currentPrice: unknown },
+  input: { assetType?: string; quantity?: number; currentPrice?: number; currentValue?: number },
+): { enteredValue?: number | null } {
+  if (!VALUE_TYPES.has(input.assetType ?? existing.assetType)) return {};
+  if (input.currentValue !== undefined) return { enteredValue: round2(input.currentValue) };
+  if (!priceChanged(existing, input)) return {};
+  const qty = Number(input.quantity ?? existing.quantity), nav = Number(input.currentPrice ?? existing.currentPrice);
+  return qty > 0 && nav > 0 ? { enteredValue: round2(qty * nav) } : {};
+}
+
 export async function updateInvestment(userId: string, id: string, input: UpdateInvestmentInput) {
   const existing = await prisma.investment.findFirst({ where: { id, userId } });
   if (!existing) throw createError('Investment not found', 404);
@@ -113,6 +146,8 @@ export async function updateInvestment(userId: string, id: string, input: Update
         ...(input.autoDebit !== undefined && { autoDebit: input.autoDebit }),
         ...(input.recurringActive !== undefined && { recurringActive: input.recurringActive }),
         ...(input.bankAccountId !== undefined && { bankAccountId: input.bankAccountId ?? null }),
+        ...(priceChanged(existing, input) && { priceUpdatedAt: new Date() }),
+        ...enteredValueOnUpdate(existing, input),
       },
       include: INVESTMENT_INCLUDE,
     });
@@ -255,8 +290,52 @@ export function computeInvestmentValue(
   inv: Investment & { collateral?: Pick<InvestmentCollateral, 'ownershipPercent'> | null },
   now: Date,
   /** SIPs and gold schemes: money actually paid in (schedule/paidIn). Without it, monthly × months since start. */
-  paidIn?: number,
-): { investedValue: number; currentValue: number } {
+  paidIn?: number | PaidIn,
+): { investedValue: number; currentValue: number; valuedAtPaidIn: boolean } {
+  const paid: PaidIn | undefined = typeof paidIn === 'number' ? { total: paidIn, sinceValued: 0 } : paidIn;
+  return { valuedAtPaidIn: false, ...valueOf(inv, now, paid) };
+}
+
+/** Holdings whose value comes from what was paid in until a value is entered. */
+export const VALUE_ENTERED_TYPES = new Set(['SIP', 'MUTUAL_FUND']);
+/** An entered value older than this is flagged for an update. */
+export const STALE_VALUE_DAYS = 60;
+
+export interface ValueStatus {
+  /** No value entered yet: valued at what was paid in. */
+  atPaidIn: boolean;
+  /** When the value was last entered (YYYY-MM-DD). */
+  valuedAt: string | null;
+  /** Instalments paid after the value was entered, added on top of it. */
+  addedSince: number;
+  /** No value, or one older than STALE_VALUE_DAYS: show "update value". */
+  needsUpdate: boolean;
+  daysSinceValued: number | null;
+}
+
+/** SIPs and mutual funds: where their value comes from and whether it needs updating. Null for other types. */
+export function valueStatus(
+  inv: { assetType: string; enteredValue: unknown; priceUpdatedAt: Date | null },
+  paidIn: PaidIn | undefined,
+  now: Date,
+): ValueStatus | null {
+  if (!VALUE_ENTERED_TYPES.has(inv.assetType)) return null;
+  const atPaidIn = inv.enteredValue == null;
+  const days = !atPaidIn && inv.priceUpdatedAt ? Math.floor((now.getTime() - inv.priceUpdatedAt.getTime()) / 86400000) : null;
+  return {
+    atPaidIn,
+    valuedAt: !atPaidIn && inv.priceUpdatedAt ? indiaDateKey(inv.priceUpdatedAt) : null,
+    addedSince: atPaidIn ? 0 : paidIn?.sinceValued ?? 0,
+    needsUpdate: atPaidIn || (days ?? 0) >= STALE_VALUE_DAYS,
+    daysSinceValued: days,
+  };
+}
+
+function valueOf(
+  inv: Investment & { collateral?: Pick<InvestmentCollateral, 'ownershipPercent'> | null },
+  now: Date,
+  paidIn: PaidIn | undefined,
+): { investedValue: number; currentValue: number; valuedAtPaidIn?: boolean } {
   const qty     = Number(inv.quantity);
   const buyPx   = Number(inv.buyPrice);
   const curPx   = Number(inv.currentPrice);
@@ -283,16 +362,25 @@ export function computeInvestmentValue(
     }
 
     case 'SIP': {
-      // Invested = what was actually paid in; value = units × NAV when typed, else what was paid in.
-      const invested = paidIn ?? monthly * monthDiff(inv.purchaseDate, now);
-      return { investedValue: invested, currentValue: qty > 0 && curPx > 0 ? qty * curPx : invested };
+      // Invested = what was actually paid in. Value = the value last entered
+      // plus instalments paid after it; with no value entered, what was paid in.
+      const invested = paidIn?.total ?? monthly * monthDiff(inv.purchaseDate, now);
+      if (inv.enteredValue == null) return { investedValue: invested, currentValue: invested, valuedAtPaidIn: true };
+      return { investedValue: invested, currentValue: Number(inv.enteredValue) + (paidIn?.sinceValued ?? 0) };
+    }
+
+    case 'MUTUAL_FUND': {
+      // A one-off buy: worth what was paid until a value (units × NAV, or typed) is entered.
+      const invested = qty * buyPx;
+      if (inv.enteredValue == null) return { investedValue: invested, currentValue: invested, valuedAtPaidIn: true };
+      return { investedValue: invested, currentValue: Number(inv.enteredValue) };
     }
 
     case 'GOLD_SCHEME': {
       // The grams typed never change as instalments are paid, so the scheme is
       // worth what has been paid in until it matures (the maturity amount,
       // bonus included, is shown separately).
-      const invested = paidIn ?? monthly * monthDiff(inv.purchaseDate, now);
+      const invested = paidIn?.total ?? monthly * monthDiff(inv.purchaseDate, now);
       return { investedValue: invested, currentValue: invested };
     }
 
@@ -308,7 +396,7 @@ export function computeInvestmentValue(
     }
 
     default: {
-      // STOCK, ETF, CRYPTO, MUTUAL_FUND, GOLD, OTHER
+      // STOCK, ETF, CRYPTO, GOLD, OTHER
       return { investedValue: qty * buyPx, currentValue: qty * curPx };
     }
   }

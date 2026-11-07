@@ -28,12 +28,12 @@ export function RegisterPage({ totals, actions, children }: { totals: RegisterTo
 
 export function RegisterHeader({ totals, actions }: { totals: RegisterTotal[]; actions?: ReactNode }) {
   return (
-    <section className="card-light flex flex-wrap items-end justify-between gap-x-8 gap-y-3 px-5 py-4 text-ink-primary">
-      <dl className="grid flex-1 grid-cols-2 gap-x-8 gap-y-3 sm:flex sm:flex-wrap">
+    <section className="card-light flex flex-col gap-3 px-5 py-4 text-ink-primary sm:flex-row sm:flex-wrap sm:items-end sm:justify-between sm:gap-x-8">
+      <dl className="grid grid-cols-2 gap-x-6 gap-y-3 sm:flex sm:flex-1 sm:flex-wrap sm:gap-x-8">
         {totals.map((t) => (
           <div key={t.label} className="min-w-0">
             <dt className="text-xs text-ink-muted">{t.label}</dt>
-            <dd className="text-xl font-bold tabular-nums text-ink-primary">{t.value}</dd>
+            <dd className="whitespace-nowrap text-lg font-bold tabular-nums text-ink-primary sm:text-xl">{t.value}</dd>
             {t.note && <dd className="text-[11px] text-ink-muted">{t.note}</dd>}
           </div>
         ))}

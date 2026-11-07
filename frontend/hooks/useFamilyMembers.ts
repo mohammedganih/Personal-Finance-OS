@@ -2,9 +2,8 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import { FamilyMember, MemberAnalytics, ApiResponse } from '@/types';
+import { FamilyMember, ApiResponse } from '@/types';
 import { useToast } from '@/components/ui/use-toast';
-import { usePeriodStore } from '@/stores/period.store';
 
 export function useFamilyMembers() {
   return useQuery({
@@ -14,18 +13,6 @@ export function useFamilyMembers() {
       return res.data.data;
     },
     staleTime: 10 * 60 * 1000,
-  });
-}
-
-export function useMemberAnalytics() {
-  const { month, year } = usePeriodStore();
-
-  return useQuery({
-    queryKey: ['family-members', 'analytics', month, year],
-    queryFn: async () => {
-      const res = await api.get<ApiResponse<MemberAnalytics>>('/family/analytics', { params: { month, year } });
-      return res.data.data;
-    },
   });
 }
 

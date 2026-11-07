@@ -6,13 +6,6 @@ const router = Router();
 
 router.use(authenticate);
 
-router.get('/overview', debtController.getOverview);
-router.get('/debt-trend', debtController.getDebtTrend);
-router.get('/health-score', debtController.getHealthScore);
-router.get('/strategy', debtController.getStrategy);
-router.get('/prepayment', debtController.getPrepayment);
 router.get('/calendar', debtController.getCalendar);
-router.get('/recommendations', debtController.getRecommendations);
-router.get('/funding-opportunities', debtController.getFundingOpportunities);
 
 export default router;

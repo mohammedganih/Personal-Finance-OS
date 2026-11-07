@@ -2,17 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import { ApiResponse, FinancialScoreResult, SpendingRhythm } from '@/types';
-
-export function useSpendingRhythm() {
-  return useQuery({
-    queryKey: ['analytics', 'spending-rhythm'],
-    queryFn: async () => {
-      const res = await api.get<ApiResponse<SpendingRhythm>>('/analytics/spending-rhythm');
-      return res.data.data;
-    },
-  });
-}
+import { ApiResponse, FinancialScoreResult } from '@/types';
 
 export function useFinancialScore() {
   return useQuery({

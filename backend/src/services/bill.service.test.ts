@@ -122,23 +122,6 @@ describe('bill.service integration', () => {
     expect(Number(refreshed!.balance)).toBe(5000);
   });
 
-  it('summarizes mixed frequencies into monthly commitment and month buckets', async () => {
-    const userId = await setupUser();
-    await billService.createBill(userId, baseBill({ name: 'Rent', category: 'Housing', amount: 20000 }));
-    await billService.createBill(
-      userId,
-      baseBill({ name: 'Term Insurance', category: 'Insurance', amount: 12000, frequency: 'YEARLY' })
-    );
-
-    const summary = await billService.getBillsSummary(userId);
-    expect(summary.monthlyCommitment).toBeCloseTo(20000 + 1000, 5);
-    expect(summary.annualCommitment).toBeCloseTo(21000 * 12, 5);
-    expect(summary.activeCount).toBe(2);
-    // Both first occurrences land today, i.e. inside the current month.
-    expect(summary.thisMonth.total).toBeCloseTo(32000, 5);
-    expect(summary.thisMonth.remaining).toBeCloseTo(32000, 5);
-  });
-
   it('pause suspends projections and resume restores them', async () => {
     const userId = await setupUser();
     const bill = await billService.createBill(userId, baseBill());
@@ -146,10 +129,6 @@ describe('bill.service integration', () => {
     const paused = await billService.pauseBill(userId, bill.id, {});
     expect(paused.effectiveStatus).toBe('PAUSED');
     expect(paused.nextDueDate).toBeNull();
-
-    const summary = await billService.getBillsSummary(userId);
-    expect(summary.monthlyCommitment).toBe(0);
-    expect(summary.pausedCount).toBe(1);
 
     const resumed = await billService.resumeBill(userId, bill.id);
     expect(resumed.effectiveStatus).toBe('ACTIVE');

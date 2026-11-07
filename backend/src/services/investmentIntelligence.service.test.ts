@@ -4,8 +4,7 @@ import * as authService from './auth.service';
 import {
   calculateXIRR, buildCashflows, getAnnualizedReturn, getPortfolioAnnualizedReturn,
   analyzeDiversification, getUpcomingMaturities,
-  getAnnualizedReturns, recordDailySnapshot, getPortfolioTrend,
-  getInvestmentCalendar, getDiversification, getMaturityRadar,
+  getAnnualizedReturns, getDiversification, getMaturityRadar,
   computeRiskProfile, computeHealthScore,
 } from './investmentIntelligence.service';
 import { Investment } from '@prisma/client';
@@ -84,7 +83,7 @@ describe('buildCashflows (pure)', () => {
 
   it('builds one outflow per elapsed month for an installment holding', () => {
     const inv = makeInvestment({
-      assetType: 'SIP', quantity: 50 as any, currentPrice: 25 as any,
+      assetType: 'SIP', quantity: 50 as any, currentPrice: 25 as any, enteredValue: 1250 as any,
       monthlyAmount: 1000 as any, purchaseDate: new Date(2025, 0, 15),
     });
     const now = new Date(2025, 3, 20); // 3 full months elapsed (Jan->Apr)
@@ -92,7 +91,7 @@ describe('buildCashflows (pure)', () => {
     // 3 outflows + 1 final inflow
     expect(cfs).toHaveLength(4);
     expect(cfs.slice(0, 3).every((c) => c.amount === -1000)).toBe(true);
-    expect(cfs[3].amount).toBe(50 * 25);
+    expect(cfs[3].amount).toBe(1250); // the value entered
   });
 
   it('returns an empty array when there is no elapsed month yet', () => {
@@ -278,27 +277,6 @@ describe('investmentIntelligence.service integration', () => {
     expect(result.byHolding).toHaveLength(1);
     expect(result.byHolding[0].xirr).not.toBeNull();
     expect(result.overall).not.toBeNull();
-  });
-
-  it('recordDailySnapshot upserts idempotently within the same day', async () => {
-    const userId = await setupUser();
-    await recordDailySnapshot(userId, { totalInvested: 1000, totalCurrent: 1100, totalPnl: 100 });
-    await recordDailySnapshot(userId, { totalInvested: 2000, totalCurrent: 2300, totalPnl: 300 });
-
-    const trend = await getPortfolioTrend(userId, 30);
-    expect(trend).toHaveLength(1);
-    expect(trend[0].totalCurrent).toBe(2300);
-  });
-
-  it('getInvestmentCalendar projects a real SIP within the requested window', async () => {
-    const userId = await setupUser();
-    await prisma.investment.create({
-      data: { userId, assetName: 'Index SIP', assetType: 'SIP', quantity: 50, currentPrice: 25, monthlyAmount: 5000, purchaseDate: new Date(2024, 0, 5) },
-    });
-
-    const entries = await getInvestmentCalendar(userId, 3);
-    expect(entries.length).toBeGreaterThan(0);
-    expect(entries[0].assetType).toBe('SIP');
   });
 
   it('getDiversification reflects a real concentrated portfolio', async () => {

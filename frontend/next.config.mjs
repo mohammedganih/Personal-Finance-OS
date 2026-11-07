@@ -9,8 +9,9 @@ const nextConfig = {
     return [
       { source: '/transactions', destination: '/spending', permanent: false },
       { source: '/budgets', destination: '/spending', permanent: false },
-      // The empty Reports placeholder is gone; Month history comes later.
-      { source: '/reports', destination: '/analytics', permanent: false },
+      // The old Analytics and Reports pages became the Health check.
+      { source: '/reports', destination: '/health', permanent: false },
+      { source: '/analytics', destination: '/health', permanent: false },
     ];
   },
 };

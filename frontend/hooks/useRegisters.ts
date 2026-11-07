@@ -78,6 +78,8 @@ export interface HoldingRow {
   maturityDate: string | null; maturityAmount: number | null; maturityBonus: number | null;
   recurring: boolean; autoDebit: boolean; bankAccountId: string | null;
   next: DueRow | null;
+  /** SIPs and mutual funds: worth what was paid in until a value is entered, then that value plus instalments since. */
+  valuation: { atPaidIn: boolean; valuedAt: string | null; addedSince: number; needsUpdate: boolean; daysSinceValued: number | null } | null;
 }
 export interface InvestmentRegister {
   totals: { totalValue: number; addedThisMonth: number; nextMaturity: { name: string; date: string; amount: number | null } | null };

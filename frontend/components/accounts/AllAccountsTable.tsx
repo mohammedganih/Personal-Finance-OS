@@ -9,7 +9,7 @@ import { useCreditCards } from '@/hooks/useCreditCards';
 import { usePortfolioSummary } from '@/hooks/useInvestments';
 import { useLoans } from '@/hooks/useLoans';
 import { useFamilyMembers } from '@/hooks/useFamilyMembers';
-import { buildLedger, LEDGER_BUCKETS, LedgerBucket, LedgerRow } from '@/lib/accountLedger';
+import { buildLedger, LEDGER_BUCKETS, LedgerRow } from '@/lib/accountLedger';
 import { formatCurrency } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { AccountForm } from '@/components/settings/AccountSetup';
@@ -73,12 +73,12 @@ function LedgerTableRow({ row, onEdit, onDelete }: { row: LedgerRow; onEdit: (a:
           </span>
         </div>
       </td>
-      <td className="px-1 py-3.5 whitespace-nowrap">
+      <td className="hidden sm:table-cell px-1 py-3.5 whitespace-nowrap">
         <span className="inline-flex items-center rounded-full bg-paper-subtle px-2.5 py-1 text-[11px] font-medium text-ink-secondary">
           {row.bucket}
         </span>
       </td>
-      <td className="px-1 py-3.5 whitespace-nowrap">
+      <td className="hidden sm:table-cell px-1 py-3.5 whitespace-nowrap">
         <p className="text-sm text-ink-primary truncate">{row.institution ?? '—'}</p>
       </td>
       <td className="px-1 py-3.5 text-right whitespace-nowrap">
@@ -87,7 +87,7 @@ function LedgerTableRow({ row, onEdit, onDelete }: { row: LedgerRow; onEdit: (a:
         </p>
         <p className="text-xs text-ink-muted">{row.balanceLabel}</p>
       </td>
-      <td className="px-1 py-3.5 whitespace-nowrap">
+      <td className="hidden sm:table-cell px-1 py-3.5 whitespace-nowrap">
         {row.member ? (
           <span
             className="w-7 h-7 rounded-full flex items-center justify-center text-sm"
@@ -230,14 +230,14 @@ export function AllAccountsTable() {
         <div className="h-40 flex items-center justify-center text-sm text-ink-muted">No accounts in this view</div>
       ) : (
         <div className="overflow-x-auto -mx-1">
-          <table className="w-full min-w-[760px]">
+          <table className="w-full sm:min-w-[760px]">
             <thead>
               <tr className="text-left">
                 <th className="text-[11px] font-medium text-ink-muted uppercase tracking-wide px-1 pb-2">Account</th>
-                <th className="text-[11px] font-medium text-ink-muted uppercase tracking-wide px-1 pb-2">Type</th>
-                <th className="text-[11px] font-medium text-ink-muted uppercase tracking-wide px-1 pb-2">Institution</th>
+                <th className="hidden sm:table-cell text-[11px] font-medium text-ink-muted uppercase tracking-wide px-1 pb-2">Type</th>
+                <th className="hidden sm:table-cell text-[11px] font-medium text-ink-muted uppercase tracking-wide px-1 pb-2">Institution</th>
                 <th className="text-[11px] font-medium text-ink-muted uppercase tracking-wide px-1 pb-2 text-right">Balance</th>
-                <th className="text-[11px] font-medium text-ink-muted uppercase tracking-wide px-1 pb-2">Linked To</th>
+                <th className="hidden sm:table-cell text-[11px] font-medium text-ink-muted uppercase tracking-wide px-1 pb-2">Linked To</th>
                 <th className="w-8" />
               </tr>
             </thead>

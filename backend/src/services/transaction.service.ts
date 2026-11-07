@@ -1,5 +1,4 @@
 import { randomUUID } from 'crypto';
-import { NOT_MOVES } from '../metrics';
 import type { Transaction } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { kindForType } from '../lib/ledger';
@@ -234,23 +233,6 @@ export async function deleteTransaction(userId: string, id: string) {
 
     await tx.ownershipSplit.deleteMany({ where: { entityType: 'TRANSACTION', entityId: id } });
   });
-}
-
-export async function getTransactionSummary(userId: string, startDate: Date, endDate: Date) {
-  const transactions = await prisma.transaction.findMany({
-    where: { userId, ...NOT_MOVES, date: { gte: startDate, lte: endDate } },
-    select: { type: true, amount: true },
-  });
-
-  const income = transactions
-    .filter((t) => t.type === 'INCOME')
-    .reduce((sum, t) => sum + Number(t.amount), 0);
-
-  const expenses = transactions
-    .filter((t) => t.type === 'EXPENSE')
-    .reduce((sum, t) => sum + Number(t.amount), 0);
-
-  return { income, expenses, savings: income - expenses };
 }
 
 function serializeTransaction<T extends { amount: { toString(): string } }>(t: T) {

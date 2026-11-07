@@ -3,7 +3,6 @@ import { resetDatabase, prisma } from '../test/db';
 import { dueItems, monthsBetween } from './dueItems';
 import { decideMonthlyPayment, getMonthlyPlan } from '../services/monthlyPayments.service';
 import { getEMICalendar } from '../services/debtIntelligence.service';
-import { getInvestmentCalendar } from '../services/investmentIntelligence.service';
 import { createBill, payOccurrence } from '../services/bill.service';
 import { createLoan } from '../services/loan.service';
 import { createCreditCard } from '../services/credit-card.service';
@@ -77,12 +76,4 @@ describe('upcoming lists use the engine', () => {
     expect(after[0]).toMatchObject({ sourceType: 'LOAN', name: 'Car', amount: 10000 });
   });
 
-  it('Investments: upcoming instalments come with the account name', async () => {
-    const { user, rd } = await household();
-    const entries = await getInvestmentCalendar(user.id, 2);
-    expect(entries.map((e) => [e.investmentId, e.assetType, e.accountName, e.amount])).toEqual([
-      [rd.id, 'RECURRING_DEPOSIT', 'Bank', 5000],
-      [rd.id, 'RECURRING_DEPOSIT', 'Bank', 5000],
-    ]);
-  });
 });

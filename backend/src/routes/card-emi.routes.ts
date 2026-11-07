@@ -8,7 +8,6 @@ const router = Router();
 router.use(authenticate);
 
 router.get('/',              cardEMIController.getCardEMIs);
-router.get('/summary',       cardEMIController.getSummary);
 router.get('/card/:cardId',  cardEMIController.getCardEMIsForCard);
 router.post('/',   validate(createCardEMISchema), cardEMIController.createCardEMI);
 router.put('/:id', validate(updateCardEMISchema), cardEMIController.updateCardEMI);

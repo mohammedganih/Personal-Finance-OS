@@ -13,11 +13,6 @@ export async function getCardEMIsForCard(req: AuthRequest, res: Response) {
   res.json({ success: true, data: emis });
 }
 
-export async function getSummary(req: AuthRequest, res: Response) {
-  const summary = await cardEMIService.getCardEMISummary(req.user!.userId);
-  res.json({ success: true, data: summary });
-}
-
 export async function createCardEMI(req: AuthRequest, res: Response) {
   const emi = await cardEMIService.createCardEMI(req.user!.userId, req.body);
   res.status(201).json({ success: true, data: emi });

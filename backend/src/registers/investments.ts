@@ -3,7 +3,7 @@ import { indiaDateKey } from '../lib/cardPaymentSchedule';
 import { getBalanceSheet, getMonthFlows } from '../metrics';
 import { currentMonth, dueItems, instalmentFor, RECURRING_INVESTMENT_TYPES, monthsBetween } from '../schedule/dueItems';
 import { paidInByInvestment } from '../schedule/paidIn';
-import { computeInvestmentValue } from '../services/investment.service';
+import { computeInvestmentValue, valueStatus, type ValueStatus } from '../services/investment.service';
 import { toPlanRow, MonthlyPlanRow } from '../services/monthlyPayments.service';
 
 // The Savings & investments register: every holding with its value, what went
@@ -13,6 +13,8 @@ import { toPlanRow, MonthlyPlanRow } from '../services/monthlyPayments.service';
 export interface HoldingRow {
   id: string; name: string; assetType: string; platform: string | null;
   value: number; invested: number;
+  /** SIPs and mutual funds: where the value comes from (paid in, or entered plus instalments since). */
+  valuation: ValueStatus | null;
   /** Monthly contribution for an active SIP / RD / gold scheme. */
   monthly: number | null;
   memberId: string | null; split: { memberId: string; pct: number } | null;
@@ -62,6 +64,7 @@ export async function getInvestmentRegister(userId: string, now = new Date()): P
       maturityBonus: maturityAmount != null && scheduledTotal != null && maturityAmount > scheduledTotal ? round(maturityAmount - scheduledTotal) : null,
       recurring, autoDebit: inv.autoDebit, bankAccountId: inv.bankAccountId,
       next: item ? { ...toPlanRow(item), period: item.period } : null,
+      valuation: valueStatus(inv, paidIn.get(inv.id), now),
     };
   }).sort((a, b) => b.value - a.value);
 

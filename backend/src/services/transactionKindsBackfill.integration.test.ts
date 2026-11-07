@@ -1,7 +1,8 @@
-import { describe, it, expect, beforeEach, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
 import fs from 'fs';
 import path from 'path';
 import { resetDatabase, prisma } from '../test/db';
+import { createOldTables, dropOldTables, insertBillOccurrences, insertMonthlyPayments } from '../test/oldTables';
 
 // Runs the data part of the 20261106 transaction-kinds migration against seeded
 // rows, so the backfill rules are checked the same way they ran on the dev DB.
@@ -9,8 +10,9 @@ const migration = fs.readFileSync(path.resolve(__dirname, '../../prisma/migratio
 const backfill = migration.slice(migration.indexOf('-- ─── Backfill'))
   .split(/;\s*\n/).map((s) => s.replace(/^\s*--.*$/gm, '').trim()).filter(Boolean);
 
+beforeAll(() => createOldTables());
 beforeEach(() => resetDatabase());
-afterAll(() => prisma.$disconnect());
+afterAll(async () => { await dropOldTables(); await prisma.$disconnect(); });
 
 async function runBackfill() {
   await prisma.transaction.updateMany({ data: { kind: 'SPEND', sourceType: null, sourceId: null, period: null } });
@@ -35,13 +37,13 @@ describe('transaction kinds backfill', () => {
     const cardPayment = await t({ categoryId: cardBill });
     const billPaid = await t({ categoryId: food });
 
-    await prisma.monthlyPayment.createMany({ data: [
+    await insertMonthlyPayments([
       { userId: user.id, entityType: 'INVESTMENT', entityId: 'inv1', month: '2026-10', status: 'PAID', amount: 100, transactionIds: [sip.id] },
       { userId: user.id, entityType: 'LOAN', entityId: 'loan1', month: '2026-09', status: 'PAID', amount: 200, transactionIds: [interest.id, principal.id] },
       { userId: user.id, entityType: 'CREDIT_CARD', entityId: 'card1', month: '2026-11', status: 'PAID', amount: 100, transactionIds: [cardPayment.id] },
-    ] });
+    ]);
     const bill = await prisma.recurringBill.create({ data: { userId: user.id, name: 'Rent', amount: 100, startDate: new Date('2026-01-01'), frequency: 'MONTHLY', category: 'Rent' } });
-    await prisma.billOccurrence.create({ data: { userId: user.id, billId: bill.id, dueDate: new Date('2026-10-31T19:00:00Z'), status: 'PAID', amount: 100, transactionId: billPaid.id } });
+    await insertBillOccurrences([{ userId: user.id, billId: bill.id, dueDate: new Date('2026-10-31T19:00:00Z'), status: 'PAID', amount: 100, transactionId: billPaid.id }]);
 
     await runBackfill();
     const get = async (id: string) => prisma.transaction.findUniqueOrThrow({ where: { id }, select: { kind: true, sourceType: true, sourceId: true, period: true } });

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronRight, CreditCard as CardIcon, Plus } from 'lucide-react';
+import { ChevronRight, CreditCard as Plus } from 'lucide-react';
 import { useCreditCards, useDeleteCreditCard } from '@/hooks/useCreditCards';
 import { useAccounts } from '@/hooks/useAccounts';
 import {

@@ -1,6 +1,4 @@
 import { Investment } from '@prisma/client';
-import { dueItems } from '../schedule/dueItems';
-import { indiaDateKey, shiftMonth } from '../lib/cardPaymentSchedule';
 import { prisma } from '../lib/prisma';
 import { computeInvestmentValue, getPortfolioSummary } from './investment.service';
 
@@ -125,46 +123,11 @@ function addMonths(date: Date, months: number): Date {
 
 // ── Portfolio trend (recorded, not backfilled) ──────────────────────────────
 
-/**
- * Upserts today's portfolio totals. There's no way to honestly reconstruct
- * history for price-tracked holdings (no NAV/price history is stored) --
- * rather than fabricate a backdated trend via interpolation, this records
- * one real data point per day going forward, called on every portfolio
- * summary fetch so the trend fills in naturally as the app is used.
- */
-export async function recordDailySnapshot(
-  userId: string,
-  totals: { totalInvested: number; totalCurrent: number; totalPnl: number },
-): Promise<void> {
-  const now = new Date();
-  const date = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  await prisma.investmentSnapshot.upsert({
-    where: { userId_date: { userId, date } },
-    create: { userId, date, ...totals },
-    update: { ...totals },
-  });
-}
-
 export interface TrendPoint {
   date: Date;
   totalInvested: number;
   totalCurrent: number;
   totalPnl: number;
-}
-
-export async function getPortfolioTrend(userId: string, days = 180): Promise<TrendPoint[]> {
-  const since = new Date();
-  since.setDate(since.getDate() - days);
-  const snapshots = await prisma.investmentSnapshot.findMany({
-    where: { userId, date: { gte: since } },
-    orderBy: { date: 'asc' },
-  });
-  return snapshots.map((s) => ({
-    date: s.date,
-    totalInvested: Number(s.totalInvested),
-    totalCurrent: Number(s.totalCurrent),
-    totalPnl: Number(s.totalPnl),
-  }));
 }
 
 // ── Investment calendar (upcoming SIP/RD/gold-scheme debits) ───────────────
@@ -176,27 +139,6 @@ export interface InvestmentCalendarEntry {
   assetType: string;
   amount: number;
   accountName: string | null;
-}
-
-/** SIP / RD / gold-scheme instalments still to pay from today to the end of `monthsAhead` months, from the schedule engine. */
-export async function getInvestmentCalendar(userId: string, monthsAhead = 3): Promise<InvestmentCalendarEntry[]> {
-  const today = indiaDateKey(new Date());
-  const [items, investments] = await Promise.all([
-    dueItems(userId, today.slice(0, 7), shiftMonth(today.slice(0, 7), monthsAhead - 1), { types: ['INVESTMENT'] }),
-    prisma.investment.findMany({ where: { userId }, select: { id: true, assetType: true, bankAccount: { select: { name: true } } } }),
-  ]);
-  const byId = new Map(investments.map((i) => [i.id, i]));
-  return items
-    .filter((i) => i.status === 'PENDING' && i.dueDate && i.dueDate >= today)
-    .map((i) => ({
-      date: new Date(`${i.dueDate}T00:00:00+05:30`),
-      investmentId: i.itemId,
-      assetName: i.name,
-      assetType: byId.get(i.itemId)?.assetType ?? 'SIP',
-      amount: i.amount,
-      accountName: byId.get(i.itemId)?.bankAccount?.name ?? null,
-    }))
-    .sort((a, b) => a.date.getTime() - b.date.getTime());
 }
 
 // ── Diversification & concentration ─────────────────────────────────────────

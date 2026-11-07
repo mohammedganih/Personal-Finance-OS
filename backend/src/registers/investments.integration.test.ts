@@ -20,12 +20,12 @@ describe('paid in', () => {
 });
 
 describe('savings & investments register', () => {
-  it('gold scheme is worth what was paid in, with its maturity bonus; SIP keeps its typed NAV value', async () => {
+  it('gold scheme is worth what was paid in, with its maturity bonus; a SIP is worth what was paid in until a value is entered', async () => {
     const user = await prisma.user.create({ data: { name: 'F', email: 'invreg@example.com', passwordHash: 'x' } });
     const bank = await prisma.account.create({ data: { userId: user.id, name: 'Bank', type: 'SAVINGS', balance: 100000 } });
     // 11 x 10,000 from Feb 2026, maturing Dec 2026 with 1,10,000 + a 10,000 bonus.
     const gold = await prisma.investment.create({ data: { userId: user.id, assetName: 'Gold scheme', assetType: 'GOLD_SCHEME', monthlyAmount: 10000, quantity: 4.9, currentPrice: 13000, purchaseDate: new Date('2026-02-09T06:00:00Z'), maturityDate: new Date('2026-12-09T06:00:00Z'), maturityAmount: 120000, bankAccountId: bank.id, autoDebit: false } });
-    await prisma.investment.create({ data: { userId: user.id, assetName: 'Index SIP', assetType: 'SIP', monthlyAmount: 2500, quantity: 100, currentPrice: 260, purchaseDate: new Date('2026-08-09T06:00:00Z') } });
+    const sip = await prisma.investment.create({ data: { userId: user.id, assetName: 'Index SIP', assetType: 'SIP', monthlyAmount: 2500, quantity: 100, currentPrice: 260, purchaseDate: new Date('2026-08-09T06:00:00Z') } });
     await prisma.dueStatus.create({ data: { userId: user.id, itemType: 'INVESTMENT', itemId: gold.id, period: '2026-10', status: 'PAID', amount: 10000 } });
     await decideMonthlyPayment(user.id, 'INVESTMENT', gold.id, 'PAID');
 
@@ -34,7 +34,13 @@ describe('savings & investments register', () => {
     // Feb..Sep before tracking (8 x 10,000) + Oct + Nov recorded.
     expect(g).toMatchObject({ invested: 100000, value: 100000, monthly: 10000, maturityAmount: 120000, maturityBonus: 10000, next: { status: 'PAID', period: '2026-11' } });
     const s = reg.holdings.find((h) => h.name === 'Index SIP')!;
-    expect(s).toMatchObject({ invested: 7500, value: 26000, recurring: true }); // Aug..Oct assumed, Nov due
-    expect(reg.totals).toEqual({ totalValue: 126000, addedThisMonth: 10000, nextMaturity: { name: 'Gold scheme', date: '2026-12-09', amount: 120000 } });
+    // Aug..Oct assumed, Nov due. The units and NAV were never entered as a value.
+    expect(s).toMatchObject({ invested: 7500, value: 7500, recurring: true, valuation: { atPaidIn: true, needsUpdate: true } });
+    expect(reg.totals).toEqual({ totalValue: 107500, addedThisMonth: 10000, nextMaturity: { name: 'Gold scheme', date: '2026-12-09', amount: 120000 } });
+
+    // A value entered on 20 Sep (after the Aug and Sep instalments): the 9 Oct instalment is added on top.
+    await prisma.investment.update({ where: { id: sip.id }, data: { enteredValue: 5400, priceUpdatedAt: new Date('2026-09-20T06:00:00Z') } });
+    const later = (await getInvestmentRegister(user.id)).holdings.find((h) => h.name === 'Index SIP')!;
+    expect(later).toMatchObject({ invested: 7500, value: 7900, valuation: { atPaidIn: false, valuedAt: '2026-09-20', addedSince: 2500, needsUpdate: false } });
   });
 });

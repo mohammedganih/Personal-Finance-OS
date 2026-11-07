@@ -8,7 +8,6 @@ const router = Router();
 router.use(authenticate);
 
 router.get('/',           familyController.getMembers);
-router.get('/analytics',  familyController.getMemberAnalytics);
 router.post('/',   validate(createFamilyMemberSchema), familyController.createMember);
 router.put('/:id', validate(updateFamilyMemberSchema), familyController.updateMember);
 router.delete('/:id',     familyController.deleteMember);

@@ -26,6 +26,8 @@ export const createInvestmentSchema = z.object({
   monthlyAmount: z.number().positive().optional(),
   fundCategory:  z.string().max(50).optional(),
   folioNumber:   z.string().max(50).optional(),
+  // SIP / MF: today's value typed straight in, instead of units x NAV.
+  currentValue:  z.number().min(0).max(1e12).optional(),
 
   // RD / FD / Gold Scheme
   maturityDate:   z.string().regex(dateRegex).optional(),

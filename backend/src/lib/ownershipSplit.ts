@@ -46,10 +46,6 @@ export async function writeSplit(
   }
 }
 
-export async function deleteSplit(tx: Client, entityType: SplitEntityType, entityId: string): Promise<void> {
-  await tx.ownershipSplit.deleteMany({ where: { entityType, entityId } });
-}
-
 /** Batched fetch for list endpoints -- one query for all entityIds instead of N+1. */
 export async function fetchSplits(entityType: SplitEntityType, entityIds: string[]): Promise<Map<string, SplitFields>> {
   if (!entityIds.length) return new Map();

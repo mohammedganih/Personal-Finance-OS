@@ -1,4 +1,3 @@
-import { prisma } from '../lib/prisma';
 import { indiaDateKey } from '../lib/cardPaymentSchedule';
 import { dueItems } from './dueItems';
 import { decideMonthlyPayment } from '../services/monthlyPayments.service';
@@ -44,10 +43,3 @@ export async function autoConfirm(userId: string, now = new Date()): Promise<Aut
   return result;
 }
 
-/** Runs autoConfirm for every household (the daily job). */
-export async function autoConfirmAll(now = new Date()) {
-  const users = await prisma.user.findMany({ select: { id: true } });
-  const results = [];
-  for (const u of users) results.push({ userId: u.id, ...(await autoConfirm(u.id, now)) });
-  return results;
-}

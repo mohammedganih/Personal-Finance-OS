@@ -82,11 +82,6 @@ enum BillStatus {
   ARCHIVED
 }
 
-enum BillOccurrenceStatus {
-  PAID
-  SKIPPED
-}
-
 // How a scheduled instalment was settled. AUTO = confirmed automatically on its
 // due date (auto-debit); it is undone exactly like PAID.
 enum DuePaymentStatus {
@@ -142,7 +137,6 @@ enum SplitEntityType {
 // ─── Models ──────────────────────────────────────────────────────────────────
 
 model User {
-  monthlyPayments MonthlyPayment[]
   dueStatuses     DueStatus[]
   settings        UserSettings?
   monthCloses     MonthClose[]
@@ -161,7 +155,6 @@ model User {
   goals         Goal[]
   loans         Loan[]
   recurringBills  RecurringBill[]
-  billOccurrences BillOccurrence[]
   creditCards   CreditCard[]
   p2pLoans      P2PLoan[]
   cardEmis      CardEMI[]
@@ -344,6 +337,11 @@ model Investment {
 
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
+  // When units, the price (NAV) or the value were last entered; the Health check flags old ones.
+  priceUpdatedAt DateTime?
+  // SIPs and mutual funds: the value as last entered (units x NAV, or typed),
+  // as of priceUpdatedAt. Null = never entered, so valued at what was paid in.
+  enteredValue   Decimal?  @db.Decimal(14, 2)
 
   user        User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   member      FamilyMember?         @relation("InvPrimary", fields: [memberId],      references: [id], onDelete: SetNull)
@@ -475,7 +473,7 @@ model Loan {
 // premium, gym...). Future occurrences are never stored -- they are projected on
 // the fly from (startDate, frequency, endDate) by lib/billSchedule.ts. Only
 // *materialized events* (an occurrence the user paid or explicitly skipped) get
-// a BillOccurrence row. This keeps the schema normalized, makes month-skipping
+// a due_status row. This keeps the schema normalized, makes month-skipping
 // non-destructive, and lets forecasts extend arbitrarily far without row bloat.
 
 model RecurringBill {
@@ -521,7 +519,6 @@ model RecurringBill {
   account     Account?         @relation("BillAccount", fields: [accountId], references: [id], onDelete: SetNull)
   creditCard  CreditCard?      @relation("BillCreditCard", fields: [creditCardId], references: [id], onDelete: SetNull)
   categoryRef Category?        @relation("BillCategory", fields: [categoryId], references: [id], onDelete: SetNull)
-  occurrences BillOccurrence[]
 
   @@index([userId])
   @@index([userId, status])
@@ -531,31 +528,6 @@ model RecurringBill {
 }
 
 // Read-only since due_status (2026-11): kept for one round, then to be dropped.
-model BillOccurrence {
-  id     String @id @default(cuid())
-  billId String
-  userId String
-
-  dueDate DateTime // the scheduled occurrence this event refers to (unique per bill)
-  status  BillOccurrenceStatus
-
-  // PAID-only fields
-  amount        Decimal?  @db.Decimal(12, 2) // what was actually paid (may differ from the bill's amount)
-  paidDate      DateTime?
-  transactionId String? // expense Transaction created for this payment, so undo can reverse it
-
-  notes     String?
-  createdAt DateTime @default(now())
-
-  bill RecurringBill @relation(fields: [billId], references: [id], onDelete: Cascade)
-  user User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([billId, dueDate])
-  @@index([userId, dueDate])
-  @@index([billId])
-  @@map("bill_occurrences")
-}
-
 model CreditCard {
   bankAccountId String?
   bankAccount Account? @relation("CardPaymentAccount", fields: [bankAccountId], references: [id], onDelete: SetNull)
@@ -770,6 +742,8 @@ model UserSettings {
   bufferTarget     Decimal? @db.Decimal(14, 2)
   // Accounts whose balance counts as buffer; empty = every active savings account.
   bufferAccountIds String[] @default([])
+  // Last balance check-in on Net worth (even when every balance matched).
+  balancesCheckedAt DateTime?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -805,24 +779,6 @@ model DueStatus {
   @@index([userId, period])
   @@index([itemType, itemId])
   @@map("due_status")
-}
-
-// Read-only since due_status (2026-11): kept for one round, then to be dropped.
-// One monthly decision; unique key prevents duplicate ledger payments.
-model MonthlyPayment {
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  id String @id @default(cuid())
-  userId String
-  entityType String
-  entityId String
-  month String
-  status BillOccurrenceStatus
-  amount Decimal @db.Decimal(14, 2)
-  transactionIds String[] @default([])
-  createdAt DateTime @default(now())
-  @@unique([userId, entityType, entityId, month])
-  @@index([userId, month])
-  @@map("monthly_payments")
 }
 
 // Salary actually received by a family member in a given month (YYYY-MM).
@@ -874,7 +830,7 @@ model LoanEvent {
 }
 
 // A card's monthly statement as the bank printed it. `month` is the due month
-// (YYYY-MM): payments against it live on the CREDIT_CARD MonthlyPayment record
+// (YYYY-MM): payments against it live on its CARD_STATEMENT due_status row
 // for that month, so Pay / Undo work the same as everywhere else.
 model CardStatement {
   id            String   @id @default(cuid())
