@@ -11,3 +11,4 @@ coverage/
 
 # One-off script backups (bill date clean-up)
 bill-dates-backup-*.json
+ledger-backup-*.json
