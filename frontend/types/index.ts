@@ -177,13 +177,6 @@ export interface AnnualizedReturns {
   byHolding: HoldingReturn[];
 }
 
-export interface TrendPoint {
-  date: string;
-  totalInvested: number;
-  totalCurrent: number;
-  totalPnl: number;
-}
-
 export interface NetWorthTrendPoint {
   date: string;
   netWorth: number;
@@ -747,11 +740,6 @@ export interface DebtOverview {
   totalOutstanding: number;
   totalMonthlyEMI: number;
   activeLoanCount: number;
-}
-
-export interface DebtTrendPoint {
-  date: string;
-  totalOutstanding: number;
 }
 
 export interface CalendarEntry {

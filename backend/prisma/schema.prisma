@@ -161,9 +161,7 @@ model User {
   familyMembers FamilyMember[]
   refreshTokens RefreshToken[]
   budgets       Budget[]
-  investmentSnapshots InvestmentSnapshot[]
   netWorthSnapshots   NetWorthSnapshot[]
-  debtSnapshots       DebtSnapshot[]
   goalContributions   GoalContribution[]
   ownershipSplits     OwnershipSplit[]
   monthlySalaries     MonthlySalary[]
@@ -627,22 +625,6 @@ model RefreshToken {
   @@map("refresh_tokens")
 }
 
-model InvestmentSnapshot {
-  id            String   @id @default(cuid())
-  userId        String
-  date          DateTime @db.Date // one row per user per calendar day
-  totalInvested Decimal  @db.Decimal(14, 2)
-  totalCurrent  Decimal  @db.Decimal(14, 2)
-  totalPnl      Decimal  @db.Decimal(14, 2)
-  createdAt     DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, date])
-  @@index([userId])
-  @@map("investment_snapshots")
-}
-
 model NetWorthSnapshot {
   id               String   @id @default(cuid())
   userId           String
@@ -659,19 +641,6 @@ model NetWorthSnapshot {
   @@map("net_worth_snapshots")
 }
 
-model DebtSnapshot {
-  id               String   @id @default(cuid())
-  userId           String
-  date             DateTime @db.Date // one row per user per calendar day
-  totalOutstanding Decimal  @db.Decimal(14, 2)
-  createdAt        DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, date])
-  @@index([userId])
-  @@map("debt_snapshots")
-}
 
 model Budget {
   id           String   @id @default(cuid())
